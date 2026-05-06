@@ -9,21 +9,16 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// Connect establishes a connection to the football database.
 func Connect() (*sqlx.DB, error) {
 	host := os.Getenv("DB_HOST")
 	port := os.Getenv("DB_PORT")
 	user := os.Getenv("DB_USER")
-	pass := os.Getenv("DB_PASSWORD")
+	password := os.Getenv("DB_PASSWORD")
 	dbname := os.Getenv("DB_NAME")
 
-	if host == "" { host = "localhost" }
-	if port == "" { port = "5432" }
-	if user == "" { user = "user" }
-	if pass == "" { pass = "password" }
-	if dbname == "" { dbname = "identity_db" }
-
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		host, port, user, pass, dbname)
+		host, port, user, password, dbname)
 
 	db, err := sqlx.Open("postgres", connStr)
 	if err != nil {

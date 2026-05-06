@@ -5,7 +5,9 @@ go 1.24.0
 replace github.com/scoutpulse/libs/auth => ../../libs/auth
 
 require (
-	github.com/scoutpulse/libs/auth v0.0.0-00010101000000-000000000000
+	github.com/jmoiron/sqlx v1.4.0
+	github.com/lib/pq v1.12.3
+	github.com/scoutpulse/libs/auth v0.0.0
 	github.com/stretchr/testify v1.11.1
 )
 

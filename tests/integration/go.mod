@@ -1,6 +1,11 @@
 module github.com/scoutpulse/integration-tests
 
-go 1.24.0
+go 1.25.5
+
+require (
+	github.com/stretchr/testify v1.11.1
+	github.com/testcontainers/testcontainers-go/modules/compose v0.42.0
+)
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
@@ -99,9 +104,7 @@ require (
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/testcontainers/testcontainers-go v0.42.0 // indirect
-	github.com/testcontainers/testcontainers-go/modules/compose v0.42.0 // indirect
 	github.com/tilt-dev/fsnotify v1.4.8-0.20220602155310-fff9c274a375 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
