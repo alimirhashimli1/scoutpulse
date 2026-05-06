@@ -1,0 +1,22 @@
+# Binaries and executables
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Dependencies
+node_modules/
+vendor/
+
+# Environment variables
+.env
+*.env.local
+
+# IDEs
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

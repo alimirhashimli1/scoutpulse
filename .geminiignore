@@ -1,0 +1,9 @@
+# Focus on source code, ignore large data and artifacts
+**/testdata/**
+**/fixtures/**
+**/dist/**
+**/build/**
+*.log
+*.tmp
+node_modules/
+vendor/
