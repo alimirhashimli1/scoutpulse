@@ -15,8 +15,11 @@ ScoutPulse Micro is a high-performance football database platform (similar to Tr
 - **Responsibility:** Authentication, Authorization, User Profile Management.
 - **Tech Stack:** Go (Golang), PostgreSQL, JWT.
 - **Key Features:**
-  - User Registration & Login.
-  - Role-Based Access Control (RBAC) - [Admin, Scout, User].
+  - User Registration & Login (Email and Username support).
+  - Role-Based Access Control (RBAC) - [ADMIN, EDITOR, USER].
+    - **ADMIN**: Full system access.
+    - **EDITOR**: Can manage specific entities they own (e.g., Teams).
+    - **USER**: Read-only access to public data.
   - Token Validation Middleware for other services.
 
 ### B. Football Service (`/apps/football-svc`)
@@ -56,11 +59,12 @@ ScoutPulse Micro is a high-performance football database platform (similar to Tr
 - [x] 1.2 Containerization Strategy (Docker & CI/CD)
 - [x] 1.3 Foundation Specs (PROJECT_SPEC.md)
 
-### Phase 2: Identity Service (Auth) 🔐
+### Phase 2: Identity Service (Auth) 🔐 [COMPLETED]
 - [x] 2.1 Service Initialization (Go Mod, Postgres Setup)
 - [x] 2.2 User Model & Migrations
 - [x] 2.3 JWT Implementation & Auth Routes
 - [x] 2.4 Username Support & Shared Auth Library
+- [x] 2.5 API Documentation (README.md)
 
 ### Phase 3: Football Service (Domain) ⚽
 - [x] 3.1 Service Initialization

@@ -1,6 +1,6 @@
 services:
   # Identity Service Database
-  identity-db:
+  postgres-identity:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: user
@@ -8,7 +8,7 @@ services:
       POSTGRES_DB: identity_db
     volumes:
       - identity_db_data:/var/lib/postgresql/data
-      - ./apps/identity-svc/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./apps/identity-svc/migrations/000001_create_users_table.up.sql:/docker-entrypoint-initdb.d/01_create_users_table.sql
     networks:
       - scoutpulse-net
 
@@ -31,13 +31,13 @@ services:
       context: .
       dockerfile: apps/identity-svc/Dockerfile
     environment:
-      - DB_HOST=identity-db
+      - DB_HOST=postgres-identity
       - DB_PORT=5432
       - DB_USER=user
       - DB_PASSWORD=password
       - DB_NAME=identity_db
     depends_on:
-      - identity-db
+      - postgres-identity
     ports:
       - "8080:8080"
     networks:

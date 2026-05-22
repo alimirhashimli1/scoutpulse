@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"github.com/scoutpulse/identity-svc/internal/db"
 	"github.com/scoutpulse/identity-svc/internal/handler"
+	"github.com/scoutpulse/identity-svc/internal/repository"
 )
 
 func main() {
@@ -14,7 +15,8 @@ func main() {
 	}
 	defer database.Close()
 
-	h := &handler.Handler{DB: database}
+	userRepo := repository.NewPostgresUserRepository(database)
+	h := &handler.Handler{UserRepo: userRepo}
 
 	http.HandleFunc("/register", h.Register)
 	http.HandleFunc("/login", h.Login)

@@ -39,7 +39,7 @@ func main() {
 	// Admin-only routes - for future tasks like ADDING or DELETING players
 	mux.Handle("/admin/players", auth.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims, _ := auth.GetClaims(r.Context())
-		
+
 		if claims.Role != "admin" {
 			http.Error(w, "Forbidden: Admin access only", http.StatusForbidden)
 			return

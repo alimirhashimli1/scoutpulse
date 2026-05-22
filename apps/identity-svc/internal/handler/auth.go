@@ -5,14 +5,14 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
 	"golang.org/x/crypto/bcrypt"
 	"github.com/scoutpulse/libs/auth"
 	"github.com/scoutpulse/identity-svc/internal/model"
+	"github.com/scoutpulse/identity-svc/internal/repository"
 )
 
 type Handler struct {
-	DB *sqlx.DB
+	UserRepo repository.UserRepository
 }
 
 type RegisterRequest struct {
@@ -41,20 +41,19 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := model.User{
-		ID:           uuid.New().String(),
-		Username:     req.Username,
-		Email:        req.Email,
-		PasswordHash: string(hashedPassword),
-		Role:         req.Role,
+		ID:             uuid.New().String(),
+		Username:       req.Username,
+		Email:          req.Email,
+		PasswordHash:   string(hashedPassword),
+		Role:           req.Role,
+		ManagedTeamIDs: []string{},
 	}
 
 	if user.Role == "" {
 		user.Role = model.UserRole
 	}
 
-	query := `INSERT INTO users (id, username, email, password_hash, role) VALUES ($1, $2, $3, $4, $5)`
-	_, err = h.DB.Exec(query, user.ID, user.Username, user.Email, user.PasswordHash, user.Role)
-	if err != nil {
+	if err := h.UserRepo.Create(r.Context(), &user); err != nil {
 		http.Error(w, "Failed to register user: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -70,9 +69,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var user model.User
-	query := `SELECT id, username, email, password_hash, role FROM users WHERE email = $1 OR username = $1`
-	err := h.DB.Get(&user, query, req.Identifier)
+	user, err := h.UserRepo.GetByIdentifier(r.Context(), req.Identifier)
 	if err != nil {
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return

@@ -13,6 +13,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/scoutpulse/identity-svc/internal/model"
+	"github.com/scoutpulse/identity-svc/internal/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -42,7 +43,7 @@ func TestAuthIntegration(t *testing.T) {
 		postgres.WithDatabase("identity_db"),
 		postgres.WithUsername("user"),
 		postgres.WithPassword("password"),
-		postgres.WithInitScripts(filepath.Join("..", "..", "db", "schema.sql")),
+		postgres.WithInitScripts(filepath.Join("..", "..", "migrations", "000001_create_users_table.up.sql")),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
@@ -61,14 +62,15 @@ func TestAuthIntegration(t *testing.T) {
 	assert.NoError(t, err)
 	defer db.Close()
 
-	h := &Handler{DB: db}
+	userRepo := repository.NewPostgresUserRepository(db)
+	h := &Handler{UserRepo: userRepo}
 
 	// 2. Test Registration
 	regReq := RegisterRequest{
 		Username: "junior_dev",
 		Email:    "dev@scoutpulse.com",
 		Password: "password123",
-		Role:     model.Admin,
+		Role:     model.AdminRole,
 	}
 	regBody, _ := json.Marshal(regReq)
 	
@@ -84,7 +86,7 @@ func TestAuthIntegration(t *testing.T) {
 	err = json.Unmarshal(rr.Body.Bytes(), &userResp)
 	assert.NoError(t, err)
 	assert.Equal(t, regReq.Username, userResp.Username)
-	assert.Equal(t, string(model.Admin), string(userResp.Role))
+	assert.Equal(t, string(model.AdminRole), string(userResp.Role))
 
 	// 3. Test Login (Success)
 	loginReq := LoginRequest{
