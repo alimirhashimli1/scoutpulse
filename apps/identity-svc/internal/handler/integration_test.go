@@ -12,6 +12,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"github.com/scoutpulse/identity-svc/internal/auth"
 	"github.com/scoutpulse/identity-svc/internal/model"
 	"github.com/scoutpulse/identity-svc/internal/repository"
 	"github.com/stretchr/testify/assert"
@@ -74,7 +75,7 @@ func TestAuthIntegration(t *testing.T) {
 	}
 	regBody, _ := json.Marshal(regReq)
 	
-	req, _ := http.NewRequest("POST", "/register", bytes.NewBuffer(regBody))
+	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(regBody))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	
@@ -95,7 +96,7 @@ func TestAuthIntegration(t *testing.T) {
 	}
 	loginBody, _ := json.Marshal(loginReq)
 	
-	req, _ = http.NewRequest("POST", "/login", bytes.NewBuffer(loginBody))
+	req, _ = http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(loginBody))
 	req.Header.Set("Content-Type", "application/json")
 	rr = httptest.NewRecorder()
 	
@@ -106,7 +107,15 @@ func TestAuthIntegration(t *testing.T) {
 	var loginResp map[string]string
 	err = json.Unmarshal(rr.Body.Bytes(), &loginResp)
 	assert.NoError(t, err)
-	assert.NotEmpty(t, loginResp["token"])
+	token := loginResp["token"]
+	assert.NotEmpty(t, token)
+
+	// Verify JWT claims
+	claims, err := auth.ValidateToken(token)
+	assert.NoError(t, err)
+	assert.Equal(t, userResp.ID, claims.UserID)
+	assert.Equal(t, string(model.AdminRole), claims.Role)
+	assert.NotNil(t, claims.ManagedTeamIDs)
 
 	// 4. Test Login (Invalid Credentials)
 	loginReqInvalid := LoginRequest{
@@ -115,7 +124,7 @@ func TestAuthIntegration(t *testing.T) {
 	}
 	loginBodyInvalid, _ := json.Marshal(loginReqInvalid)
 	
-	req, _ = http.NewRequest("POST", "/login", bytes.NewBuffer(loginBodyInvalid))
+	req, _ = http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(loginBodyInvalid))
 	req.Header.Set("Content-Type", "application/json")
 	rr = httptest.NewRecorder()
 	

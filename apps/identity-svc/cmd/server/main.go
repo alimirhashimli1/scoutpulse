@@ -18,8 +18,8 @@ func main() {
 	userRepo := repository.NewPostgresUserRepository(database)
 	h := &handler.Handler{UserRepo: userRepo}
 
-	http.HandleFunc("/register", h.Register)
-	http.HandleFunc("/login", h.Login)
+	http.HandleFunc("/api/v1/auth/register", h.Register)
+	http.HandleFunc("/api/v1/auth/login", h.Login)
 
 	log.Println("Identity Service starting on :8080...")
 	if err := http.ListenAndServe(":8080", nil); err != nil {

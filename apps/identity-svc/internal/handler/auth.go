@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"github.com/scoutpulse/libs/auth"
+	"github.com/scoutpulse/identity-svc/internal/auth"
 	"github.com/scoutpulse/identity-svc/internal/model"
 	"github.com/scoutpulse/identity-svc/internal/repository"
 )
@@ -80,7 +80,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := auth.GenerateToken(user.ID, string(user.Role))
+	token, err := auth.GenerateToken(user.ID, string(user.Role), user.ManagedTeamIDs)
 	if err != nil {
 		http.Error(w, "Error generating token", http.StatusInternalServerError)
 		return
