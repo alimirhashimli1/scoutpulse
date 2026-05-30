@@ -6,12 +6,12 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/scoutpulse/football-svc/db"
 	"github.com/scoutpulse/libs/auth"
+	"github.com/scoutpulse/libs/db"
 )
 
 func main() {
-	database, err := db.Connect()
+	database, err := db.ConnectFromEnv()
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}

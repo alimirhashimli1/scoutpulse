@@ -12,7 +12,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
-	"github.com/scoutpulse/identity-svc/internal/auth"
+	"github.com/scoutpulse/libs/auth"
 	"github.com/scoutpulse/identity-svc/internal/model"
 	"github.com/scoutpulse/identity-svc/internal/repository"
 	"github.com/stretchr/testify/assert"

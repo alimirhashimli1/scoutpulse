@@ -10,10 +10,11 @@ import (
 
 func TestGenerateAndValidateToken(t *testing.T) {
 	userID := "user-123"
-	role := "ADMIN"
+	role := "admin"
+	teams := []string{"team-1", "team-2"}
 
 	// 1. Generate token
-	token, err := GenerateToken(userID, role)
+	token, err := GenerateToken(userID, role, teams)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, token)
 
@@ -22,18 +23,21 @@ func TestGenerateAndValidateToken(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, userID, claims.UserID)
 	assert.Equal(t, role, claims.Role)
+	assert.Equal(t, teams, claims.ManagedTeamIDs)
 }
 
 func TestAuthMiddleware(t *testing.T) {
 	userID := "user-456"
-	role := "USER"
-	token, _ := GenerateToken(userID, role)
+	role := "scout"
+	teams := []string{"team-3"}
+	token, _ := GenerateToken(userID, role, teams)
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims, ok := GetClaims(r.Context())
 		assert.True(t, ok)
 		assert.Equal(t, userID, claims.UserID)
 		assert.Equal(t, role, claims.Role)
+		assert.Equal(t, teams, claims.ManagedTeamIDs)
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -58,6 +62,19 @@ func TestAuthMiddleware(t *testing.T) {
 	rr = httptest.NewRecorder()
 	middleware.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+func TestPermissions(t *testing.T) {
+	adminClaims := &Claims{Role: "admin"}
+	scoutClaims := &Claims{Role: "scout", ManagedTeamIDs: []string{"team-A"}}
+
+	assert.True(t, adminClaims.HasRole("admin"))
+	assert.False(t, scoutClaims.HasRole("admin"))
+	assert.True(t, scoutClaims.HasRole("scout"))
+
+	assert.True(t, adminClaims.HasTeamPermission("any-team"))
+	assert.True(t, scoutClaims.HasTeamPermission("team-A"))
+	assert.False(t, scoutClaims.HasTeamPermission("team-B"))
 }
 
 func TestValidateToken_Invalid(t *testing.T) {

@@ -3,11 +3,13 @@ module github.com/scoutpulse/football-svc
 go 1.24.0
 
 replace github.com/scoutpulse/libs/auth => ../../libs/auth
+replace github.com/scoutpulse/libs/db => ../../libs/db
 
 require (
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.12.3
 	github.com/scoutpulse/libs/auth v0.0.0
+	github.com/scoutpulse/libs/db v0.0.0
 	github.com/stretchr/testify v1.11.1
 )
 

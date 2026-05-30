@@ -1,22 +1,37 @@
-# Stage 1: Build
+# Stage 1: Builder
 FROM golang:1.24-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git
 
 WORKDIR /app
 
-# Copy the entire workspace context (needed for libs/auth)
+# Copy the entire workspace to resolve local library dependencies (libs/auth, libs/db)
 COPY . .
 
-# Build the identity-svc
-# We need to build from the root context or adjust paths because of the local replace in go.mod
-RUN cd apps/identity-svc && go mod download && go build -o /identity-svc main.go
+# Download dependencies for identity-svc
+WORKDIR /app/apps/identity-svc
+RUN go mod download
 
-# Stage 2: Final
-FROM alpine:latest
+# Build the binary
+# -ldflags="-s -w" reduces binary size by removing debug symbols
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/identity-svc ./cmd/server/main.go
 
-WORKDIR /
+# Stage 2: Runtime
+# Using scratch or alpine for a minimal production image
+FROM alpine:3.19
 
-COPY --from=builder /identity-svc /identity-svc
+# Add a non-privileged user for security
+RUN adduser -D scoutuser
+USER scoutuser
 
+WORKDIR /home/scoutuser/
+
+# Copy the binary from the builder stage
+COPY --from=builder /app/identity-svc .
+
+# Expose the port identity-svc listens on
 EXPOSE 8080
 
-CMD ["/identity-svc"]
+# Run the application
+ENTRYPOINT ["./identity-svc"]

@@ -7,30 +7,60 @@ on:
     branches: [ main ]
 
 jobs:
-  build-and-test:
+  identity-svc-ci:
+    name: Identity Service CI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.24'
+          cache: true
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+      - name: Install golangci-lint
+        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.5
+
+      - name: Lint Identity Service
+        run: |
+          cd apps/identity-svc
+          golangci-lint run ./...
+
+      - name: Run Identity Service Unit Tests
+        run: |
+          cd apps/identity-svc
+          # Running unit tests (excluding integration tests that require Docker/Postgres)
+          go test -v -short ./...
+
+      - name: Run Auth Library Tests
+        run: |
+          cd libs/auth
+          go test -v ./...
+
+      - name: Build Identity Service
+        run: |
+          cd apps/identity-svc
+          go build -v ./cmd/server/main.go
+
+  football-svc-ci:
+    name: Football Service CI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          node-version: '18'
+          go-version: '1.24'
+          cache: true
 
-      - name: Build Apps
+      - name: Run Football Service Unit Tests
         run: |
-          echo "Building services..."
-          # Future commands:
-          # cd apps/identity-svc && go build ./...
-          # cd apps/frontend && npm install && npm run build
+          cd apps/football-svc
+          go test -v ./...
 
-      - name: Run Tests
+      - name: Build Football Service
         run: |
-          echo "Running tests..."
-          # Future commands:
-          # go test ./...
+          cd apps/football-svc
+          go build -v main.go

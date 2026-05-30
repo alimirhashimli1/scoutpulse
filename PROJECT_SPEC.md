@@ -65,6 +65,8 @@ ScoutPulse Micro is a high-performance football database platform (similar to Tr
 - [x] 2.3 JWT Implementation & Auth Routes
 - [x] 2.4 Username Support & Shared Auth Library
 - [x] 2.5 API Documentation (README.md)
+- [x] 2.6 Health Check Endpoint (/health)
+- [x] 2.7 Unit Tests (Mocking) & Integration Tests (Testcontainers)
 
 ### Phase 3: Football Service (Domain) ⚽
 - [x] 3.1 Service Initialization

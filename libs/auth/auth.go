@@ -13,8 +13,9 @@ import (
 var jwtSecret = []byte("scoutpulse_secret_key") // In production, use env variable
 
 type Claims struct {
-	UserID string `json:"user_id"`
-	Role   string `json:"role"`
+	UserID         string   `json:"user_id"`
+	Role           string   `json:"role"`
+	ManagedTeamIDs []string `json:"managed_team_ids"`
 	jwt.RegisteredClaims
 }
 
@@ -23,11 +24,12 @@ type contextKey string
 const ClaimsContextKey contextKey = "claims"
 
 // GenerateToken creates a new JWT for a user.
-func GenerateToken(userID string, role string) (string, error) {
+func GenerateToken(userID string, role string, managedTeamIDs []string) (string, error) {
 	expirationTime := time.Now().Add(24 * time.Hour)
 	claims := &Claims{
-		UserID: userID,
-		Role:   role,
+		UserID:         userID,
+		Role:           role,
+		ManagedTeamIDs: managedTeamIDs,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 		},
@@ -85,4 +87,22 @@ func AuthMiddleware(next http.Handler) http.Handler {
 func GetClaims(ctx context.Context) (*Claims, bool) {
 	claims, ok := ctx.Value(ClaimsContextKey).(*Claims)
 	return claims, ok
+}
+
+// HasRole checks if the user has a specific role.
+func (c *Claims) HasRole(role string) bool {
+	return c.Role == role
+}
+
+// HasTeamPermission checks if the user has permission for a specific team.
+func (c *Claims) HasTeamPermission(teamID string) bool {
+	if c.Role == "admin" {
+		return true
+	}
+	for _, id := range c.ManagedTeamIDs {
+		if id == teamID {
+			return true
+		}
+	}
+	return false
 }

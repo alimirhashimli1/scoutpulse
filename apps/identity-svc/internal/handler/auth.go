@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"github.com/scoutpulse/identity-svc/internal/auth"
+	"github.com/scoutpulse/libs/auth"
 	"github.com/scoutpulse/identity-svc/internal/model"
 	"github.com/scoutpulse/identity-svc/internal/repository"
 )
@@ -25,6 +25,11 @@ type RegisterRequest struct {
 type LoginRequest struct {
 	Identifier string `json:"identifier"` // Email or Username
 	Password   string `json:"password"`
+}
+
+func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Identity Service is healthy"))
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
