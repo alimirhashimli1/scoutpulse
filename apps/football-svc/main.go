@@ -22,7 +22,7 @@ func main() {
 	// Public routes
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Football Service is healthy"))
+		_, _ = w.Write([]byte("Football Service is healthy"))
 	})
 
 	mux.HandleFunc("/players", func(w http.ResponseWriter, r *http.Request) {
@@ -33,7 +33,7 @@ func main() {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	})
 
 	// Admin-only routes - for future tasks like ADDING or DELETING players
@@ -46,7 +46,7 @@ func main() {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"message": "Welcome, Admin! You have permission to modify player data.",
 		})
 	})))

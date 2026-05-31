@@ -54,7 +54,9 @@ func TestAuthIntegration(t *testing.T) {
 		t.Skipf("Skipping test: Docker not available or container failed to start: %v", err)
 		return
 	}
-	defer pgContainer.Terminate(ctx)
+	defer func() {
+		_ = pgContainer.Terminate(ctx)
+	}()
 
 	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
 	assert.NoError(t, err)
