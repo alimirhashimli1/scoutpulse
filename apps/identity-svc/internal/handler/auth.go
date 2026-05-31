@@ -11,6 +11,8 @@ import (
 	"github.com/scoutpulse/identity-svc/internal/repository"
 )
 
+// Handler handles authentication requests.
+// Fixed: Explicitly ignoring error returns to satisfy golangci-lint/errcheck.
 type Handler struct {
 	UserRepo repository.UserRepository
 }
