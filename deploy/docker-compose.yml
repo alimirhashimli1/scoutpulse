@@ -12,6 +12,19 @@ services:
     networks:
       - scoutpulse-net
 
+  postgres-football:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: football_db
+    volumes:
+      - football_db_data:/var/lib/postgresql/data
+      # Mount the migration so it runs on startup
+      - ../apps/football-svc/migrations/001_init_football_tables.up.sql:/docker-entrypoint-initdb.d/01_init_football_tables.sql
+    networks:
+      - scoutpulse-net
+
   identity-svc:
     build:
       context: ..
@@ -35,3 +48,4 @@ networks:
 
 volumes:
   identity_db_data:
+  football_db_data:

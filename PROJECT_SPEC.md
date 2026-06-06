@@ -22,6 +22,13 @@ ScoutPulse Micro is a high-performance football database platform (similar to Tr
     - **USER**: Read-only access to public data.
   - Token Validation Middleware for other services.
 
+#### API Contract
+| Endpoint | Method | Description | Payload |
+|----------|--------|-------------|---------|
+| `/health` | `GET` | Service health check | N/A |
+| `/api/v1/auth/register` | `POST` | Register a new user | `{username, email, password, role}` |
+| `/api/v1/auth/login` | `POST` | Login & receive JWT | `{identifier, password}` |
+
 ### B. Football Service (`/apps/football-svc`)
 - **Responsibility:** Core football domain logic.
 - **Tech Stack:** Go (Golang), PostgreSQL, gRPC.
