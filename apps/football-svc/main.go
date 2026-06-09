@@ -1,11 +1,13 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 
+	"github.com/scoutpulse/football-svc/internal/handler"
+	"github.com/scoutpulse/football-svc/internal/repository"
+	"github.com/scoutpulse/football-svc/internal/service"
 	"github.com/scoutpulse/libs/auth"
 	"github.com/scoutpulse/libs/db"
 )
@@ -17,39 +19,41 @@ func main() {
 	}
 	defer database.Close()
 
+	// Initialize Repositories
+	leagueRepo := repository.NewPostgresLeagueRepository(database)
+	teamRepo := repository.NewPostgresTeamRepository(database)
+	coachRepo := repository.NewPostgresCoachRepository(database)
+
+	// Initialize Services
+	leagueService := service.NewLeagueService(leagueRepo)
+	teamService := service.NewTeamService(teamRepo)
+	coachService := service.NewCoachService(coachRepo)
+
+	// Initialize Handlers
+	leagueHandler := handler.NewLeagueHandler(leagueService)
+	teamHandler := handler.NewTeamHandler(teamService)
+	coachHandler := handler.NewCoachHandler(coachService)
+
 	mux := http.NewServeMux()
 
-	// Public routes
+	// Health check
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("Football Service is healthy"))
 	})
 
-	mux.HandleFunc("/players", func(w http.ResponseWriter, r *http.Request) {
-		// This is PUBLIC - anyone can see the list of players
-		response := map[string]interface{}{
-			"message": "Public football data",
-			"players": []string{"Lionel Messi", "Cristiano Ronaldo", "Kylian Mbappé"},
-		}
+	// League routes
+	mux.HandleFunc("GET /leagues", leagueHandler.ListLeagues)
+	mux.Handle("POST /leagues", auth.AuthMiddleware(http.HandlerFunc(leagueHandler.CreateLeague)))
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
-	})
+	// Team routes
+	mux.HandleFunc("GET /teams", teamHandler.ListTeams)
+	mux.Handle("POST /teams", auth.AuthMiddleware(http.HandlerFunc(teamHandler.CreateTeam)))
+	mux.Handle("PUT /teams/{id}", auth.AuthMiddleware(http.HandlerFunc(teamHandler.UpdateTeam)))
 
-	// Admin-only routes - for future tasks like ADDING or DELETING players
-	mux.Handle("/admin/players", auth.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims, _ := auth.GetClaims(r.Context())
-
-		if claims.Role != "admin" {
-			http.Error(w, "Forbidden: Admin access only", http.StatusForbidden)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"message": "Welcome, Admin! You have permission to modify player data.",
-		})
-	})))
+	// Coach routes
+	mux.HandleFunc("GET /coaches", coachHandler.GetCoachByTeam)
+	mux.Handle("POST /coaches", auth.AuthMiddleware(http.HandlerFunc(coachHandler.CreateCoach)))
 
 	port := ":8081"
 	fmt.Printf("Football Service starting on port %s\n", port)
