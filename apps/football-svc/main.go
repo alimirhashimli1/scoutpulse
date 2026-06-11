@@ -43,17 +43,18 @@ func main() {
 	})
 
 	// League routes
-	mux.HandleFunc("GET /leagues", leagueHandler.ListLeagues)
-	mux.Handle("POST /leagues", auth.AuthMiddleware(http.HandlerFunc(leagueHandler.CreateLeague)))
+	mux.HandleFunc("GET /api/v1/leagues", leagueHandler.ListLeagues)
+	mux.Handle("POST /api/v1/leagues", auth.AuthMiddleware(http.HandlerFunc(leagueHandler.CreateLeague)))
 
 	// Team routes
-	mux.HandleFunc("GET /teams", teamHandler.ListTeams)
-	mux.Handle("POST /teams", auth.AuthMiddleware(http.HandlerFunc(teamHandler.CreateTeam)))
-	mux.Handle("PUT /teams/{id}", auth.AuthMiddleware(http.HandlerFunc(teamHandler.UpdateTeam)))
+	mux.HandleFunc("GET /api/v1/teams", teamHandler.ListTeams)
+	mux.HandleFunc("GET /api/v1/teams/{id}", teamHandler.GetTeam)
+	mux.Handle("POST /api/v1/teams", auth.AuthMiddleware(http.HandlerFunc(teamHandler.CreateTeam)))
+	mux.Handle("PUT /api/v1/teams/{id}", auth.AuthMiddleware(http.HandlerFunc(teamHandler.UpdateTeam)))
 
 	// Coach routes
-	mux.HandleFunc("GET /coaches", coachHandler.GetCoachByTeam)
-	mux.Handle("POST /coaches", auth.AuthMiddleware(http.HandlerFunc(coachHandler.CreateCoach)))
+	mux.HandleFunc("GET /api/v1/coaches", coachHandler.GetCoachByTeam)
+	mux.Handle("POST /api/v1/coaches", auth.AuthMiddleware(http.HandlerFunc(coachHandler.CreateCoach)))
 
 	port := ":8081"
 	fmt.Printf("Football Service starting on port %s\n", port)

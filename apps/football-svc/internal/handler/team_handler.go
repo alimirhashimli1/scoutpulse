@@ -34,6 +34,23 @@ func (h *TeamHandler) ListTeams(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(teams)
 }
 
+func (h *TeamHandler) GetTeam(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "id is required", http.StatusBadRequest)
+		return
+	}
+
+	team, err := h.service.GetTeam(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Team not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(team)
+}
+
 func (h *TeamHandler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 	// RBAC logic
 	claims, ok := auth.GetClaims(r.Context())

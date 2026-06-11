@@ -68,7 +68,7 @@ func TestRBAC_CreateLeague(t *testing.T) {
 			league := domain.League{Name: "Test League"}
 			body, _ := json.Marshal(league)
 			
-			req := httptest.NewRequest("POST", "/leagues", bytes.NewBuffer(body))
+			req := httptest.NewRequest("POST", "/api/v1/leagues", bytes.NewBuffer(body))
 			req.Header.Set("Authorization", "Bearer "+token)
 
 			if tt.expectedStatus == http.StatusCreated {
@@ -106,7 +106,7 @@ func TestRBAC_CreateTeam(t *testing.T) {
 			team := domain.Team{Name: "Test Team"}
 			body, _ := json.Marshal(team)
 			
-			req := httptest.NewRequest("POST", "/teams", bytes.NewBuffer(body))
+			req := httptest.NewRequest("POST", "/api/v1/teams", bytes.NewBuffer(body))
 			req.Header.Set("Authorization", "Bearer "+token)
 
 			if tt.expectedStatus == http.StatusCreated {
@@ -121,6 +121,27 @@ func TestRBAC_CreateTeam(t *testing.T) {
 			mockService.AssertExpectations(t)
 		})
 	}
+}
+
+func TestRBAC_GetTeam(t *testing.T) {
+	mockService := new(MockTeamService)
+	h := NewTeamHandler(mockService)
+
+	t.Run("Public access allowed", func(t *testing.T) {
+		teamID := "team-1"
+		team := &domain.Team{ID: teamID, Name: "Test Team"}
+		
+		req := httptest.NewRequest("GET", "/api/v1/teams/"+teamID, nil)
+		req.SetPathValue("id", teamID)
+
+		mockService.On("GetTeam", mock.Anything, teamID).Return(team, nil).Once()
+
+		rr := httptest.NewRecorder()
+		h.GetTeam(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		mockService.AssertExpectations(t)
+	})
 }
 
 type MockLeagueService struct {
@@ -214,7 +235,7 @@ func TestRBAC_UpdateTeam(t *testing.T) {
 			team := domain.Team{ID: tt.teamID, Name: "Test Team"}
 			body, _ := json.Marshal(team)
 			
-			req := httptest.NewRequest("PUT", "/teams/"+tt.teamID, bytes.NewBuffer(body))
+			req := httptest.NewRequest("PUT", "/api/v1/teams/"+tt.teamID, bytes.NewBuffer(body))
 			req.Header.Set("Authorization", "Bearer "+token)
 			// Using net/http's PathValue requires Go 1.22+ and usually set by the mux
 			// For testing, we can set it manually if we use the mux or just mock the request
@@ -261,7 +282,7 @@ func TestRBAC_CreateCoach(t *testing.T) {
 			coach := domain.Coach{TeamID: tt.teamID, Name: "Test Coach"}
 			body, _ := json.Marshal(coach)
 			
-			req := httptest.NewRequest("POST", "/coaches", bytes.NewBuffer(body))
+			req := httptest.NewRequest("POST", "/api/v1/coaches", bytes.NewBuffer(body))
 			req.Header.Set("Authorization", "Bearer "+token)
 
 			if tt.expectedStatus == http.StatusCreated {
