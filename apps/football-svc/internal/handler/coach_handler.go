@@ -52,7 +52,7 @@ func (h *CoachHandler) CreateCoach(w http.ResponseWriter, r *http.Request) {
 		// Admin: Grant access immediately
 	} else if claims.Role == "editor" {
 		// Editor: Check if manages this team
-		if !claims.HasTeamPermission(coach.TeamID) {
+		if coach.TeamID == nil || !claims.HasTeamPermission(*coach.TeamID) {
 			http.Error(w, "Forbidden: You do not manage this team", http.StatusForbidden)
 			return
 		}

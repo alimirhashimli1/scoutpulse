@@ -5,6 +5,7 @@ import (
 
 	"github.com/scoutpulse/football-svc/internal/domain"
 	"github.com/scoutpulse/football-svc/internal/repository"
+	"github.com/scoutpulse/libs/auth"
 )
 
 type LeagueService interface {
@@ -32,13 +33,34 @@ func (s *leagueService) ListLeagues(ctx context.Context) ([]domain.League, error
 }
 
 func (s *leagueService) CreateLeague(ctx context.Context, league *domain.League) error {
+	claims, ok := auth.GetClaims(ctx)
+	if !ok {
+		return ErrUnauthorized
+	}
+	if !claims.HasRole("admin") {
+		return ErrForbidden
+	}
 	return s.repo.Create(ctx, league)
 }
 
 func (s *leagueService) UpdateLeague(ctx context.Context, league *domain.League) error {
+	claims, ok := auth.GetClaims(ctx)
+	if !ok {
+		return ErrUnauthorized
+	}
+	if !claims.HasRole("admin") {
+		return ErrForbidden
+	}
 	return s.repo.Update(ctx, league)
 }
 
 func (s *leagueService) DeleteLeague(ctx context.Context, id string) error {
+	claims, ok := auth.GetClaims(ctx)
+	if !ok {
+		return ErrUnauthorized
+	}
+	if !claims.HasRole("admin") {
+		return ErrForbidden
+	}
 	return s.repo.Delete(ctx, id)
 }

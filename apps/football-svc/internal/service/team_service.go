@@ -5,6 +5,7 @@ import (
 
 	"github.com/scoutpulse/football-svc/internal/domain"
 	"github.com/scoutpulse/football-svc/internal/repository"
+	"github.com/scoutpulse/libs/auth"
 )
 
 type TeamService interface {
@@ -32,13 +33,34 @@ func (s *teamService) ListTeamsByLeague(ctx context.Context, leagueID string) ([
 }
 
 func (s *teamService) CreateTeam(ctx context.Context, team *domain.Team) error {
+	claims, ok := auth.GetClaims(ctx)
+	if !ok {
+		return ErrUnauthorized
+	}
+	if !claims.HasRole("admin") {
+		return ErrForbidden
+	}
 	return s.repo.Create(ctx, team)
 }
 
 func (s *teamService) UpdateTeam(ctx context.Context, team *domain.Team) error {
+	claims, ok := auth.GetClaims(ctx)
+	if !ok {
+		return ErrUnauthorized
+	}
+	if !claims.HasTeamPermission(team.ID) {
+		return ErrForbidden
+	}
 	return s.repo.Update(ctx, team)
 }
 
 func (s *teamService) DeleteTeam(ctx context.Context, id string) error {
+	claims, ok := auth.GetClaims(ctx)
+	if !ok {
+		return ErrUnauthorized
+	}
+	if !claims.HasRole("admin") {
+		return ErrForbidden
+	}
 	return s.repo.Delete(ctx, id)
 }

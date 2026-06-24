@@ -279,7 +279,7 @@ func TestRBAC_CreateCoach(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			token, _ := auth.GenerateToken("user-1", tt.role, tt.managedTeamIDs)
 			
-			coach := domain.Coach{TeamID: tt.teamID, Name: "Test Coach"}
+			coach := domain.Coach{TeamID: &tt.teamID, Name: "Test Coach"}
 			body, _ := json.Marshal(coach)
 			
 			req := httptest.NewRequest("POST", "/api/v1/coaches", bytes.NewBuffer(body))

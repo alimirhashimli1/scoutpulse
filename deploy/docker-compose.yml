@@ -18,10 +18,12 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: football_db
+    ports:
+      - "5434:5432"
     volumes:
       - football_db_data:/var/lib/postgresql/data
       # Mount the migration so it runs on startup
-      - ../apps/football-svc/migrations/001_init_football_tables.up.sql:/docker-entrypoint-initdb.d/01_init_football_tables.sql
+      - ../apps/football-svc/migrations/000001_init_football_schema.up.sql:/docker-entrypoint-initdb.d/01_init_football_schema.sql
     networks:
       - scoutpulse-net
 
@@ -29,6 +31,7 @@ services:
     build:
       context: ..
       dockerfile: apps/identity-svc/Dockerfile
+    restart: on-failure
     environment:
       - DB_HOST=postgres-identity
       - DB_PORT=5432

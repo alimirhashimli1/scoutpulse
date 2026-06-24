@@ -77,7 +77,7 @@ ScoutPulse Micro is a high-performance football database platform (similar to Tr
 
 ### Phase 3: Football Service (Domain) ⚽
 - [x] 3.1 Service Initialization
-- [ ] 3.2 Core Models (Leagues, Teams, Players)
+- [x] 3.2 Core Models (Leagues, Teams, Coaches - Database Migration & Schema)
 - [ ] 3.3 Internal gRPC Communication
 - [x] 3.4 Auth Middleware Integration
 

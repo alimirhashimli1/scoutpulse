@@ -13,15 +13,17 @@ services:
       - scoutpulse-net
 
   # Football Service Database
-  football-db:
+  postgres-football:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: football_db
+    ports:
+      - "5434:5432"
     volumes:
       - football_db_data:/var/lib/postgresql/data
-      - ./apps/football-svc/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./apps/football-svc/migrations/000001_init_football_schema.up.sql:/docker-entrypoint-initdb.d/01_init_football_schema.sql
     networks:
       - scoutpulse-net
 
@@ -30,6 +32,7 @@ services:
     build:
       context: .
       dockerfile: apps/identity-svc/Dockerfile
+    restart: on-failure
     environment:
       - DB_HOST=postgres-identity
       - DB_PORT=5432
@@ -47,8 +50,9 @@ services:
     build:
       context: .
       dockerfile: apps/football-svc/Dockerfile
+    restart: on-failure
     environment:
-      - DB_HOST=football-db
+      - DB_HOST=postgres-football
       - DB_PORT=5432
       - DB_USER=user
       - DB_PASSWORD=password
@@ -56,7 +60,7 @@ services:
     ports:
       - "8081:8081"
     depends_on:
-      - football-db
+      - postgres-football
     networks:
       - scoutpulse-net
 
