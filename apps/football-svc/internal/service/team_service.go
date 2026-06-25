@@ -48,7 +48,16 @@ func (s *teamService) UpdateTeam(ctx context.Context, team *domain.Team) error {
 	if !ok {
 		return ErrUnauthorized
 	}
-	if !claims.HasTeamPermission(team.ID) {
+
+	if claims.HasRole("admin") {
+		// Admin: Full global CRUD access
+	} else if claims.HasRole("editor") {
+		// Editor: Allowed to mutate a team only if that team's ID is in their managed array.
+		if !claims.HasTeamPermission(team.ID) {
+			return ErrForbidden
+		}
+	} else {
+		// User/Guest: Read-only access
 		return ErrForbidden
 	}
 	return s.repo.Update(ctx, team)

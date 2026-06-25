@@ -37,7 +37,9 @@ func (s *leagueService) CreateLeague(ctx context.Context, league *domain.League)
 	if !ok {
 		return ErrUnauthorized
 	}
+
 	if !claims.HasRole("admin") {
+		// Only Admin can create leagues
 		return ErrForbidden
 	}
 	return s.repo.Create(ctx, league)
