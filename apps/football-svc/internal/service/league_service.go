@@ -50,7 +50,9 @@ func (s *leagueService) UpdateLeague(ctx context.Context, league *domain.League)
 	if !ok {
 		return ErrUnauthorized
 	}
+
 	if !claims.HasRole("admin") {
+		// Only Admin can update leagues
 		return ErrForbidden
 	}
 	return s.repo.Update(ctx, league)
@@ -61,7 +63,9 @@ func (s *leagueService) DeleteLeague(ctx context.Context, id string) error {
 	if !ok {
 		return ErrUnauthorized
 	}
+
 	if !claims.HasRole("admin") {
+		// Only Admin can delete leagues
 		return ErrForbidden
 	}
 	return s.repo.Delete(ctx, id)

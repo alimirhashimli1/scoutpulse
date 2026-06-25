@@ -68,7 +68,16 @@ func (s *teamService) DeleteTeam(ctx context.Context, id string) error {
 	if !ok {
 		return ErrUnauthorized
 	}
-	if !claims.HasRole("admin") {
+
+	if claims.HasRole("admin") {
+		// Admin: Full global CRUD access
+	} else if claims.HasRole("editor") {
+		// Editor: Allowed to delete a team only if that team's ID is in their managed array.
+		if !claims.HasTeamPermission(id) {
+			return ErrForbidden
+		}
+	} else {
+		// User/Guest: Read-only access
 		return ErrForbidden
 	}
 	return s.repo.Delete(ctx, id)
