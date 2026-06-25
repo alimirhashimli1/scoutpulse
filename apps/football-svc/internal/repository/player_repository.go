@@ -7,9 +7,21 @@ import (
 	"github.com/scoutpulse/football-svc/internal/domain"
 )
 
+package repository
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/jmoiron/sqlx"
+	"github.com/scoutpulse/football-svc/internal/domain"
+)
+
 type PlayerRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Player, error)
 	ListByTeam(ctx context.Context, teamID string) ([]domain.Player, error)
+	ListPlayers(ctx context.Context, freeAgent *bool, position *string) ([]domain.Player, error) // New method
 	Create(ctx context.Context, player *domain.Player) error
 	Update(ctx context.Context, player *domain.Player) error
 	Delete(ctx context.Context, id string) error
@@ -37,6 +49,40 @@ func (r *postgresPlayerRepository) ListByTeam(ctx context.Context, teamID string
 	var players []domain.Player
 	query := `SELECT id, team_id, name, position, market_value, contract_until, created_at FROM players WHERE team_id = $1`
 	err := r.db.SelectContext(ctx, &players, query, teamID)
+	if err != nil {
+		return nil, err
+	}
+	return players, nil
+}
+
+// ListPlayers implements the new method for filtering players based on free agent status and position.
+func (r *postgresPlayerRepository) ListPlayers(ctx context.Context, freeAgent *bool, position *string) ([]domain.Player, error) {
+	var players []domain.Player
+	query := `SELECT id, team_id, name, position, market_value, contract_until, created_at FROM players`
+
+	conditions := []string{}
+	args := []interface{}{}
+	argCounter := 1
+
+	if freeAgent != nil {
+		if *freeAgent {
+			conditions = append(conditions, fmt.Sprintf("team_id IS NULL"))
+		} else {
+			conditions = append(conditions, fmt.Sprintf("team_id IS NOT NULL"))
+		}
+	}
+
+	if position != nil && *position != "" {
+		conditions = append(conditions, fmt.Sprintf("position = $%d", argCounter))
+		args = append(args, *position)
+		argCounter++
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	err := r.db.SelectContext(ctx, &players, query, args...)
 	if err != nil {
 		return nil, err
 	}

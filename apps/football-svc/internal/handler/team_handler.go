@@ -10,11 +10,17 @@ import (
 )
 
 type TeamHandler struct {
-	service service.TeamService
+	teamService  service.TeamService
+	playerService service.PlayerService
+	coachService service.CoachService
 }
 
-func NewTeamHandler(service service.TeamService) *TeamHandler {
-	return &TeamHandler{service: service}
+func NewTeamHandler(teamService service.TeamService, playerService service.PlayerService, coachService service.CoachService) *TeamHandler {
+	return &TeamHandler{
+		teamService:  teamService,
+		playerService: playerService,
+		coachService: coachService,
+	}
 }
 
 func (h *TeamHandler) ListTeams(w http.ResponseWriter, r *http.Request) {
@@ -34,6 +40,13 @@ func (h *TeamHandler) ListTeams(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(teams)
 }
 
+// TeamDetailResponse is the response structure for GetTeam that includes nested players and coach.
+type TeamDetailResponse struct {
+	domain.Team
+	Players []domain.Player `json:"players"`
+	Coach   *domain.Coach   `json:"coach,omitempty"`
+}
+
 func (h *TeamHandler) GetTeam(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
@@ -41,14 +54,37 @@ func (h *TeamHandler) GetTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	team, err := h.service.GetTeam(r.Context(), id)
+	team, err := h.teamService.GetTeam(r.Context(), id)
 	if err != nil {
-		http.Error(w, "Team not found", http.StatusNotFound)
+		if err == service.ErrNotFound { // Assuming service layer returns a specific error for not found
+			http.Error(w, "Team not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	players, err := h.playerService.ListPlayersByTeam(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	coach, err := h.coachService.GetCoachByTeam(r.Context(), id)
+	if err != nil && err != service.ErrNotFound { // Coach might not exist, but other errors should be handled
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// If coach is not found, coach will be nil, which is handled by omitempty in JSON tag
+
+	response := TeamDetailResponse{
+		Team:    *team,
+		Players: players,
+		Coach:   coach,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(team)
+	json.NewEncoder(w).Encode(response)
 }
 
 func (h *TeamHandler) CreateTeam(w http.ResponseWriter, r *http.Request) {
