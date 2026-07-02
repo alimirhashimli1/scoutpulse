@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/scoutpulse/football-svc/internal/domain"
-	"github.com/scoutpulse/libs/auth"
-	"github.com/scoutpulse/libs/db"
+	"football-database-app/apps/football-svc/internal/domain"
+	"football-database-app/libs/auth"
+	"football-database-app/libs/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/compose"
 )

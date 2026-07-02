@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/scoutpulse/football-svc/internal/domain"
-	"github.com/scoutpulse/libs/auth"
+	"football-database-app/apps/football-svc/internal/domain"
+	"football-database-app/libs/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
