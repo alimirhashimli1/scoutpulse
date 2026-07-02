@@ -101,6 +101,66 @@ func TestTeamService_UpdateTeam_RBAC(t *testing.T) {
 	})
 }
 
+func TestPlayerService_UpdatePlayer_RBAC(t *testing.T) {
+	repo := new(MockPlayerRepository)
+	svc := NewPlayerService(repo)
+
+	t.Run("Editor trying to update a player of an unmanaged team should trigger Forbidden error", func(t *testing.T) {
+		claims := &auth.Claims{
+			Role:           "editor",
+			ManagedTeamIDs: []string{"team-2"},
+		}
+		ctx := context.WithValue(context.Background(), auth.ClaimsContextKey, claims)
+
+		teamID := "team-1"
+		player := &domain.Player{ID: "player-1", TeamID: &teamID, Name: "Updated Player", MarketValue: 120.0}
+
+		// Act
+		err := svc.UpdatePlayer(ctx, player)
+
+		// Assert
+		assert.ErrorIs(t, err, ErrForbidden)
+		repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	})
+
+	t.Run("Editor updating a player of a managed team should be allowed", func(t *testing.T) {
+		claims := &auth.Claims{
+			Role:           "editor",
+			ManagedTeamIDs: []string{"team-1"},
+		}
+		ctx := context.WithValue(context.Background(), auth.ClaimsContextKey, claims)
+
+		teamID := "team-1"
+		player := &domain.Player{ID: "player-1", TeamID: &teamID, Name: "Updated Player", MarketValue: 120.0}
+		repo.On("Update", mock.Anything, player).Return(nil).Once()
+
+		// Act
+		err := svc.UpdatePlayer(ctx, player)
+
+		// Assert
+		assert.NoError(t, err)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("Admin updating any player should be allowed", func(t *testing.T) {
+		claims := &auth.Claims{
+			Role: "admin",
+		}
+		ctx := context.WithValue(context.Background(), auth.ClaimsContextKey, claims)
+
+		teamID := "team-1"
+		player := &domain.Player{ID: "player-1", TeamID: &teamID, Name: "Updated Player", MarketValue: 120.0}
+		repo.On("Update", mock.Anything, player).Return(nil).Once()
+
+		// Act
+		err := svc.UpdatePlayer(ctx, player)
+
+		// Assert
+		assert.NoError(t, err)
+		repo.AssertExpectations(t)
+	})
+}
+
 // MockCoachRepository is a mock of repository.CoachRepository
 type MockCoachRepository struct {
 	mock.Mock
