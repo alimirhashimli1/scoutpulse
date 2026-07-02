@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/scoutpulse/football-svc/internal/domain"
+	"football-database-app/apps/football-svc/internal/domain"
 )
 
 type TeamRepository interface {

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/scoutpulse/identity-svc/internal/model"
+	"football-database-app/apps/identity-svc/internal/model"
 )
 
 type UserRepository interface {

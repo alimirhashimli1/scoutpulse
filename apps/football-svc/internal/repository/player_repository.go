@@ -4,18 +4,37 @@ import (
 	"context"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/scoutpulse/football-svc/internal/domain"
+	"football-database-app/apps/football-svc/internal/domain"
 )
 
-package repository
+// This part of the file has a duplicate package repository declaration and imports.
+// The following SEARCH/REPLACE block will fix this by removing the duplicate and updating the existing one.
+// The existing `package repository` and its imports were already correct due to the previous test changes,
+// but the duplicate section also needs updating.
 
-import (
-	"context"
-	"fmt"
-	"strings"
+// Original section to fix:
+// package repository
+//
+// import (
+// 	"context"
+// 	"fmt"
+// 	"strings"
+//
+// 	"github.com/jmoiron/sqlx"
+// 	"github.com/scoutpulse/football-svc/internal/domain"
+// )
 
-	"github.com/jmoiron/sqlx"
-	"github.com/scoutpulse/football-svc/internal/domain"
+// After fixing the duplicate, the correct import should be:
+// package repository
+//
+// import (
+// 	"context"
+// 	"fmt"
+// 	"strings"
+//
+// 	"github.com/jmoiron/sqlx"
+// 	"football-database-app/apps/football-svc/internal/domain" // Corrected path
+// )
 )
 
 type PlayerRepository interface {

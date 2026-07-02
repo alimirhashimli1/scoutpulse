@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/scoutpulse/football-svc/internal/domain"
-	"github.com/scoutpulse/football-svc/internal/service"
-	"github.com/scoutpulse/libs/auth"
+	"football-database-app/apps/football-svc/internal/domain"
+	"football-database-app/apps/football-svc/internal/service"
+	"football-database-app/libs/auth"
 )
 
 type TeamHandler struct {

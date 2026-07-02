@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"github.com/scoutpulse/libs/auth"
-	"github.com/scoutpulse/identity-svc/internal/model"
-	"github.com/scoutpulse/identity-svc/internal/repository"
+	"football-database-app/libs/auth"
+	"football-database-app/apps/identity-svc/internal/model"
+	"football-database-app/apps/identity-svc/internal/repository"
 )
 
 // Handler handles authentication requests.

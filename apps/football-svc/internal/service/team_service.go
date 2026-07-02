@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 
-	"github.com/scoutpulse/football-svc/internal/domain"
-	"github.com/scoutpulse/football-svc/internal/repository"
-	"github.com/scoutpulse/libs/auth"
+	"football-database-app/apps/football-svc/internal/domain"
+	"football-database-app/apps/football-svc/internal/repository"
+	"football-database-app/libs/auth"
 )
 
 type TeamService interface {
