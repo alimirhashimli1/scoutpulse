@@ -4,22 +4,22 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"football-database-app/apps/football-svc/internal/domain"
-	"football-database-app/apps/football-svc/internal/service"
-	"football-database-app/libs/auth"
+	"github.com/scoutpulse/football-svc/internal/domain"
+	"github.com/scoutpulse/football-svc/internal/service"
+	"github.com/scoutpulse/libs/auth"
 )
 
 type TeamHandler struct {
-	teamService  service.TeamService
+	teamService   service.TeamService
 	playerService service.PlayerService
-	coachService service.CoachService
+	coachService  service.CoachService
 }
 
 func NewTeamHandler(teamService service.TeamService, playerService service.PlayerService, coachService service.CoachService) *TeamHandler {
 	return &TeamHandler{
-		teamService:  teamService,
+		teamService:   teamService,
 		playerService: playerService,
-		coachService: coachService,
+		coachService:  coachService,
 	}
 }
 
@@ -30,7 +30,7 @@ func (h *TeamHandler) ListTeams(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teams, err := h.service.ListTeamsByLeague(r.Context(), leagueID)
+	teams, err := h.teamService.ListTeamsByLeague(r.Context(), leagueID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -106,7 +106,7 @@ func (h *TeamHandler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.CreateTeam(r.Context(), &team); err != nil {
+	if err := h.teamService.CreateTeam(r.Context(), &team); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -151,7 +151,7 @@ func (h *TeamHandler) UpdateTeam(w http.ResponseWriter, r *http.Request) {
 	}
 	team.ID = id
 
-	if err := h.service.UpdateTeam(r.Context(), &team); err != nil {
+	if err := h.teamService.UpdateTeam(r.Context(), &team); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

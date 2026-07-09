@@ -6,9 +6,8 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx"
-	"football-database-app/apps/football-svc/internal/domain"
+	"github.com/scoutpulse/football-svc/internal/domain"
 )
-
 
 type PlayerRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Player, error)

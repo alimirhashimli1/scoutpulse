@@ -3,9 +3,8 @@ package service
 import (
 	"context"
 
-	"football-database-app/apps/football-svc/internal/domain"
-	"football-database-app/apps/football-svc/internal/repository"
-	"football-database-app/libs/auth"
+	"github.com/scoutpulse/football-svc/internal/domain"
+	"github.com/scoutpulse/football-svc/internal/repository"
 )
 
 type CoachService interface {
@@ -33,48 +32,22 @@ func (s *coachService) GetCoachByTeam(ctx context.Context, teamID string) (*doma
 }
 
 func (s *coachService) CreateCoach(ctx context.Context, coach *domain.Coach) error {
-	claims, ok := auth.GetClaims(ctx)
-	if !ok {
-		return ErrUnauthorized
-	}
-	if claims.HasRole("admin") {
-		// Admin: allowed to create globally
-	} else if claims.HasRole("editor") {
-		// Editor: allowed only if target team_id matches managed team IDs
-		if coach.TeamID == nil || !claims.HasTeamPermission(*coach.TeamID) {
-			return ErrForbidden
-		}
-	} else {
-		return ErrForbidden
+	if err := footballAuthz.requireAdminOrManagedTargetTeam(ctx, coach.TeamID); err != nil {
+		return err
 	}
 	return s.repo.Create(ctx, coach)
 }
 
 func (s *coachService) UpdateCoach(ctx context.Context, coach *domain.Coach) error {
-	claims, ok := auth.GetClaims(ctx)
-	if !ok {
-		return ErrUnauthorized
-	}
-	if claims.HasRole("admin") {
-		// Admin: allowed to update globally
-	} else if claims.HasRole("editor") {
-		// Editor: allowed only if target team_id matches managed team IDs
-		if coach.TeamID == nil || !claims.HasTeamPermission(*coach.TeamID) {
-			return ErrForbidden
-		}
-	} else {
-		return ErrForbidden
+	if err := footballAuthz.requireAdminOrManagedTargetTeam(ctx, coach.TeamID); err != nil {
+		return err
 	}
 	return s.repo.Update(ctx, coach)
 }
 
 func (s *coachService) DeleteCoach(ctx context.Context, id string) error {
-	claims, ok := auth.GetClaims(ctx)
-	if !ok {
-		return ErrUnauthorized
-	}
-	if !claims.HasRole("admin") {
-		return ErrForbidden
+	if err := footballAuthz.requireAdmin(ctx); err != nil {
+		return err
 	}
 	return s.repo.Delete(ctx, id)
 }

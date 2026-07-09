@@ -73,7 +73,7 @@ func TestFootballServiceIntegration(t *testing.T) {
 	coachSvc := service.NewCoachService(coachRepo)
 
 	leagueHandler := handler.NewLeagueHandler(leagueSvc)
-	teamHandler := handler.NewTeamHandler(teamSvc)
+	teamHandler := handler.NewTeamHandler(teamSvc, nil, nil)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/leagues", leagueHandler.ListLeagues)
@@ -87,7 +87,7 @@ func TestFootballServiceIntegration(t *testing.T) {
 	err = leagueRepo.Create(ctx, league)
 	assert.NoError(t, err)
 
-	team := &domain.Team{LeagueID: league.ID, Name: "Arsenal"}
+	team := &domain.Team{LeagueID: &league.ID, Name: "Arsenal"}
 	err = teamRepo.Create(ctx, team)
 	assert.NoError(t, err)
 
@@ -98,12 +98,12 @@ func TestFootballServiceIntegration(t *testing.T) {
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		
+
 		var leagues []domain.League
 		err = json.NewDecoder(resp.Body).Decode(&leagues)
 		assert.NoError(t, err)
 		assert.GreaterOrEqual(t, len(leagues), 1)
-		
+
 		found := false
 		for _, l := range leagues {
 			if l.Name == "Premier League" {
@@ -120,12 +120,12 @@ func TestFootballServiceIntegration(t *testing.T) {
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		
+
 		var teams []domain.Team
 		err = json.NewDecoder(resp.Body).Decode(&teams)
 		assert.NoError(t, err)
 		assert.GreaterOrEqual(t, len(teams), 1)
-		
+
 		found := false
 		for _, tm := range teams {
 			if tm.Name == "Arsenal" {

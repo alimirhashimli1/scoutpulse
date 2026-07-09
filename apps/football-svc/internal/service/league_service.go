@@ -3,9 +3,8 @@ package service
 import (
 	"context"
 
-	"football-database-app/apps/football-svc/internal/domain"
-	"football-database-app/apps/football-svc/internal/repository"
-	"football-database-app/libs/auth"
+	"github.com/scoutpulse/football-svc/internal/domain"
+	"github.com/scoutpulse/football-svc/internal/repository"
 )
 
 type LeagueService interface {
@@ -33,40 +32,22 @@ func (s *leagueService) ListLeagues(ctx context.Context) ([]domain.League, error
 }
 
 func (s *leagueService) CreateLeague(ctx context.Context, league *domain.League) error {
-	claims, ok := auth.GetClaims(ctx)
-	if !ok {
-		return ErrUnauthorized
-	}
-
-	if !claims.HasRole("admin") {
-		// Only Admin can create leagues
-		return ErrForbidden
+	if err := footballAuthz.requireAdmin(ctx); err != nil {
+		return err
 	}
 	return s.repo.Create(ctx, league)
 }
 
 func (s *leagueService) UpdateLeague(ctx context.Context, league *domain.League) error {
-	claims, ok := auth.GetClaims(ctx)
-	if !ok {
-		return ErrUnauthorized
-	}
-
-	if !claims.HasRole("admin") {
-		// Only Admin can update leagues
-		return ErrForbidden
+	if err := footballAuthz.requireAdmin(ctx); err != nil {
+		return err
 	}
 	return s.repo.Update(ctx, league)
 }
 
 func (s *leagueService) DeleteLeague(ctx context.Context, id string) error {
-	claims, ok := auth.GetClaims(ctx)
-	if !ok {
-		return ErrUnauthorized
-	}
-
-	if !claims.HasRole("admin") {
-		// Only Admin can delete leagues
-		return ErrForbidden
+	if err := footballAuthz.requireAdmin(ctx); err != nil {
+		return err
 	}
 	return s.repo.Delete(ctx, id)
 }

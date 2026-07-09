@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"football-database-app/apps/football-svc/internal/domain"
-	"football-database-app/libs/auth"
+	"github.com/scoutpulse/football-svc/internal/domain"
+	"github.com/scoutpulse/libs/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -159,6 +159,42 @@ func TestPlayerService_UpdatePlayer_RBAC(t *testing.T) {
 		assert.NoError(t, err)
 		repo.AssertExpectations(t)
 	})
+
+	t.Run("Editor updating a player with no target team should be forbidden", func(t *testing.T) {
+		repo := new(MockPlayerRepository)
+		svc := NewPlayerService(repo)
+		claims := &auth.Claims{
+			Role:           "editor",
+			ManagedTeamIDs: []string{"team-1"},
+		}
+		ctx := context.WithValue(context.Background(), auth.ClaimsContextKey, claims)
+
+		player := &domain.Player{ID: "player-1", TeamID: nil, Name: "Updated Player", MarketValue: 120.0}
+
+		// Act
+		err := svc.UpdatePlayer(ctx, player)
+
+		// Assert
+		assert.ErrorIs(t, err, ErrForbidden)
+		repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	})
+
+	t.Run("User updating a player should be forbidden", func(t *testing.T) {
+		repo := new(MockPlayerRepository)
+		svc := NewPlayerService(repo)
+		claims := &auth.Claims{Role: "user"}
+		ctx := context.WithValue(context.Background(), auth.ClaimsContextKey, claims)
+
+		teamID := "team-1"
+		player := &domain.Player{ID: "player-1", TeamID: &teamID, Name: "Updated Player", MarketValue: 120.0}
+
+		// Act
+		err := svc.UpdatePlayer(ctx, player)
+
+		// Assert
+		assert.ErrorIs(t, err, ErrForbidden)
+		repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	})
 }
 
 // MockCoachRepository is a mock of repository.CoachRepository
@@ -239,6 +275,47 @@ func TestCoachService_CreateCoach_RBAC(t *testing.T) {
 	})
 }
 
+func TestCoachService_UpdateCoach_RBAC(t *testing.T) {
+	repo := new(MockCoachRepository)
+	svc := NewCoachService(repo)
+
+	t.Run("Editor updating coach for managed target team should be allowed", func(t *testing.T) {
+		claims := &auth.Claims{
+			Role:           "editor",
+			ManagedTeamIDs: []string{"team-1"},
+		}
+		ctx := context.WithValue(context.Background(), auth.ClaimsContextKey, claims)
+
+		teamID := "team-1"
+		coach := &domain.Coach{ID: "coach-1", TeamID: &teamID, Name: "Updated Coach"}
+		repo.On("Update", mock.Anything, coach).Return(nil).Once()
+
+		// Act
+		err := svc.UpdateCoach(ctx, coach)
+
+		// Assert
+		assert.NoError(t, err)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("User updating coach should be forbidden", func(t *testing.T) {
+		repo := new(MockCoachRepository)
+		svc := NewCoachService(repo)
+		claims := &auth.Claims{Role: "user"}
+		ctx := context.WithValue(context.Background(), auth.ClaimsContextKey, claims)
+
+		teamID := "team-1"
+		coach := &domain.Coach{ID: "coach-1", TeamID: &teamID, Name: "Updated Coach"}
+
+		// Act
+		err := svc.UpdateCoach(ctx, coach)
+
+		// Assert
+		assert.ErrorIs(t, err, ErrForbidden)
+		repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	})
+}
+
 // MockPlayerRepository is a mock of repository.PlayerRepository
 type MockPlayerRepository struct {
 	mock.Mock
@@ -254,6 +331,11 @@ func (m *MockPlayerRepository) GetByID(ctx context.Context, id string) (*domain.
 
 func (m *MockPlayerRepository) ListByTeam(ctx context.Context, teamID string) ([]domain.Player, error) {
 	args := m.Called(ctx, teamID)
+	return args.Get(0).([]domain.Player), args.Error(1)
+}
+
+func (m *MockPlayerRepository) ListPlayers(ctx context.Context, freeAgent *bool, position *string) ([]domain.Player, error) {
+	args := m.Called(ctx, freeAgent, position)
 	return args.Get(0).([]domain.Player), args.Error(1)
 }
 
@@ -307,6 +389,58 @@ func TestPlayerService_CreatePlayer_RBAC(t *testing.T) {
 
 		// Act
 		err := svc.CreatePlayer(ctx, player)
+
+		// Assert
+		assert.NoError(t, err)
+		repo.AssertExpectations(t)
+	})
+}
+
+func TestServiceDeletes_RBAC(t *testing.T) {
+	t.Run("Editor deleting team should be forbidden", func(t *testing.T) {
+		repo := new(MockTeamRepository)
+		svc := NewTeamService(repo)
+		claims := &auth.Claims{
+			Role:           "editor",
+			ManagedTeamIDs: []string{"team-1"},
+		}
+		ctx := context.WithValue(context.Background(), auth.ClaimsContextKey, claims)
+
+		// Act
+		err := svc.DeleteTeam(ctx, "team-1")
+
+		// Assert
+		assert.ErrorIs(t, err, ErrForbidden)
+		repo.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
+	})
+
+	t.Run("Editor deleting player should be forbidden", func(t *testing.T) {
+		repo := new(MockPlayerRepository)
+		svc := NewPlayerService(repo)
+		claims := &auth.Claims{
+			Role:           "editor",
+			ManagedTeamIDs: []string{"team-1"},
+		}
+		ctx := context.WithValue(context.Background(), auth.ClaimsContextKey, claims)
+
+		// Act
+		err := svc.DeletePlayer(ctx, "player-1")
+
+		// Assert
+		assert.ErrorIs(t, err, ErrForbidden)
+		repo.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
+	})
+
+	t.Run("Admin deleting player should be allowed", func(t *testing.T) {
+		repo := new(MockPlayerRepository)
+		svc := NewPlayerService(repo)
+		claims := &auth.Claims{Role: "admin"}
+		ctx := context.WithValue(context.Background(), auth.ClaimsContextKey, claims)
+
+		repo.On("Delete", mock.Anything, "player-1").Return(nil).Once()
+
+		// Act
+		err := svc.DeletePlayer(ctx, "player-1")
 
 		// Assert
 		assert.NoError(t, err)

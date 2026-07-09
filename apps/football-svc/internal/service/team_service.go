@@ -3,9 +3,8 @@ package service
 import (
 	"context"
 
-	"football-database-app/apps/football-svc/internal/domain"
-	"football-database-app/apps/football-svc/internal/repository"
-	"football-database-app/libs/auth"
+	"github.com/scoutpulse/football-svc/internal/domain"
+	"github.com/scoutpulse/football-svc/internal/repository"
 )
 
 type TeamService interface {
@@ -33,52 +32,22 @@ func (s *teamService) ListTeamsByLeague(ctx context.Context, leagueID string) ([
 }
 
 func (s *teamService) CreateTeam(ctx context.Context, team *domain.Team) error {
-	claims, ok := auth.GetClaims(ctx)
-	if !ok {
-		return ErrUnauthorized
-	}
-	if !claims.HasRole("admin") {
-		return ErrForbidden
+	if err := footballAuthz.requireAdmin(ctx); err != nil {
+		return err
 	}
 	return s.repo.Create(ctx, team)
 }
 
 func (s *teamService) UpdateTeam(ctx context.Context, team *domain.Team) error {
-	claims, ok := auth.GetClaims(ctx)
-	if !ok {
-		return ErrUnauthorized
-	}
-
-	if claims.HasRole("admin") {
-		// Admin: Full global CRUD access
-	} else if claims.HasRole("editor") {
-		// Editor: Allowed to mutate a team only if that team's ID is in their managed array.
-		if !claims.HasTeamPermission(team.ID) {
-			return ErrForbidden
-		}
-	} else {
-		// User/Guest: Read-only access
-		return ErrForbidden
+	if err := footballAuthz.requireAdminOrManagedTeam(ctx, team.ID); err != nil {
+		return err
 	}
 	return s.repo.Update(ctx, team)
 }
 
 func (s *teamService) DeleteTeam(ctx context.Context, id string) error {
-	claims, ok := auth.GetClaims(ctx)
-	if !ok {
-		return ErrUnauthorized
-	}
-
-	if claims.HasRole("admin") {
-		// Admin: Full global CRUD access
-	} else if claims.HasRole("editor") {
-		// Editor: Allowed to delete a team only if that team's ID is in their managed array.
-		if !claims.HasTeamPermission(id) {
-			return ErrForbidden
-		}
-	} else {
-		// User/Guest: Read-only access
-		return ErrForbidden
+	if err := footballAuthz.requireAdmin(ctx); err != nil {
+		return err
 	}
 	return s.repo.Delete(ctx, id)
 }

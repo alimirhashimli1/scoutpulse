@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/scoutpulse/football-svc/internal/domain"
+	"github.com/scoutpulse/football-svc/internal/service"
 	"github.com/scoutpulse/libs/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -47,6 +48,43 @@ func (m *MockTeamService) DeleteTeam(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
+type MockPlayerService struct {
+	mock.Mock
+}
+
+func (m *MockPlayerService) GetPlayer(ctx context.Context, id string) (*domain.Player, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Player), args.Error(1)
+}
+
+func (m *MockPlayerService) ListPlayersByTeam(ctx context.Context, teamID string) ([]domain.Player, error) {
+	args := m.Called(ctx, teamID)
+	return args.Get(0).([]domain.Player), args.Error(1)
+}
+
+func (m *MockPlayerService) ListPlayers(ctx context.Context, freeAgent *bool, position *string) ([]domain.Player, error) {
+	args := m.Called(ctx, freeAgent, position)
+	return args.Get(0).([]domain.Player), args.Error(1)
+}
+
+func (m *MockPlayerService) CreatePlayer(ctx context.Context, player *domain.Player) error {
+	args := m.Called(ctx, player)
+	return args.Error(0)
+}
+
+func (m *MockPlayerService) UpdatePlayer(ctx context.Context, player *domain.Player) error {
+	args := m.Called(ctx, player)
+	return args.Error(0)
+}
+
+func (m *MockPlayerService) DeletePlayer(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
 func TestRBAC_CreateLeague(t *testing.T) {
 	mockService := new(MockLeagueService)
 	h := NewLeagueHandler(mockService)
@@ -64,10 +102,10 @@ func TestRBAC_CreateLeague(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			token, _ := auth.GenerateToken("user-1", tt.role, nil)
-			
+
 			league := domain.League{Name: "Test League"}
 			body, _ := json.Marshal(league)
-			
+
 			req := httptest.NewRequest("POST", "/api/v1/leagues", bytes.NewBuffer(body))
 			req.Header.Set("Authorization", "Bearer "+token)
 
@@ -87,7 +125,7 @@ func TestRBAC_CreateLeague(t *testing.T) {
 
 func TestRBAC_CreateTeam(t *testing.T) {
 	mockService := new(MockTeamService)
-	h := NewTeamHandler(mockService)
+	h := NewTeamHandler(mockService, nil, nil)
 
 	tests := []struct {
 		name           string
@@ -102,10 +140,10 @@ func TestRBAC_CreateTeam(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			token, _ := auth.GenerateToken("user-1", tt.role, nil)
-			
+
 			team := domain.Team{Name: "Test Team"}
 			body, _ := json.Marshal(team)
-			
+
 			req := httptest.NewRequest("POST", "/api/v1/teams", bytes.NewBuffer(body))
 			req.Header.Set("Authorization", "Bearer "+token)
 
@@ -125,22 +163,28 @@ func TestRBAC_CreateTeam(t *testing.T) {
 
 func TestRBAC_GetTeam(t *testing.T) {
 	mockService := new(MockTeamService)
-	h := NewTeamHandler(mockService)
+	mockPlayerService := new(MockPlayerService)
+	mockCoachService := new(MockCoachService)
+	h := NewTeamHandler(mockService, mockPlayerService, mockCoachService)
 
 	t.Run("Public access allowed", func(t *testing.T) {
 		teamID := "team-1"
 		team := &domain.Team{ID: teamID, Name: "Test Team"}
-		
+
 		req := httptest.NewRequest("GET", "/api/v1/teams/"+teamID, nil)
 		req.SetPathValue("id", teamID)
 
 		mockService.On("GetTeam", mock.Anything, teamID).Return(team, nil).Once()
+		mockPlayerService.On("ListPlayersByTeam", mock.Anything, teamID).Return([]domain.Player{}, nil).Once()
+		mockCoachService.On("GetCoachByTeam", mock.Anything, teamID).Return(nil, service.ErrNotFound).Once()
 
 		rr := httptest.NewRecorder()
 		h.GetTeam(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		mockService.AssertExpectations(t)
+		mockPlayerService.AssertExpectations(t)
+		mockCoachService.AssertExpectations(t)
 	})
 }
 
@@ -213,7 +257,7 @@ func (m *MockCoachService) DeleteCoach(ctx context.Context, id string) error {
 
 func TestRBAC_UpdateTeam(t *testing.T) {
 	mockService := new(MockTeamService)
-	h := NewTeamHandler(mockService)
+	h := NewTeamHandler(mockService, nil, nil)
 
 	tests := []struct {
 		name           string
@@ -231,16 +275,16 @@ func TestRBAC_UpdateTeam(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			token, _ := auth.GenerateToken("user-1", tt.role, tt.managedTeamIDs)
-			
+
 			team := domain.Team{ID: tt.teamID, Name: "Test Team"}
 			body, _ := json.Marshal(team)
-			
+
 			req := httptest.NewRequest("PUT", "/api/v1/teams/"+tt.teamID, bytes.NewBuffer(body))
 			req.Header.Set("Authorization", "Bearer "+token)
 			// Using net/http's PathValue requires Go 1.22+ and usually set by the mux
 			// For testing, we can set it manually if we use the mux or just mock the request
 			// But since we use r.PathValue("id"), we should use a mux or set it manually.
-			
+
 			// Set path value manually (Go 1.22 feature)
 			req.SetPathValue("id", tt.teamID)
 
@@ -278,10 +322,10 @@ func TestRBAC_CreateCoach(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			token, _ := auth.GenerateToken("user-1", tt.role, tt.managedTeamIDs)
-			
+
 			coach := domain.Coach{TeamID: &tt.teamID, Name: "Test Coach"}
 			body, _ := json.Marshal(coach)
-			
+
 			req := httptest.NewRequest("POST", "/api/v1/coaches", bytes.NewBuffer(body))
 			req.Header.Set("Authorization", "Bearer "+token)
 

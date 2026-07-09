@@ -8,7 +8,6 @@ import (
 	"github.com/scoutpulse/football-svc/internal/handler"
 	"github.com/scoutpulse/football-svc/internal/repository"
 	"github.com/scoutpulse/football-svc/internal/service"
-	"github.com/scoutpulse/libs/auth"
 	"github.com/scoutpulse/libs/db"
 )
 
@@ -23,38 +22,30 @@ func main() {
 	leagueRepo := repository.NewPostgresLeagueRepository(database)
 	teamRepo := repository.NewPostgresTeamRepository(database)
 	coachRepo := repository.NewPostgresCoachRepository(database)
+	playerRepo := repository.NewPostgresPlayerRepository(database)
 
 	// Initialize Services
 	leagueService := service.NewLeagueService(leagueRepo)
 	teamService := service.NewTeamService(teamRepo)
 	coachService := service.NewCoachService(coachRepo)
+	playerService := service.NewPlayerService(playerRepo)
 
 	// Initialize Handlers
 	leagueHandler := handler.NewLeagueHandler(leagueService)
-	teamHandler := handler.NewTeamHandler(teamService)
+	teamHandler := handler.NewTeamHandler(teamService, playerService, coachService) // Pass playerService and coachService here
 	coachHandler := handler.NewCoachHandler(coachService)
+	playerHandler := handler.NewPlayerHandler(playerService)
 
 	mux := http.NewServeMux()
 
-	// Health check
+	// Register all routes
+	handler.RegisterRoutes(mux, leagueHandler, teamHandler, coachHandler, playerHandler)
+
+	// Health check - always public
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("Football Service is healthy"))
 	})
-
-	// League routes
-	mux.HandleFunc("GET /api/v1/leagues", leagueHandler.ListLeagues)
-	mux.Handle("POST /api/v1/leagues", auth.AuthMiddleware(http.HandlerFunc(leagueHandler.CreateLeague)))
-
-	// Team routes
-	mux.HandleFunc("GET /api/v1/teams", teamHandler.ListTeams)
-	mux.HandleFunc("GET /api/v1/teams/{id}", teamHandler.GetTeam)
-	mux.Handle("POST /api/v1/teams", auth.AuthMiddleware(http.HandlerFunc(teamHandler.CreateTeam)))
-	mux.Handle("PUT /api/v1/teams/{id}", auth.AuthMiddleware(http.HandlerFunc(teamHandler.UpdateTeam)))
-
-	// Coach routes
-	mux.HandleFunc("GET /api/v1/coaches", coachHandler.GetCoachByTeam)
-	mux.Handle("POST /api/v1/coaches", auth.AuthMiddleware(http.HandlerFunc(coachHandler.CreateCoach)))
 
 	port := ":8081"
 	fmt.Printf("Football Service starting on port %s\n", port)
