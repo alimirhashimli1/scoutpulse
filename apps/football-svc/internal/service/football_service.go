@@ -52,4 +52,24 @@ func (s FootballService) requireAdminOrManagedTargetTeam(ctx context.Context, te
 	return s.requireAdminOrManagedTeam(ctx, *teamID)
 }
 
+func (s FootballService) requireAdminOrManagedCurrentOrTargetTeam(ctx context.Context, currentTeamID *string, targetTeamID *string) error {
+	claims, ok := auth.GetClaims(ctx)
+	if !ok {
+		return ErrUnauthorized
+	}
+	if claims.HasRole("admin") {
+		return nil
+	}
+	if !claims.HasRole("editor") {
+		return ErrForbidden
+	}
+	if currentTeamID != nil && claims.HasTeamPermission(*currentTeamID) {
+		return nil
+	}
+	if targetTeamID != nil && claims.HasTeamPermission(*targetTeamID) {
+		return nil
+	}
+	return ErrForbidden
+}
+
 var footballAuthz = NewFootballService()

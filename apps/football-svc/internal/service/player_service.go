@@ -46,7 +46,12 @@ func (s *playerService) CreatePlayer(ctx context.Context, player *domain.Player)
 }
 
 func (s *playerService) UpdatePlayer(ctx context.Context, player *domain.Player) error {
-	if err := footballAuthz.requireAdminOrManagedTargetTeam(ctx, player.TeamID); err != nil {
+	existingPlayer, err := s.repo.GetByID(ctx, player.ID)
+	if err != nil {
+		return ErrNotFound
+	}
+
+	if err := footballAuthz.requireAdminOrManagedCurrentOrTargetTeam(ctx, existingPlayer.TeamID, player.TeamID); err != nil {
 		return err
 	}
 	return s.repo.Update(ctx, player)

@@ -102,10 +102,9 @@ func TestTeamService_UpdateTeam_RBAC(t *testing.T) {
 }
 
 func TestPlayerService_UpdatePlayer_RBAC(t *testing.T) {
-	repo := new(MockPlayerRepository)
-	svc := NewPlayerService(repo)
-
 	t.Run("Editor trying to update a player of an unmanaged team should trigger Forbidden error", func(t *testing.T) {
+		repo := new(MockPlayerRepository)
+		svc := NewPlayerService(repo)
 		claims := &auth.Claims{
 			Role:           "editor",
 			ManagedTeamIDs: []string{"team-2"},
@@ -114,6 +113,8 @@ func TestPlayerService_UpdatePlayer_RBAC(t *testing.T) {
 
 		teamID := "team-1"
 		player := &domain.Player{ID: "player-1", TeamID: &teamID, Name: "Updated Player", MarketValue: 120.0}
+		existingPlayer := &domain.Player{ID: "player-1", TeamID: &teamID, Name: "Existing Player", MarketValue: 100.0}
+		repo.On("GetByID", mock.Anything, "player-1").Return(existingPlayer, nil).Once()
 
 		// Act
 		err := svc.UpdatePlayer(ctx, player)
@@ -123,7 +124,9 @@ func TestPlayerService_UpdatePlayer_RBAC(t *testing.T) {
 		repo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
 	})
 
-	t.Run("Editor updating a player of a managed team should be allowed", func(t *testing.T) {
+	t.Run("Editor updating a player on a managed current team should be allowed", func(t *testing.T) {
+		repo := new(MockPlayerRepository)
+		svc := NewPlayerService(repo)
 		claims := &auth.Claims{
 			Role:           "editor",
 			ManagedTeamIDs: []string{"team-1"},
@@ -132,6 +135,32 @@ func TestPlayerService_UpdatePlayer_RBAC(t *testing.T) {
 
 		teamID := "team-1"
 		player := &domain.Player{ID: "player-1", TeamID: &teamID, Name: "Updated Player", MarketValue: 120.0}
+		existingPlayer := &domain.Player{ID: "player-1", TeamID: &teamID, Name: "Existing Player", MarketValue: 100.0}
+		repo.On("GetByID", mock.Anything, "player-1").Return(existingPlayer, nil).Once()
+		repo.On("Update", mock.Anything, player).Return(nil).Once()
+
+		// Act
+		err := svc.UpdatePlayer(ctx, player)
+
+		// Assert
+		assert.NoError(t, err)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("Editor transferring a player to a managed target team should be allowed", func(t *testing.T) {
+		repo := new(MockPlayerRepository)
+		svc := NewPlayerService(repo)
+		claims := &auth.Claims{
+			Role:           "editor",
+			ManagedTeamIDs: []string{"team-2"},
+		}
+		ctx := context.WithValue(context.Background(), auth.ClaimsContextKey, claims)
+
+		currentTeamID := "team-1"
+		targetTeamID := "team-2"
+		player := &domain.Player{ID: "player-1", TeamID: &targetTeamID, Name: "Updated Player", MarketValue: 120.0}
+		existingPlayer := &domain.Player{ID: "player-1", TeamID: &currentTeamID, Name: "Existing Player", MarketValue: 100.0}
+		repo.On("GetByID", mock.Anything, "player-1").Return(existingPlayer, nil).Once()
 		repo.On("Update", mock.Anything, player).Return(nil).Once()
 
 		// Act
@@ -143,6 +172,8 @@ func TestPlayerService_UpdatePlayer_RBAC(t *testing.T) {
 	})
 
 	t.Run("Admin updating any player should be allowed", func(t *testing.T) {
+		repo := new(MockPlayerRepository)
+		svc := NewPlayerService(repo)
 		claims := &auth.Claims{
 			Role: "admin",
 		}
@@ -150,6 +181,8 @@ func TestPlayerService_UpdatePlayer_RBAC(t *testing.T) {
 
 		teamID := "team-1"
 		player := &domain.Player{ID: "player-1", TeamID: &teamID, Name: "Updated Player", MarketValue: 120.0}
+		existingPlayer := &domain.Player{ID: "player-1", TeamID: nil, Name: "Existing Player", MarketValue: 100.0}
+		repo.On("GetByID", mock.Anything, "player-1").Return(existingPlayer, nil).Once()
 		repo.On("Update", mock.Anything, player).Return(nil).Once()
 
 		// Act
@@ -160,7 +193,7 @@ func TestPlayerService_UpdatePlayer_RBAC(t *testing.T) {
 		repo.AssertExpectations(t)
 	})
 
-	t.Run("Editor updating a player with no target team should be forbidden", func(t *testing.T) {
+	t.Run("Editor releasing a player from a managed current team should be allowed", func(t *testing.T) {
 		repo := new(MockPlayerRepository)
 		svc := NewPlayerService(repo)
 		claims := &auth.Claims{
@@ -170,6 +203,31 @@ func TestPlayerService_UpdatePlayer_RBAC(t *testing.T) {
 		ctx := context.WithValue(context.Background(), auth.ClaimsContextKey, claims)
 
 		player := &domain.Player{ID: "player-1", TeamID: nil, Name: "Updated Player", MarketValue: 120.0}
+		currentTeamID := "team-1"
+		existingPlayer := &domain.Player{ID: "player-1", TeamID: &currentTeamID, Name: "Existing Player", MarketValue: 100.0}
+		repo.On("GetByID", mock.Anything, "player-1").Return(existingPlayer, nil).Once()
+		repo.On("Update", mock.Anything, player).Return(nil).Once()
+
+		// Act
+		err := svc.UpdatePlayer(ctx, player)
+
+		// Assert
+		assert.NoError(t, err)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("Editor updating an unmanaged free agent should be forbidden", func(t *testing.T) {
+		repo := new(MockPlayerRepository)
+		svc := NewPlayerService(repo)
+		claims := &auth.Claims{
+			Role:           "editor",
+			ManagedTeamIDs: []string{"team-1"},
+		}
+		ctx := context.WithValue(context.Background(), auth.ClaimsContextKey, claims)
+
+		player := &domain.Player{ID: "player-1", TeamID: nil, Name: "Updated Player", MarketValue: 120.0}
+		existingPlayer := &domain.Player{ID: "player-1", TeamID: nil, Name: "Existing Player", MarketValue: 100.0}
+		repo.On("GetByID", mock.Anything, "player-1").Return(existingPlayer, nil).Once()
 
 		// Act
 		err := svc.UpdatePlayer(ctx, player)
@@ -187,6 +245,8 @@ func TestPlayerService_UpdatePlayer_RBAC(t *testing.T) {
 
 		teamID := "team-1"
 		player := &domain.Player{ID: "player-1", TeamID: &teamID, Name: "Updated Player", MarketValue: 120.0}
+		existingPlayer := &domain.Player{ID: "player-1", TeamID: &teamID, Name: "Existing Player", MarketValue: 100.0}
+		repo.On("GetByID", mock.Anything, "player-1").Return(existingPlayer, nil).Once()
 
 		// Act
 		err := svc.UpdatePlayer(ctx, player)
