@@ -6,8 +6,13 @@ RUN apk add --no-cache git
 
 WORKDIR /app
 
-# Copy the entire workspace to resolve local library dependencies (libs/auth, libs/db)
+# Copy the entire repository to resolve local library dependencies
+# (libs/auth, libs/db, libs/platform) via this module's replace directives.
 COPY . .
+
+# Build from the module alone rather than the go.work workspace, so the image
+# depends only on this service's go.mod/go.sum and stays reproducible.
+ENV GOWORK=off
 
 # Download dependencies for identity-svc
 WORKDIR /app/apps/identity-svc

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/scoutpulse/football-svc/internal/domain"
+	"github.com/scoutpulse/football-svc/internal/repository"
 	"github.com/scoutpulse/libs/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -23,8 +24,8 @@ func (m *MockTeamRepository) GetByID(ctx context.Context, id string) (*domain.Te
 	return args.Get(0).(*domain.Team), args.Error(1)
 }
 
-func (m *MockTeamRepository) ListByLeague(ctx context.Context, leagueID string) ([]domain.Team, error) {
-	args := m.Called(ctx, leagueID)
+func (m *MockTeamRepository) ListByLeague(ctx context.Context, leagueID string, page domain.Page) ([]domain.Team, error) {
+	args := m.Called(ctx, leagueID, page)
 	return args.Get(0).([]domain.Team), args.Error(1)
 }
 
@@ -389,13 +390,8 @@ func (m *MockPlayerRepository) GetByID(ctx context.Context, id string) (*domain.
 	return args.Get(0).(*domain.Player), args.Error(1)
 }
 
-func (m *MockPlayerRepository) ListByTeam(ctx context.Context, teamID string) ([]domain.Player, error) {
-	args := m.Called(ctx, teamID)
-	return args.Get(0).([]domain.Player), args.Error(1)
-}
-
-func (m *MockPlayerRepository) ListPlayers(ctx context.Context, freeAgent *bool, position *string) ([]domain.Player, error) {
-	args := m.Called(ctx, freeAgent, position)
+func (m *MockPlayerRepository) List(ctx context.Context, filter repository.PlayerFilter, page domain.Page) ([]domain.Player, error) {
+	args := m.Called(ctx, filter, page)
 	return args.Get(0).([]domain.Player), args.Error(1)
 }
 

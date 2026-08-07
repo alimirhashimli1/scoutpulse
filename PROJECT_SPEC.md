@@ -78,8 +78,20 @@ ScoutPulse Micro is a high-performance football database platform (similar to Tr
 ### Phase 3: Football Service (Domain) ⚽
 - [x] 3.1 Service Initialization
 - [x] 3.2 Core Models (Leagues, Teams, Coaches - Database Migration & Schema)
-- [ ] 3.3 Internal gRPC Communication
+- [ ] 3.3 Internal Service Communication
+      (specced as gRPC; an event bus is the better fit — see ISSUES.md F6)
 - [x] 3.4 Auth Middleware Integration
+- [x] 3.5 Full CRUD, service-layer RBAC, pagination, lookup indexes
+- [ ] 3.6 Temporal domain model: transfers, market-value history, seasons
+      (ISSUES.md A7 — required before Phase 4, as it reshapes every response)
+
+### Phase 3.5: Platform Hardening 🛠️ [COMPLETED]
+- [x] Go workspace (`go.work`) replacing the phantom root module
+- [x] `libs/platform`: shared error taxonomy, HTTP bootstrap, middleware, helpers
+- [x] JWT signing key from environment; registration privilege escalation closed
+- [x] golang-migrate runner replacing first-boot-only schema mounts
+- [x] Server timeouts, graceful shutdown, CORS, structured logs, request IDs
+- [x] `.golangci.yml` and a CI matrix over every module
 
 ### Phase 4: Frontend Development (UI) 🎨
 - [ ] 4.1 Angular Workspace Setup

@@ -3,12 +3,18 @@ services:
   postgres-identity:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: ${DB_USER:-user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
       POSTGRES_DB: identity_db
+    ports:
+      - "5433:5432"
     volumes:
       - identity_db_data:/var/lib/postgresql/data
-      - ./apps/identity-svc/migrations/000001_create_users_table.up.sql:/docker-entrypoint-initdb.d/01_create_users_table.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-user} -d identity_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - scoutpulse-net
 
@@ -16,14 +22,55 @@ services:
   postgres-football:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: ${DB_USER:-user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
       POSTGRES_DB: football_db
     ports:
       - "5434:5432"
     volumes:
       - football_db_data:/var/lib/postgresql/data
-      - ./apps/football-svc/migrations/000001_init_football_schema.up.sql:/docker-entrypoint-initdb.d/01_init_football_schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-user} -d football_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - scoutpulse-net
+
+  # Migrations
+  #
+  # Schema changes used to be applied by mounting SQL into the Postgres image's
+  # docker-entrypoint-initdb.d, which only runs when the data directory is
+  # empty -- so any change after the first boot required wiping the volume.
+  # These one-shot jobs run golang-migrate against a persistent schema_migrations
+  # table, so they are idempotent and apply new versions to existing data.
+  migrate-identity:
+    image: migrate/migrate:v4.17.1
+    depends_on:
+      postgres-identity:
+        condition: service_healthy
+    volumes:
+      - ./apps/identity-svc/migrations:/migrations:ro
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://${DB_USER:-user}:${DB_PASSWORD:-password}@postgres-identity:5432/identity_db?sslmode=disable"
+      - "up"
+    restart: on-failure
+    networks:
+      - scoutpulse-net
+
+  migrate-football:
+    image: migrate/migrate:v4.17.1
+    depends_on:
+      postgres-football:
+        condition: service_healthy
+    volumes:
+      - ./apps/football-svc/migrations:/migrations:ro
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://${DB_USER:-user}:${DB_PASSWORD:-password}@postgres-football:5432/football_db?sslmode=disable"
+      - "up"
+    restart: on-failure
     networks:
       - scoutpulse-net
 
@@ -36,11 +83,17 @@ services:
     environment:
       - DB_HOST=postgres-identity
       - DB_PORT=5432
-      - DB_USER=user
-      - DB_PASSWORD=password
+      - DB_USER=${DB_USER:-user}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
       - DB_NAME=identity_db
+      # Required. The service refuses to start without it.
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set, see .env.example}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:4200}
     depends_on:
-      - postgres-identity
+      postgres-identity:
+        condition: service_healthy
+      migrate-identity:
+        condition: service_completed_successfully
     ports:
       - "8080:8080"
     networks:
@@ -54,18 +107,28 @@ services:
     environment:
       - DB_HOST=postgres-football
       - DB_PORT=5432
-      - DB_USER=user
-      - DB_PASSWORD=password
+      - DB_USER=${DB_USER:-user}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
       - DB_NAME=football_db
+      # Must match identity-svc: one service signs tokens, the other verifies
+      # them with the same key.
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set, see .env.example}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:4200}
+    depends_on:
+      postgres-football:
+        condition: service_healthy
+      migrate-football:
+        condition: service_completed_successfully
     ports:
       - "8081:8081"
-    depends_on:
-      - postgres-football
     networks:
       - scoutpulse-net
 
-  # Frontend
+  # The Angular frontend is not built yet (Phase 4). Its container is defined
+  # under the "frontend" profile so `docker compose up` does not build an empty
+  # nginx image; bring it up with `docker compose --profile frontend up`.
   frontend:
+    profiles: ["frontend"]
     build:
       context: .
       dockerfile: apps/frontend/Dockerfile

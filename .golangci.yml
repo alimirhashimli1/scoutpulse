@@ -1,0 +1,48 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    # Defaults
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    # Added
+    - bodyclose      # unclosed HTTP response bodies leak connections
+    - errorlint      # catches == comparisons that break through wrapped errors
+    - gosec          # security-focused checks
+    - misspell
+    - noctx          # HTTP requests without a context cannot be cancelled
+    - revive
+    - rowserrcheck   # unchecked sql.Rows.Err() silently drops iteration failures
+    - sqlclosecheck
+    - unconvert
+    - unparam
+
+linters-settings:
+  errcheck:
+    # Response writes cannot be meaningfully recovered from mid-stream; the
+    # helpers in libs/platform/httpx log them instead.
+    exclude-functions:
+      - (net/http.ResponseWriter).Write
+  govet:
+    enable:
+      - shadow
+  revive:
+    rules:
+      - name: exported
+        disabled: true  # not a published library; doc comments are advisory here
+
+issues:
+  exclude-rules:
+    # Test files may hardcode credentials and skip error checks on fixtures.
+    - path: _test\.go
+      linters:
+        - gosec
+        - errcheck
+        - unparam
+  max-issues-per-linter: 0
+  max-same-issues: 0

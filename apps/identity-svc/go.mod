@@ -8,6 +8,7 @@ require (
 	github.com/lib/pq v1.12.3
 	github.com/scoutpulse/libs/auth v0.0.0
 	github.com/scoutpulse/libs/db v0.0.0
+	github.com/scoutpulse/libs/platform v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.35.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.35.0
@@ -66,3 +67,5 @@ require (
 replace github.com/scoutpulse/libs/auth => ../../libs/auth
 
 replace github.com/scoutpulse/libs/db => ../../libs/db
+
+replace github.com/scoutpulse/libs/platform => ../../libs/platform

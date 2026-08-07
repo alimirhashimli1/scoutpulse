@@ -1,12 +1,12 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/scoutpulse/football-svc/internal/domain"
 	"github.com/scoutpulse/football-svc/internal/service"
-	"github.com/scoutpulse/libs/auth"
+	"github.com/scoutpulse/libs/platform/apperr"
+	"github.com/scoutpulse/libs/platform/httpx"
 )
 
 type LeagueHandler struct {
@@ -18,41 +18,72 @@ func NewLeagueHandler(service service.LeagueService) *LeagueHandler {
 }
 
 func (h *LeagueHandler) ListLeagues(w http.ResponseWriter, r *http.Request) {
-	leagues, err := h.service.ListLeagues(r.Context())
+	page, err := pageFrom(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpx.WriteError(w, r, err)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(leagues)
+	leagues, err := h.service.ListLeagues(r.Context(), page)
+	if err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+
+	httpx.WriteJSON(w, http.StatusOK, domain.NewListResult(leagues, page))
+}
+
+func (h *LeagueHandler) GetLeague(w http.ResponseWriter, r *http.Request) {
+	league, err := h.service.GetLeague(r.Context(), r.PathValue("id"))
+	if err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+
+	httpx.WriteJSON(w, http.StatusOK, league)
 }
 
 func (h *LeagueHandler) CreateLeague(w http.ResponseWriter, r *http.Request) {
-	// RBAC logic
-	claims, ok := auth.GetClaims(r.Context())
-	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	if claims.Role != "admin" {
-		http.Error(w, "Forbidden: Admin access only", http.StatusForbidden)
-		return
-	}
-
 	var league domain.League
-	if err := json.NewDecoder(r.Body).Decode(&league); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := httpx.DecodeJSON(w, r, &league); err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+
+	if league.Name == "" || league.Country == "" {
+		httpx.WriteError(w, r, apperr.Invalid("name and country are required"))
 		return
 	}
 
 	if err := h.service.CreateLeague(r.Context(), &league); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpx.WriteError(w, r, err)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(league)
+	httpx.WriteJSON(w, http.StatusCreated, league)
+}
+
+func (h *LeagueHandler) UpdateLeague(w http.ResponseWriter, r *http.Request) {
+	var league domain.League
+	if err := httpx.DecodeJSON(w, r, &league); err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+	league.ID = r.PathValue("id")
+
+	if err := h.service.UpdateLeague(r.Context(), &league); err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+
+	httpx.WriteJSON(w, http.StatusOK, league)
+}
+
+func (h *LeagueHandler) DeleteLeague(w http.ResponseWriter, r *http.Request) {
+	if err := h.service.DeleteLeague(r.Context(), r.PathValue("id")); err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

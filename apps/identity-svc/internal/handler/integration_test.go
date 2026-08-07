@@ -12,9 +12,9 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
-	"github.com/scoutpulse/libs/auth"
 	"github.com/scoutpulse/identity-svc/internal/model"
 	"github.com/scoutpulse/identity-svc/internal/repository"
+	"github.com/scoutpulse/libs/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -30,7 +30,7 @@ func TestAuthIntegration(t *testing.T) {
 	ctx := context.Background()
 
 	// 2. Pre-flight check: Try to verify Docker is reachable to avoid panics
-	// We're using a simple check here. In some Windows environments, 
+	// We're using a simple check here. In some Windows environments,
 	// testcontainers-go panics if it misinterprets the Docker host.
 	defer func() {
 		if r := recover(); r != nil {
@@ -73,23 +73,23 @@ func TestAuthIntegration(t *testing.T) {
 		Username: "junior_dev",
 		Email:    "dev@scoutpulse.com",
 		Password: "password123",
-		Role:     model.AdminRole,
 	}
 	regBody, _ := json.Marshal(regReq)
-	
+
 	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(regBody))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
-	
+
 	h.Register(rr, req)
-	
+
 	assert.Equal(t, http.StatusCreated, rr.Code)
-	
+
 	var userResp model.User
 	err = json.Unmarshal(rr.Body.Bytes(), &userResp)
 	assert.NoError(t, err)
 	assert.Equal(t, regReq.Username, userResp.Username)
-	assert.Equal(t, string(model.AdminRole), string(userResp.Role))
+	// Self-registration must never produce a privileged account.
+	assert.Equal(t, string(model.UserRole), string(userResp.Role))
 
 	// 3. Test Login (Success)
 	loginReq := LoginRequest{
@@ -97,15 +97,15 @@ func TestAuthIntegration(t *testing.T) {
 		Password:   "password123",
 	}
 	loginBody, _ := json.Marshal(loginReq)
-	
+
 	req, _ = http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(loginBody))
 	req.Header.Set("Content-Type", "application/json")
 	rr = httptest.NewRecorder()
-	
+
 	h.Login(rr, req)
-	
+
 	assert.Equal(t, http.StatusOK, rr.Code)
-	
+
 	var loginResp map[string]string
 	err = json.Unmarshal(rr.Body.Bytes(), &loginResp)
 	assert.NoError(t, err)
@@ -116,7 +116,7 @@ func TestAuthIntegration(t *testing.T) {
 	claims, err := auth.ValidateToken(token)
 	assert.NoError(t, err)
 	assert.Equal(t, userResp.ID, claims.UserID)
-	assert.Equal(t, string(model.AdminRole), claims.Role)
+	assert.Equal(t, string(model.UserRole), claims.Role)
 	assert.NotNil(t, claims.ManagedTeamIDs)
 
 	// 4. Test Login (Invalid Credentials)
@@ -125,12 +125,12 @@ func TestAuthIntegration(t *testing.T) {
 		Password:   "wrongpassword",
 	}
 	loginBodyInvalid, _ := json.Marshal(loginReqInvalid)
-	
+
 	req, _ = http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(loginBodyInvalid))
 	req.Header.Set("Content-Type", "application/json")
 	rr = httptest.NewRecorder()
-	
+
 	h.Login(rr, req)
-	
+
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }

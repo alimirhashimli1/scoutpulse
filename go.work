@@ -1,0 +1,10 @@
+go 1.24.0
+
+use (
+	./apps/football-svc
+	./apps/identity-svc
+	./libs/auth
+	./libs/db
+	./libs/platform
+	./tests/integration
+)

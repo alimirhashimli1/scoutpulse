@@ -1,12 +1,12 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/scoutpulse/football-svc/internal/domain"
 	"github.com/scoutpulse/football-svc/internal/service"
-	"github.com/scoutpulse/libs/auth"
+	"github.com/scoutpulse/libs/platform/apperr"
+	"github.com/scoutpulse/libs/platform/httpx"
 )
 
 type CoachHandler struct {
@@ -20,54 +20,60 @@ func NewCoachHandler(service service.CoachService) *CoachHandler {
 func (h *CoachHandler) GetCoachByTeam(w http.ResponseWriter, r *http.Request) {
 	teamID := r.URL.Query().Get("team_id")
 	if teamID == "" {
-		http.Error(w, "team_id is required", http.StatusBadRequest)
+		httpx.WriteError(w, r, apperr.Invalid("team_id is required"))
 		return
 	}
 
 	coach, err := h.service.GetCoachByTeam(r.Context(), teamID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		httpx.WriteError(w, r, err)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(coach)
+	httpx.WriteJSON(w, http.StatusOK, coach)
 }
 
 func (h *CoachHandler) CreateCoach(w http.ResponseWriter, r *http.Request) {
 	var coach domain.Coach
-	if err := json.NewDecoder(r.Body).Decode(&coach); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := httpx.DecodeJSON(w, r, &coach); err != nil {
+		httpx.WriteError(w, r, err)
 		return
 	}
 
-	// RBAC logic
-	claims, ok := auth.GetClaims(r.Context())
-	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	if claims.Role == "admin" {
-		// Admin: Grant access immediately
-	} else if claims.Role == "editor" {
-		// Editor: Check if manages this team
-		if coach.TeamID == nil || !claims.HasTeamPermission(*coach.TeamID) {
-			http.Error(w, "Forbidden: You do not manage this team", http.StatusForbidden)
-			return
-		}
-	} else {
-		// User/Guest: Reject
-		http.Error(w, "Forbidden: Insufficient permissions", http.StatusForbidden)
+	if coach.Name == "" {
+		httpx.WriteError(w, r, apperr.Invalid("name is required"))
 		return
 	}
 
 	if err := h.service.CreateCoach(r.Context(), &coach); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpx.WriteError(w, r, err)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(coach)
+	httpx.WriteJSON(w, http.StatusCreated, coach)
+}
+
+func (h *CoachHandler) UpdateCoach(w http.ResponseWriter, r *http.Request) {
+	var coach domain.Coach
+	if err := httpx.DecodeJSON(w, r, &coach); err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+	coach.ID = r.PathValue("id")
+
+	if err := h.service.UpdateCoach(r.Context(), &coach); err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+
+	httpx.WriteJSON(w, http.StatusOK, coach)
+}
+
+func (h *CoachHandler) DeleteCoach(w http.ResponseWriter, r *http.Request) {
+	if err := h.service.DeleteCoach(r.Context(), r.PathValue("id")); err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

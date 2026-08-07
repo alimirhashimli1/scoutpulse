@@ -9,8 +9,8 @@ import (
 
 type PlayerService interface {
 	GetPlayer(ctx context.Context, id string) (*domain.Player, error)
-	ListPlayersByTeam(ctx context.Context, teamID string) ([]domain.Player, error)
-	ListPlayers(ctx context.Context, freeAgent *bool, position *string) ([]domain.Player, error) // New method
+	ListPlayersByTeam(ctx context.Context, teamID string, page domain.Page) ([]domain.Player, error)
+	ListPlayers(ctx context.Context, filter repository.PlayerFilter, page domain.Page) ([]domain.Player, error)
 	CreatePlayer(ctx context.Context, player *domain.Player) error
 	UpdatePlayer(ctx context.Context, player *domain.Player) error
 	DeletePlayer(ctx context.Context, id string) error
@@ -28,14 +28,13 @@ func (s *playerService) GetPlayer(ctx context.Context, id string) (*domain.Playe
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *playerService) ListPlayersByTeam(ctx context.Context, teamID string) ([]domain.Player, error) {
-	return s.repo.ListByTeam(ctx, teamID)
+func (s *playerService) ListPlayersByTeam(ctx context.Context, teamID string, page domain.Page) ([]domain.Player, error) {
+	return s.repo.List(ctx, repository.PlayerFilter{TeamID: &teamID}, page)
 }
 
-// ListPlayers implements the new method for filtering
-func (s *playerService) ListPlayers(ctx context.Context, freeAgent *bool, position *string) ([]domain.Player, error) {
-	// Public endpoint, no RBAC check for read access
-	return s.repo.ListPlayers(ctx, freeAgent, position)
+// ListPlayers is a public read; no authorization check applies.
+func (s *playerService) ListPlayers(ctx context.Context, filter repository.PlayerFilter, page domain.Page) ([]domain.Player, error) {
+	return s.repo.List(ctx, filter, page)
 }
 
 func (s *playerService) CreatePlayer(ctx context.Context, player *domain.Player) error {
@@ -46,12 +45,15 @@ func (s *playerService) CreatePlayer(ctx context.Context, player *domain.Player)
 }
 
 func (s *playerService) UpdatePlayer(ctx context.Context, player *domain.Player) error {
-	existingPlayer, err := s.repo.GetByID(ctx, player.ID)
+	// The existing row is loaded first so that a transfer can be authorized
+	// against both the current squad and the destination squad: an editor who
+	// manages either side may move the player.
+	existing, err := s.repo.GetByID(ctx, player.ID)
 	if err != nil {
-		return ErrNotFound
+		return err
 	}
 
-	if err := footballAuthz.requireAdminOrManagedCurrentOrTargetTeam(ctx, existingPlayer.TeamID, player.TeamID); err != nil {
+	if err := footballAuthz.requireAdminOrManagedCurrentOrTargetTeam(ctx, existing.TeamID, player.TeamID); err != nil {
 		return err
 	}
 	return s.repo.Update(ctx, player)

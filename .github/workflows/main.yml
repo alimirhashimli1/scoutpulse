@@ -2,65 +2,85 @@ name: ScoutPulse CI/CD
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+env:
+  GO_VERSION: "1.24"
+  # Tests that exercise token issuance need a signing key. This value is for
+  # CI only and is never used by a deployed environment.
+  JWT_SECRET: ci-only-signing-key-at-least-32-characters-long
 
 jobs:
-  identity-svc-ci:
-    name: Identity Service CI
+  # One matrix entry per Go module. Adding a service means adding one line
+  # here, rather than copying a whole job block.
+  build:
+    name: ${{ matrix.module }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - apps/identity-svc
+          - apps/football-svc
+          - libs/auth
+          - libs/db
+          - libs/platform
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
-          cache: true
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: ${{ matrix.module }}/go.sum
 
-      - name: Install golangci-lint
-        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.5
-
-      - name: Lint Identity Service
+      - name: Verify go.mod is tidy
+        working-directory: ${{ matrix.module }}
         run: |
-          cd apps/identity-svc
-          golangci-lint run ./...
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
 
-      - name: Run Identity Service Unit Tests
-        run: |
-          cd apps/identity-svc
-          # Running unit tests (excluding integration tests that require Docker/Postgres)
-          go test -v -short ./...
+      - name: Build
+        working-directory: ${{ matrix.module }}
+        run: go build ./...
 
-      - name: Run Auth Library Tests
-        run: |
-          cd libs/auth
-          go test -v ./...
+      - name: Vet
+        working-directory: ${{ matrix.module }}
+        run: go vet ./...
 
-      - name: Build Identity Service
-        run: |
-          cd apps/identity-svc
-          go build -v ./cmd/server/main.go
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.5
+          working-directory: ${{ matrix.module }}
+          args: --config=${{ github.workspace }}/.golangci.yml
 
-  football-svc-ci:
-    name: Football Service CI
+      - name: Unit tests
+        working-directory: ${{ matrix.module }}
+        # -short skips the testcontainers suites; those run in the job below.
+        run: go test -short -race -v ./...
+
+  integration:
+    name: Integration tests
     runs-on: ubuntu-latest
+    needs: build
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
-          cache: true
+          go-version: ${{ env.GO_VERSION }}
 
-      - name: Run Football Service Unit Tests
+      # Docker is available on ubuntu-latest runners, so the testcontainers
+      # suites run for real here instead of skipping.
+      - name: Run integration tests
         run: |
-          cd apps/football-svc
-          go test -v ./...
-
-      - name: Build Football Service
-        run: |
-          cd apps/football-svc
-          go build -v main.go
+          set -e
+          for module in apps/identity-svc apps/football-svc; do
+            echo "::group::$module"
+            (cd "$module" && go test -v ./...)
+            echo "::endgroup::"
+          done

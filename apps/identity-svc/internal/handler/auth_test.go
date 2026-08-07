@@ -9,11 +9,24 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"os"
+
 	"github.com/scoutpulse/identity-svc/internal/model"
+	"github.com/scoutpulse/libs/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// TestMain installs a signing key. Token operations fail closed without one,
+// so every test in this package needs it.
+func TestMain(m *testing.M) {
+	if err := auth.SetSecret([]byte("identity-svc-test-signing-key-long-enough")); err != nil {
+		panic(err)
+	}
+	os.Exit(m.Run())
+}
 
 // MockUserRepository is a mock type for the UserRepository interface
 type MockUserRepository struct {
@@ -53,7 +66,6 @@ func TestRegister(t *testing.T) {
 		Username: "testuser",
 		Email:    "test@example.com",
 		Password: "password123",
-		Role:     model.UserRole,
 	}
 	body, _ := json.Marshal(regReq)
 
@@ -78,6 +90,59 @@ func TestRegister(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, rr.Code)
 	mockRepo.AssertExpectations(t)
+}
+
+// TestRegister_IgnoresClientSuppliedRole is a regression test for the
+// privilege-escalation hole where Register trusted a "role" field from the
+// request body, letting anyone create an admin account.
+func TestRegister_IgnoresClientSuppliedRole(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	h := &Handler{UserRepo: mockRepo}
+
+	var created *model.User
+	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*model.User")).
+		Return(nil).
+		Run(func(args mock.Arguments) {
+			created = args.Get(1).(*model.User)
+		})
+
+	// A hand-crafted body carrying the field the struct no longer declares.
+	body := []byte(`{"username":"attacker","email":"a@example.com","password":"password123","role":"admin"}`)
+
+	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.Register(rr, req)
+
+	// DecodeJSON rejects unknown fields, so the request is refused outright.
+	// Even if that guard were relaxed, the assertion below must hold.
+	if rr.Code == http.StatusCreated {
+		require.NotNil(t, created)
+		assert.Equal(t, model.UserRole, created.Role,
+			"self-registration must never assign a privileged role")
+	} else {
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	}
+}
+
+func TestRegister_RejectsShortPassword(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	h := &Handler{UserRepo: mockRepo}
+
+	body, _ := json.Marshal(RegisterRequest{
+		Username: "testuser",
+		Email:    "test@example.com",
+		Password: "short",
+	})
+
+	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+
+	h.Register(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	mockRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
 
 func TestLogin(t *testing.T) {

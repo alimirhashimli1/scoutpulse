@@ -9,7 +9,7 @@ import (
 
 type LeagueService interface {
 	GetLeague(ctx context.Context, id string) (*domain.League, error)
-	ListLeagues(ctx context.Context) ([]domain.League, error)
+	ListLeagues(ctx context.Context, page domain.Page) ([]domain.League, error)
 	CreateLeague(ctx context.Context, league *domain.League) error
 	UpdateLeague(ctx context.Context, league *domain.League) error
 	DeleteLeague(ctx context.Context, id string) error
@@ -27,8 +27,8 @@ func (s *leagueService) GetLeague(ctx context.Context, id string) (*domain.Leagu
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *leagueService) ListLeagues(ctx context.Context) ([]domain.League, error) {
-	return s.repo.List(ctx)
+func (s *leagueService) ListLeagues(ctx context.Context, page domain.Page) ([]domain.League, error) {
+	return s.repo.List(ctx, page)
 }
 
 func (s *leagueService) CreateLeague(ctx context.Context, league *domain.League) error {

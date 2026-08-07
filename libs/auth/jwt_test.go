@@ -3,10 +3,40 @@ package auth
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+const testSecret = "test-signing-key-that-is-long-enough-for-hs256"
+
+func TestMain(m *testing.M) {
+	if err := SetSecret([]byte(testSecret)); err != nil {
+		panic(err)
+	}
+	os.Exit(m.Run())
+}
+
+func TestSetSecret_RejectsShortKeys(t *testing.T) {
+	err := SetSecret([]byte("too-short"))
+	require.Error(t, err)
+
+	// The previously installed key must survive a rejected update.
+	token, err := GenerateToken("user-1", "user", nil)
+	require.NoError(t, err)
+	_, err = ValidateToken(token)
+	assert.NoError(t, err)
+}
+
+func TestLoadSecretFromEnv(t *testing.T) {
+	t.Setenv(SecretEnvVar, "")
+	assert.Error(t, LoadSecretFromEnv(), "empty JWT_SECRET must be rejected")
+
+	t.Setenv(SecretEnvVar, testSecret)
+	assert.NoError(t, LoadSecretFromEnv())
+}
 
 func TestGenerateAndValidateToken(t *testing.T) {
 	userID := "user-123"
