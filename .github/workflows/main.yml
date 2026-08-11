@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  GO_VERSION: "1.24"
+  GO_VERSION: "1.25"
 
 jobs:
   # One matrix entry per Go module. Adding a service means adding one line
@@ -58,10 +58,14 @@ jobs:
         working-directory: ${{ matrix.module }}
         run: go vet ./...
 
+      # golangci-lint v2 and action v8. v1 releases predate Go 1.25 and reject
+      # a `go 1.25.0` module before linting anything, which silently disabled
+      # this gate on the three largest modules. The config was migrated to the
+      # v2 schema in the same change.
       - name: Lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
-          version: v1.64.5
+          version: v2.12.2
           working-directory: ${{ matrix.module }}
           args: --config=${{ github.workspace }}/.golangci.yml
 

@@ -1,12 +1,13 @@
 module github.com/scoutpulse/football-svc
 
-go 1.24.0
+go 1.25.0
 
 replace github.com/scoutpulse/libs/auth => ../../libs/auth
 
 replace github.com/scoutpulse/libs/db => ../../libs/db
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.12.3
 	github.com/scoutpulse/libs/auth v0.0.0
@@ -39,7 +40,6 @@ require (
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect

@@ -23,8 +23,8 @@ parsed by `docker compose config`. Everything else was run.
 | **Round 1 total** | **36** | **1** |
 | Round 2 | 21 | 0 |
 | Round 2b | 10 | 0 |
-| Round 2c (fallout) | 4 | 0 |
-| **Total** | **71** | **1** |
+| Round 2c (fallout) | 5 | 0 |
+| **Total** | **72** | **1** |
 
 S6 is a key rotation only you can perform.
 
@@ -446,17 +446,39 @@ What was actually changed, per item.
 
 ## Toolchain (N1, N2, N29)
 
-Aligned on **Go 1.24 everywhere**, rather than raising everything to 1.25.
+> **This was fixed the wrong way first. Corrected below — see N36.**
 
-The choice was deliberate: CI, all three Dockerfiles, `apps/_template` and
-golangci-lint `v1.64.5` were already on 1.24, so only four files had to move
-(`go.work` and the `go.mod` of football-svc, identity-svc, libs/platform) and
-the lint gate keeps working. Going the other way would have meant a new
-golangci-lint major version and migrating `.golangci.yml` to its incompatible
-v2 config schema — a larger change with more ways to go quietly wrong.
+Aligned on **Go 1.25** for the three modules that require it, with CI, all
+three Dockerfiles and the template raised to match, and golangci-lint moved to
+v2.
 
-Nothing used a 1.25 language feature; all six modules build unchanged. If you
-want 1.25 later, do it as its own change with the linter upgrade attached.
+Module directives are now whatever `go mod tidy` computes, which is the only
+defensible source of truth: `apps/football-svc`, `apps/identity-svc` and
+`libs/platform` are `1.25.0` because their dependency graphs demand it;
+`libs/auth`, `libs/db` and `tests/integration` stay at `1.24.0` because theirs
+do not. `go.work` is `1.25.0`, and CI's `GO_VERSION` is `1.25`, which satisfies
+every module.
+
+### N36. The first attempt at N1 aligned *down*, and broke CI
+- [x] The original fix set every module to `go 1.24.0` on the reasoning that CI, the images and golangci-lint `v1.64.5` were already there, so aligning down touched four files instead of eleven and avoided a golangci-lint major upgrade.
+- **That reasoning was wrong, and the evidence was available before making it.** The dependency graph *requires* 1.25: `github.com/felixge/httpsnoop@v1.1.0`, `github.com/nats-io/nats.go@v1.52.0` and `golang.org/x/crypto@v0.54.0` all declare `go >= 1.25`. 1.24 was never an option.
+- Two failures followed in CI:
+  - `go build ./...` failed outright with *"module github.com/felixge/httpsnoop@v1.1.0 requires go >= 1.25 (running go 1.24.13)"*. A **dependency's** requirement is a hard error; only the **main module's** directive triggers a toolchain switch, so nothing auto-upgraded.
+  - The tidy check failed, because `go mod tidy` raises the directive back to `1.25.0` to satisfy those dependencies, and `git diff --exit-code` then sees the rewrite.
+- **Why local verification missed it:** the local toolchain is Go 1.26.1, and with `GOTOOLCHAIN=auto` the build silently used it. `go build` going green on a machine with a newer toolchain says nothing about whether the pinned CI version can build the module. The check that would have caught it is reading what the dependencies require, not whether the build passes locally.
+- **Fixed:** directives set by `go mod tidy` rather than by hand, `GO_VERSION` and all three Dockerfiles raised to 1.25, `apps/_template` raised to match, and the tidy fixpoint verified by snapshotting `go.mod`/`go.sum`, re-running tidy in all six modules and diffing — the check CI actually performs, which the first attempt never ran.
+
+### N2, revisited — golangci-lint v2
+Aligning up forces the linter upgrade the first attempt was trying to dodge.
+There is no golangci-lint v1 release that accepts a `go 1.25.0` module, so
+`.golangci.yml` was migrated to the v2 schema (`version: "2"`,
+`linters-settings` → `linters.settings`, `issues.exclude-rules` →
+`linters.exclusions.rules`) and the workflow moved to
+`golangci-lint-action@v8` with `version: v2.12.2`.
+
+Both pins were checked against the GitHub releases API rather than assumed, and
+the migrated config was validated against the published v2 JSON schema: every
+key is accepted and all ten enabled linter names are valid.
 
 ## Security (N3–N9)
 

@@ -1,16 +1,28 @@
+# golangci-lint configuration, schema version 2.
+#
+# v2 was not optional: v1 releases stopped before Go 1.25 existed and reject a
+# `go 1.25.0` module outright, and three modules here require 1.25 because
+# their dependencies do (nats.go, x/crypto, httpsnoop).
+#
+# Schema differences from the v1 file this replaces:
+#   - `version: "2"` is required.
+#   - `linters-settings` moved under `linters.settings`.
+#   - `issues.exclude-rules` moved to `linters.exclusions.rules`.
+#   - `issues.max-*` stayed where it was.
+#
+# Validated against the published v2 JSON schema: every key below and all ten
+# enabled linter names are accepted.
+version: "2"
+
 run:
   timeout: 5m
   tests: true
 
 linters:
+  # errcheck, govet, ineffassign, staticcheck and unused are enabled by
+  # default in v2, so they are no longer listed here. Listing them again is
+  # harmless but implies they are a choice this file is making.
   enable:
-    # Defaults
-    - errcheck
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    # Added
     - bodyclose      # unclosed HTTP response bodies leak connections
     - errorlint      # catches == comparisons that break through wrapped errors
     - gosec          # security-focused checks
@@ -22,27 +34,29 @@ linters:
     - unconvert
     - unparam
 
-linters-settings:
-  errcheck:
-    # Response writes cannot be meaningfully recovered from mid-stream; the
-    # helpers in libs/platform/httpx log them instead.
-    exclude-functions:
-      - (net/http.ResponseWriter).Write
-  govet:
-    enable:
-      - shadow
-  revive:
+  settings:
+    errcheck:
+      # Response writes cannot be meaningfully recovered from mid-stream; the
+      # helpers in libs/platform/httpx log them instead.
+      exclude-functions:
+        - (net/http.ResponseWriter).Write
+    govet:
+      enable:
+        - shadow
+    revive:
+      rules:
+        - name: exported
+          disabled: true  # not a published library; doc comments are advisory here
+
+  exclusions:
     rules:
-      - name: exported
-        disabled: true  # not a published library; doc comments are advisory here
+      # Test files may hardcode credentials and skip error checks on fixtures.
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+          - unparam
 
 issues:
-  exclude-rules:
-    # Test files may hardcode credentials and skip error checks on fixtures.
-    - path: _test\.go
-      linters:
-        - gosec
-        - errcheck
-        - unparam
   max-issues-per-linter: 0
   max-same-issues: 0
