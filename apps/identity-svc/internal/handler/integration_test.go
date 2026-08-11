@@ -33,9 +33,20 @@ func TestAuthIntegration(t *testing.T) {
 	// testcontainers-go panics rather than returning an error when it cannot
 	// resolve a Docker host, so recover and skip instead of failing on
 	// machines and CI runners without a daemon.
+	//
+	// containerStarted bounds that leniency: once the container is up, a panic
+	// is a real failure and must not be relabelled as a missing daemon. The
+	// football-svc suite had the unbounded version of this block and it turned
+	// a genuine connection error into "likely no Docker daemon" on a runner
+	// where Docker was working.
+	containerStarted := false
 	defer func() {
 		if r := recover(); r != nil {
-			t.Skipf("Skipping test: testcontainers-go panicked (likely no Docker daemon): %v", r)
+			if containerStarted {
+				panic(r)
+			}
+			t.Skipf("Skipping test: testcontainers-go panicked before the container started "+
+				"(likely no Docker daemon): %v", r)
 		}
 	}()
 
@@ -47,7 +58,10 @@ func TestAuthIntegration(t *testing.T) {
 	require.NotEmpty(t, migrations)
 
 	pgContainer, err := postgres.Run(ctx,
-		"postgres:15-alpine",
+		// Matches docker-compose.yml and the football-svc suite. Testing
+		// against a different major version than the one deployed is how a
+		// version-specific behaviour difference reaches production unnoticed.
+		"postgres:16-alpine",
 		postgres.WithDatabase("identity_db"),
 		postgres.WithUsername("user"),
 		postgres.WithPassword("password"),
@@ -60,6 +74,7 @@ func TestAuthIntegration(t *testing.T) {
 	if err != nil {
 		t.Skipf("Skipping test: Docker not available or container failed to start: %v", err)
 	}
+	containerStarted = true
 	defer func() {
 		_ = pgContainer.Terminate(ctx)
 	}()

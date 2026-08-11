@@ -23,8 +23,8 @@ parsed by `docker compose config`. Everything else was run.
 | **Round 1 total** | **36** | **1** |
 | Round 2 | 21 | 0 |
 | Round 2b | 10 | 0 |
-| Round 2c (fallout) | 7 | 0 |
-| **Total** | **74** | **1** |
+| Round 2c (fallout) | 9 | 0 |
+| **Total** | **76** | **1** |
 
 S6 is a key rotation only you can perform.
 
@@ -488,6 +488,22 @@ every module.
 ### N38. The lint timeout was too short for tests/integration
 - [x] `tests/integration` reported `0 issues.` and then failed anyway with *"Timeout exceeded"* — it pulls in the testcontainers and Docker client trees, so type-checking alone exceeded the 5m budget. CI would have gone red on a module with nothing wrong with it.
 - **Fixed:** `run.timeout` raised to 15m. Verified locally at exit code 0.
+
+### N39. football-svc's integration test raced Postgres startup
+- [x] `TestFootballServiceIntegration` failed in CI with `read tcp [::1]:...: connection reset by peer`, then reported *"Skipping test: testcontainers-go panicked (likely no Docker daemon)"* — on a runner where Docker was working perfectly.
+- **Not caused by the round-2 fixes.** This test builds its own DSN with `sqlx.Connect` and never touches `libs/db`. It had almost certainly never run green: the integration job is gated on `needs: [build, migrations]`, and the build job was failing, so this was close to its first real execution.
+- **Root cause:** the wait strategy was `wait.ForLog("database system is ready to accept connections")` with no occurrence count. The official Postgres image logs that line **twice** — first for the temporary server `initdb` runs to execute bootstrap scripts, which listens on a Unix socket only and is then **shut down**, and again when the real server starts on TCP. Waiting for the first means connecting while the server is restarting, which is exactly a connection reset.
+- The identical suite in identity-svc already had `.WithOccurrence(2)`; its absence here was the only difference between one passing and one failing.
+- **Fixed:** `wait.ForAll(ForLog(...).WithOccurrence(2), ForListeningPort("5432/tcp"))` with a 2-minute deadline. The port check covers the remaining gap, since the log line is written just before the socket is ready.
+
+### N40. The failure was reported as three different wrong things
+- [x] One connection error surfaced as a nil-pointer panic reported as a missing Docker daemon. Three separate defects stacked:
+  - `assert.NoError` on the database connection let the test **continue** with a nil `*sqlx.DB` instead of stopping.
+  - Several lines later that nil dereferenced and panicked.
+  - The `defer recover()` block swallowed **every** panic and relabelled it "likely no Docker daemon".
+- The net effect: a real, reproducible infrastructure race was presented as an environment problem, which is the kind of misreporting that gets a genuine failure dismissed as flake.
+- **Fixed:** preconditions use `require` so a failure stops the test at the real error; the recover block is now bounded by a `containerStarted` flag and re-raises any panic that happens after the container is up. The same bounding was applied to identity-svc's copy, which had the same unbounded block.
+- Also aligned: identity-svc's suite tested against `postgres:15-alpine` while compose and football-svc run 16.
 
 ### N2, revisited — golangci-lint v2
 Aligning up forces the linter upgrade the first attempt was trying to dodge.
