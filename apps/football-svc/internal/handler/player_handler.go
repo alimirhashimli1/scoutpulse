@@ -32,9 +32,30 @@ func (h *PlayerHandler) ListPlayers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filter := repository.PlayerFilter{
-		FreeAgent: freeAgent,
-		Position:  httpx.QueryString(r, "position"),
-		TeamID:    httpx.QueryString(r, "team_id"),
+		FreeAgent:   freeAgent,
+		Position:    httpx.QueryString(r, "position"),
+		TeamID:      httpx.QueryString(r, "team_id"),
+		Nationality: httpx.QueryString(r, "nationality"),
+	}
+
+	// Value bounds are in minor units, matching the wire format for money.
+	for _, bound := range []struct {
+		name string
+		dst  **domain.Minor
+	}{
+		{"min_value_minor", &filter.MinValue},
+		{"max_value_minor", &filter.MaxValue},
+	} {
+		if r.URL.Query().Get(bound.name) == "" {
+			continue
+		}
+		raw, err := httpx.QueryInt(r, bound.name, 0)
+		if err != nil {
+			httpx.WriteError(w, r, err)
+			return
+		}
+		v := domain.Minor(raw)
+		*bound.dst = &v
 	}
 
 	players, err := h.service.ListPlayers(r.Context(), filter, page)

@@ -20,9 +20,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestMain installs a signing key; token operations fail closed without one.
+// TestMain installs a key pair. Token operations fail closed without one, and
+// these tests need to both mint and verify, so they hold the private key --
+// the real service holds only the public half.
 func TestMain(m *testing.M) {
-	if err := auth.SetSecret([]byte("football-svc-test-signing-key-long-enough")); err != nil {
+	privatePEM, _, err := auth.GenerateKeyPair(auth.MinRSAKeyBits)
+	if err != nil {
+		panic(err)
+	}
+	if err := auth.SetSigningKey(privatePEM); err != nil {
 		panic(err)
 	}
 	os.Exit(m.Run())

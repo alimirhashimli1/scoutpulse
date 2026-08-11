@@ -94,5 +94,13 @@ func DecodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	if err := dec.Decode(dst); err != nil {
 		return apperr.Wrap(apperr.KindInvalid, "request body is not valid JSON", err)
 	}
+
+	// Reject anything after the first JSON value. Without this, a body of
+	// `{"role":"user"}{"role":"admin"}` decodes the first object and silently
+	// discards the rest, which hides a malformed or smuggled payload rather
+	// than reporting it.
+	if dec.More() {
+		return apperr.Invalid("request body must contain exactly one JSON object")
+	}
 	return nil
 }

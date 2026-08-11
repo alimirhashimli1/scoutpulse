@@ -1,103 +1,136 @@
 services:
-  # Identity Service Database
-  postgres-identity:
-    image: postgres:15-alpine
+  # ---------------------------------------------------------------- data
+  # One Postgres instance with a database and login role per service.
+  # Isolation is preserved -- no service can read another's tables -- without
+  # a container per service, which does not scale to a laptop running six.
+  postgres:
+    image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ${DB_USER:-user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
-      POSTGRES_DB: identity_db
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+      IDENTITY_DB_USER: ${IDENTITY_DB_USER:-identity_user}
+      IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD:-password}
+      FOOTBALL_DB_USER: ${FOOTBALL_DB_USER:-football_user}
+      FOOTBALL_DB_PASSWORD: ${FOOTBALL_DB_PASSWORD:-password}
     ports:
-      - "5433:5432"
+      # Bound to loopback. The default credentials in .env.example are working
+      # ones, so publishing 5432 on all interfaces offers the database to
+      # anything that can reach this host. Services reach it over the compose
+      # network and do not use this mapping at all -- it exists for psql from
+      # the host.
+      - "127.0.0.1:5432:5432"
     volumes:
-      - identity_db_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+      # Role and database bootstrap only. Application schema is applied by the
+      # migrate jobs below, so a schema change never means wiping the volume.
+      - ./deploy/postgres/init-databases.sh:/docker-entrypoint-initdb.d/00-init-databases.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-user} -d identity_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    networks: [scoutpulse-net]
+
+  # --------------------------------------------------------------- events
+  # The asynchronous spine. A new app subscribes to what football-svc already
+  # publishes instead of football-svc being changed to call it.
+  nats:
+    image: nats:2.10-alpine
+    command: ["--jetstream", "--http_port", "8222"]
+    ports:
+      # Loopback only: NATS runs without authentication, so an exposed client
+      # port lets anyone publish domain events into the system.
+      - "127.0.0.1:4222:4222" # client
+      - "127.0.0.1:8222:8222" # monitoring
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -S -O /dev/null http://127.0.0.1:8222/healthz 2>&1 | grep -q '200 OK'"]
       interval: 5s
       timeout: 5s
       retries: 10
-    networks:
-      - scoutpulse-net
+    networks: [scoutpulse-net]
 
-  # Football Service Database
-  postgres-football:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: ${DB_USER:-user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
-      POSTGRES_DB: football_db
-    ports:
-      - "5434:5432"
-    volumes:
-      - football_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-user} -d football_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    networks:
-      - scoutpulse-net
-
-  # Migrations
-  #
-  # Schema changes used to be applied by mounting SQL into the Postgres image's
-  # docker-entrypoint-initdb.d, which only runs when the data directory is
-  # empty -- so any change after the first boot required wiping the volume.
-  # These one-shot jobs run golang-migrate against a persistent schema_migrations
-  # table, so they are idempotent and apply new versions to existing data.
+  # ----------------------------------------------------------- migrations
+  # One-shot jobs running golang-migrate against a schema_migrations table, so
+  # they are idempotent and apply new versions to an existing database.
   migrate-identity:
     image: migrate/migrate:v4.17.1
     depends_on:
-      postgres-identity:
-        condition: service_healthy
+      postgres: {condition: service_healthy}
     volumes:
       - ./apps/identity-svc/migrations:/migrations:ro
     command:
       - "-path=/migrations"
-      - "-database=postgres://${DB_USER:-user}:${DB_PASSWORD:-password}@postgres-identity:5432/identity_db?sslmode=disable"
+      - "-database=postgres://${IDENTITY_DB_USER:-identity_user}:${IDENTITY_DB_PASSWORD:-password}@postgres:5432/identity_db?sslmode=disable"
       - "up"
     restart: on-failure
-    networks:
-      - scoutpulse-net
+    networks: [scoutpulse-net]
 
   migrate-football:
     image: migrate/migrate:v4.17.1
     depends_on:
-      postgres-football:
-        condition: service_healthy
+      postgres: {condition: service_healthy}
     volumes:
       - ./apps/football-svc/migrations:/migrations:ro
     command:
       - "-path=/migrations"
-      - "-database=postgres://${DB_USER:-user}:${DB_PASSWORD:-password}@postgres-football:5432/football_db?sslmode=disable"
+      - "-database=postgres://${FOOTBALL_DB_USER:-football_user}:${FOOTBALL_DB_PASSWORD:-password}@postgres:5432/football_db?sslmode=disable"
       - "up"
     restart: on-failure
-    networks:
-      - scoutpulse-net
+    networks: [scoutpulse-net]
 
-  # Microservices
+  # -------------------------------------------------------------- gateway
+  # Single entry point. Adding a service is a route here, not a new port the
+  # frontend has to learn.
+  gateway:
+    image: caddy:2.8-alpine
+    # Waits for readiness, not just for the containers to start. A plain
+    # depends_on list returns as soon as the process exists, so the gateway
+    # would answer with 502s while the services were still connecting to the
+    # database.
+    depends_on:
+      identity-svc: {condition: service_healthy}
+      football-svc: {condition: service_healthy}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./deploy/gateway/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    networks: [scoutpulse-net]
+
+  # ------------------------------------------------------------- services
   identity-svc:
     build:
       context: .
       dockerfile: apps/identity-svc/Dockerfile
     restart: on-failure
     environment:
-      - DB_HOST=postgres-identity
+      - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=${DB_USER:-user}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DB_USER=${IDENTITY_DB_USER:-identity_user}
+      - DB_PASSWORD=${IDENTITY_DB_PASSWORD:-password}
       - DB_NAME=identity_db
-      # Required. The service refuses to start without it.
-      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set, see .env.example}
+      # The token issuer, and the only service given the private key.
+      - JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY:?run "make keys" to generate a key pair}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:4200}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     depends_on:
-      postgres-identity:
-        condition: service_healthy
-      migrate-identity:
-        condition: service_completed_successfully
+      postgres: {condition: service_healthy}
+      migrate-identity: {condition: service_completed_successfully}
     ports:
-      - "8080:8080"
-    networks:
-      - scoutpulse-net
+      # Loopback only. Everything routes through the gateway on :8000; a
+      # service port published on all interfaces bypasses the edge, and with it
+      # the metrics block and anything else the gateway enforces.
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks: [scoutpulse-net]
 
   football-svc:
     build:
@@ -105,28 +138,34 @@ services:
       dockerfile: apps/football-svc/Dockerfile
     restart: on-failure
     environment:
-      - DB_HOST=postgres-football
+      - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=${DB_USER:-user}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DB_USER=${FOOTBALL_DB_USER:-football_user}
+      - DB_PASSWORD=${FOOTBALL_DB_PASSWORD:-password}
       - DB_NAME=football_db
-      # Must match identity-svc: one service signs tokens, the other verifies
-      # them with the same key.
-      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set, see .env.example}
+      # Verification only. This service holds no private key and therefore
+      # cannot mint tokens -- the point of asymmetric signing.
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY:?run "make keys" to generate a key pair}
+      - NATS_URL=nats://nats:4222
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:4200}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     depends_on:
-      postgres-football:
-        condition: service_healthy
-      migrate-football:
-        condition: service_completed_successfully
+      postgres: {condition: service_healthy}
+      migrate-football: {condition: service_completed_successfully}
+      nats: {condition: service_healthy}
     ports:
-      - "8081:8081"
-    networks:
-      - scoutpulse-net
+      - "127.0.0.1:8081:8081"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks: [scoutpulse-net]
 
-  # The Angular frontend is not built yet (Phase 4). Its container is defined
-  # under the "frontend" profile so `docker compose up` does not build an empty
-  # nginx image; bring it up with `docker compose --profile frontend up`.
+  # The Angular frontend is not built yet (Phase 4). Kept behind a profile so
+  # `docker compose up` does not build an empty nginx image; start it with
+  # `docker compose --profile frontend up`.
   frontend:
     profiles: ["frontend"]
     build:
@@ -134,16 +173,35 @@ services:
       dockerfile: apps/frontend/Dockerfile
     ports:
       - "4200:80"
-    depends_on:
-      - identity-svc
-      - football-svc
-    networks:
-      - scoutpulse-net
+    depends_on: [gateway]
+    networks: [scoutpulse-net]
+
+  # Observability, behind a profile so the default stack stays small.
+  # Start with `docker compose --profile observability up`.
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v2.54.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks: [scoutpulse-net]
+
+  jaeger:
+    profiles: ["observability"]
+    image: jaegertracing/all-in-one:1.60
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686" # UI
+      - "4318:4318"   # OTLP HTTP
+    networks: [scoutpulse-net]
 
 networks:
   scoutpulse-net:
     driver: bridge
 
 volumes:
-  identity_db_data:
-  football_db_data:
+  postgres_data:
+  nats_data:
+  caddy_data:

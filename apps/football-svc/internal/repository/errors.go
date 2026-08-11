@@ -14,6 +14,12 @@ const (
 	pgUniqueViolation     = "23505"
 	pgForeignKeyViolation = "23503"
 	pgNotNullViolation    = "23502"
+	pgCheckViolation      = "23514"
+	// pgInvalidTextRepresentation is what Postgres returns for a malformed
+	// UUID. Every id in this schema is a UUID, so without this case a caller
+	// sending "/players/not-a-uuid" gets a 500 and an error in the log for
+	// what is plainly a bad request.
+	pgInvalidTextRepresentation = "22P02"
 )
 
 // translate converts a database error into the shared error taxonomy.
@@ -40,6 +46,14 @@ func translate(entity string, err error) error {
 			return apperr.Wrap(apperr.KindInvalid, "referenced record does not exist", err)
 		case pgNotNullViolation:
 			return apperr.Wrap(apperr.KindInvalid, "a required field is missing", err)
+		case pgCheckViolation:
+			// The schema's CHECK constraints restate rules the service layer
+			// also enforces. Reaching one means the two disagree, or a write
+			// bypassed validation -- either way it is the caller's input that
+			// is wrong, not the server.
+			return apperr.Wrap(apperr.KindInvalid, "a field failed a validation rule", err)
+		case pgInvalidTextRepresentation:
+			return apperr.Wrap(apperr.KindInvalid, "malformed identifier", err)
 		}
 	}
 

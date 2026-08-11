@@ -4,38 +4,52 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
-	"testing"
-
 	"os"
+	"sync"
+	"testing"
+	"time"
 
 	"github.com/scoutpulse/identity-svc/internal/model"
+	"github.com/scoutpulse/identity-svc/internal/repository"
 	"github.com/scoutpulse/libs/auth"
+	"github.com/scoutpulse/libs/platform/apperr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// TestMain installs a signing key. Token operations fail closed without one,
-// so every test in this package needs it.
+// TestMain installs a signing key. This service is the token issuer, so it
+// holds the private half.
 func TestMain(m *testing.M) {
-	if err := auth.SetSecret([]byte("identity-svc-test-signing-key-long-enough")); err != nil {
+	privatePEM, _, err := auth.GenerateKeyPair(auth.MinRSAKeyBits)
+	if err != nil {
+		panic(err)
+	}
+	if err := auth.SetSigningKey(privatePEM); err != nil {
 		panic(err)
 	}
 	os.Exit(m.Run())
 }
 
-// MockUserRepository is a mock type for the UserRepository interface
+// --- mocks -------------------------------------------------------------
+
 type MockUserRepository struct {
 	mock.Mock
 }
 
 func (m *MockUserRepository) Create(ctx context.Context, user *model.User) error {
-	args := m.Called(ctx, user)
-	return args.Error(0)
+	return m.Called(ctx, user).Error(0)
+}
+
+func (m *MockUserRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.User), args.Error(1)
 }
 
 func (m *MockUserRepository) GetByIdentifier(ctx context.Context, identifier string) (*model.User, error) {
@@ -46,71 +60,164 @@ func (m *MockUserRepository) GetByIdentifier(ctx context.Context, identifier str
 	return args.Get(0).(*model.User), args.Error(1)
 }
 
+func (m *MockUserRepository) UpdateRole(ctx context.Context, userID string, role model.Role, updatedBy string) error {
+	return m.Called(ctx, userID, role, updatedBy).Error(0)
+}
+
+// fakeRefreshRepo is an in-memory session store.
+type fakeRefreshRepo struct {
+	mu        sync.Mutex
+	byHash    map[string]*model.RefreshToken
+	revokeAll int
+	nextID    int
+}
+
+func newFakeRefreshRepo() *fakeRefreshRepo {
+	return &fakeRefreshRepo{byHash: map[string]*model.RefreshToken{}}
+}
+
+func (f *fakeRefreshRepo) Create(_ context.Context, t *model.RefreshToken) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nextID++
+	t.ID = string(rune('a' + f.nextID))
+	t.IssuedAt = time.Now()
+	f.byHash[string(t.TokenHash)] = t
+	return nil
+}
+
+func (f *fakeRefreshRepo) GetByToken(_ context.Context, token string) (*model.RefreshToken, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	t, ok := f.byHash[string(repository.HashToken(token))]
+	if !ok {
+		return nil, apperr.Unauthorized("invalid refresh token")
+	}
+	return t, nil
+}
+
+func (f *fakeRefreshRepo) Rotate(_ context.Context, oldID string, next *model.RefreshToken) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	for _, t := range f.byHash {
+		if t.ID == oldID {
+			if t.RevokedAt != nil {
+				return apperr.Unauthorized("invalid refresh token")
+			}
+			now := time.Now()
+			t.RevokedAt = &now
+		}
+	}
+
+	f.nextID++
+	next.ID = string(rune('a' + f.nextID))
+	next.IssuedAt = time.Now()
+	f.byHash[string(next.TokenHash)] = next
+	return nil
+}
+
+func (f *fakeRefreshRepo) Revoke(_ context.Context, token string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if t, ok := f.byHash[string(repository.HashToken(token))]; ok {
+		now := time.Now()
+		t.RevokedAt = &now
+	}
+	return nil
+}
+
+func (f *fakeRefreshRepo) RevokeAllForUser(_ context.Context, userID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.revokeAll++
+	for _, t := range f.byHash {
+		if t.UserID == userID {
+			now := time.Now()
+			t.RevokedAt = &now
+		}
+	}
+	return nil
+}
+
+func (f *fakeRefreshRepo) DeleteExpired(context.Context, time.Time) (int64, error) { return 0, nil }
+
+// --- helpers ------------------------------------------------------------
+
+func postJSON(t *testing.T, h http.HandlerFunc, path string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	raw, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h(rr, req)
+	return rr
+}
+
+func testUser(t *testing.T, password string, role model.Role) *model.User {
+	t.Helper()
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
+	require.NoError(t, err)
+	return &model.User{
+		ID:           "test-id",
+		Username:     "testuser",
+		Email:        "test@example.com",
+		PasswordHash: string(hash),
+		Role:         role,
+	}
+}
+
+// --- tests --------------------------------------------------------------
+
 func TestHealth(t *testing.T) {
 	h := &Handler{}
-	req, err := http.NewRequest("GET", "/health", nil)
-	assert.NoError(t, err)
-
 	rr := httptest.NewRecorder()
-	h.Health(rr, req)
+	h.Health(rr, httptest.NewRequest(http.MethodGet, "/health", nil))
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "Identity Service is healthy", rr.Body.String())
 }
 
 func TestRegister(t *testing.T) {
-	mockRepo := new(MockUserRepository)
-	h := &Handler{UserRepo: mockRepo}
+	repo := new(MockUserRepository)
+	h := &Handler{UserRepo: repo, RefreshRepo: newFakeRefreshRepo()}
 
-	regReq := RegisterRequest{
+	var created *model.User
+	repo.On("Create", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil).Once().
+		Run(func(args mock.Arguments) { created = args.Get(1).(*model.User) })
+
+	rr := postJSON(t, h.Register, "/api/v1/auth/register", RegisterRequest{
 		Username: "testuser",
 		Email:    "test@example.com",
 		Password: "password123",
-	}
-	body, _ := json.Marshal(regReq)
-
-	// Expect Create to be called with any user object
-	// We'll verify the password hashing logic here
-	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil).Run(func(args mock.Arguments) {
-		user := args.Get(1).(*model.User)
-		assert.Equal(t, regReq.Username, user.Username)
-		assert.Equal(t, regReq.Email, user.Email)
-		// Verify password is NOT plain text
-		assert.NotEqual(t, regReq.Password, user.PasswordHash)
-		// Verify it's a valid bcrypt hash
-		err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(regReq.Password))
-		assert.NoError(t, err)
 	})
 
-	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-
-	h.Register(rr, req)
-
 	assert.Equal(t, http.StatusCreated, rr.Code)
-	mockRepo.AssertExpectations(t)
+	require.NotNil(t, created)
+	assert.Equal(t, "testuser", created.Username)
+	assert.NotEqual(t, "password123", created.PasswordHash, "password must not be stored in plain text")
+	assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(created.PasswordHash), []byte("password123")))
+
+	// The response must not carry the hash.
+	assert.NotContains(t, rr.Body.String(), "password_hash")
+	repo.AssertExpectations(t)
 }
 
 // TestRegister_IgnoresClientSuppliedRole is a regression test for the
 // privilege-escalation hole where Register trusted a "role" field from the
 // request body, letting anyone create an admin account.
 func TestRegister_IgnoresClientSuppliedRole(t *testing.T) {
-	mockRepo := new(MockUserRepository)
-	h := &Handler{UserRepo: mockRepo}
+	repo := new(MockUserRepository)
+	h := &Handler{UserRepo: repo, RefreshRepo: newFakeRefreshRepo()}
 
 	var created *model.User
-	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*model.User")).
-		Return(nil).
-		Run(func(args mock.Arguments) {
-			created = args.Get(1).(*model.User)
-		})
+	repo.On("Create", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil).Maybe().
+		Run(func(args mock.Arguments) { created = args.Get(1).(*model.User) })
 
-	// A hand-crafted body carrying the field the struct no longer declares.
 	body := []byte(`{"username":"attacker","email":"a@example.com","password":"password123","role":"admin"}`)
-
-	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 
 	h.Register(rr, req)
@@ -127,103 +234,230 @@ func TestRegister_IgnoresClientSuppliedRole(t *testing.T) {
 }
 
 func TestRegister_RejectsShortPassword(t *testing.T) {
-	mockRepo := new(MockUserRepository)
-	h := &Handler{UserRepo: mockRepo}
+	repo := new(MockUserRepository)
+	h := &Handler{UserRepo: repo, RefreshRepo: newFakeRefreshRepo()}
 
-	body, _ := json.Marshal(RegisterRequest{
+	rr := postJSON(t, h.Register, "/api/v1/auth/register", RegisterRequest{
 		Username: "testuser",
 		Email:    "test@example.com",
 		Password: "short",
 	})
 
-	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(body))
-	rr := httptest.NewRecorder()
-
-	h.Register(rr, req)
-
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	mockRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
 
 func TestLogin(t *testing.T) {
-	password := "password123"
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	const password = "password123"
+	user := testUser(t, password, model.UserRole)
 
-	testUser := &model.User{
-		ID:           "test-id",
-		Username:     "testuser",
-		Email:        "test@example.com",
-		PasswordHash: string(hashedPassword),
-		Role:         model.UserRole,
+	t.Run("success returns an access and refresh pair", func(t *testing.T) {
+		repo := new(MockUserRepository)
+		h := &Handler{UserRepo: repo, RefreshRepo: newFakeRefreshRepo()}
+		repo.On("GetByIdentifier", mock.Anything, user.Email).Return(user, nil)
+
+		rr := postJSON(t, h.Login, "/api/v1/auth/login",
+			LoginRequest{Identifier: user.Email, Password: password})
+
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		var resp TokenResponse
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+		assert.NotEmpty(t, resp.AccessToken)
+		assert.NotEmpty(t, resp.RefreshToken)
+		assert.Equal(t, "Bearer", resp.TokenType)
+		assert.Equal(t, int(auth.AccessTokenTTL.Seconds()), resp.ExpiresIn)
+
+		claims, err := auth.ValidateToken(resp.AccessToken)
+		require.NoError(t, err)
+		assert.Equal(t, user.ID, claims.UserID)
+		assert.Equal(t, string(model.UserRole), claims.Role)
+	})
+
+	t.Run("wrong password", func(t *testing.T) {
+		repo := new(MockUserRepository)
+		h := &Handler{UserRepo: repo, RefreshRepo: newFakeRefreshRepo()}
+		repo.On("GetByIdentifier", mock.Anything, user.Email).Return(user, nil)
+
+		rr := postJSON(t, h.Login, "/api/v1/auth/login",
+			LoginRequest{Identifier: user.Email, Password: "wrongpassword"})
+
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	})
+
+	t.Run("unknown user is indistinguishable from a wrong password", func(t *testing.T) {
+		repo := new(MockUserRepository)
+		h := &Handler{UserRepo: repo, RefreshRepo: newFakeRefreshRepo()}
+		repo.On("GetByIdentifier", mock.Anything, "nobody@example.com").
+			Return(nil, apperr.NotFound("user not found"))
+
+		rr := postJSON(t, h.Login, "/api/v1/auth/login",
+			LoginRequest{Identifier: "nobody@example.com", Password: password})
+
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		// Revealing "no such user" would let anyone enumerate accounts.
+		assert.NotContains(t, rr.Body.String(), "not found")
+	})
+}
+
+// TestRefreshRotatesToken checks the refresh token is single-use.
+func TestRefreshRotatesToken(t *testing.T) {
+	const password = "password123"
+	user := testUser(t, password, model.UserRole)
+
+	repo := new(MockUserRepository)
+	sessions := newFakeRefreshRepo()
+	h := &Handler{UserRepo: repo, RefreshRepo: sessions}
+	repo.On("GetByIdentifier", mock.Anything, user.Email).Return(user, nil)
+	repo.On("GetByID", mock.Anything, user.ID).Return(user, nil)
+
+	rr := postJSON(t, h.Login, "/api/v1/auth/login",
+		LoginRequest{Identifier: user.Email, Password: password})
+	var first TokenResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &first))
+
+	rr = postJSON(t, h.Refresh, "/api/v1/auth/refresh",
+		RefreshRequest{RefreshToken: first.RefreshToken})
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var second TokenResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &second))
+	assert.NotEqual(t, first.RefreshToken, second.RefreshToken, "the refresh token must rotate")
+	assert.NotEmpty(t, second.AccessToken)
+}
+
+// TestRefreshReuseRevokesEverySession covers leak detection: presenting a
+// refresh token that has already been exchanged means a copy is circulating,
+// and the response is to end every session rather than keep serving both the
+// real client and whoever else holds it.
+func TestRefreshReuseRevokesEverySession(t *testing.T) {
+	const password = "password123"
+	user := testUser(t, password, model.UserRole)
+
+	repo := new(MockUserRepository)
+	sessions := newFakeRefreshRepo()
+	h := &Handler{UserRepo: repo, RefreshRepo: sessions}
+	repo.On("GetByIdentifier", mock.Anything, user.Email).Return(user, nil)
+	repo.On("GetByID", mock.Anything, user.ID).Return(user, nil)
+
+	rr := postJSON(t, h.Login, "/api/v1/auth/login",
+		LoginRequest{Identifier: user.Email, Password: password})
+	var first TokenResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &first))
+
+	// Legitimate refresh.
+	rr = postJSON(t, h.Refresh, "/api/v1/auth/refresh",
+		RefreshRequest{RefreshToken: first.RefreshToken})
+	require.Equal(t, http.StatusOK, rr.Code)
+	var second TokenResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &second))
+
+	// Replay of the now-revoked token.
+	rr = postJSON(t, h.Refresh, "/api/v1/auth/refresh",
+		RefreshRequest{RefreshToken: first.RefreshToken})
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	assert.Positive(t, sessions.revokeAll, "reuse should revoke the user's sessions")
+
+	// The token issued to the real client is dead too: the safe assumption
+	// is that the attacker has it.
+	rr = postJSON(t, h.Refresh, "/api/v1/auth/refresh",
+		RefreshRequest{RefreshToken: second.RefreshToken})
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+func TestRefreshRejectsUnknownToken(t *testing.T) {
+	h := &Handler{UserRepo: new(MockUserRepository), RefreshRepo: newFakeRefreshRepo()}
+
+	rr := postJSON(t, h.Refresh, "/api/v1/auth/refresh",
+		RefreshRequest{RefreshToken: "not-a-real-token"})
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+func TestLogoutRevokesToken(t *testing.T) {
+	const password = "password123"
+	user := testUser(t, password, model.UserRole)
+
+	repo := new(MockUserRepository)
+	sessions := newFakeRefreshRepo()
+	h := &Handler{UserRepo: repo, RefreshRepo: sessions}
+	repo.On("GetByIdentifier", mock.Anything, user.Email).Return(user, nil)
+	repo.On("GetByID", mock.Anything, user.ID).Return(user, nil)
+
+	rr := postJSON(t, h.Login, "/api/v1/auth/login",
+		LoginRequest{Identifier: user.Email, Password: password})
+	var tokens TokenResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &tokens))
+
+	rr = postJSON(t, h.Logout, "/api/v1/auth/logout",
+		RefreshRequest{RefreshToken: tokens.RefreshToken})
+	assert.Equal(t, http.StatusNoContent, rr.Code)
+
+	// The revoked token can no longer be exchanged.
+	rr = postJSON(t, h.Refresh, "/api/v1/auth/refresh",
+		RefreshRequest{RefreshToken: tokens.RefreshToken})
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+func TestUpdateRole(t *testing.T) {
+	newAdminCtx := func() context.Context {
+		return context.WithValue(context.Background(), auth.ClaimsContextKey,
+			&auth.Claims{UserID: "admin-1", Role: string(model.AdminRole)})
 	}
 
-	t.Run("Success", func(t *testing.T) {
-		mockRepo := new(MockUserRepository)
-		h := &Handler{UserRepo: mockRepo}
+	t.Run("admin may promote", func(t *testing.T) {
+		repo := new(MockUserRepository)
+		sessions := newFakeRefreshRepo()
+		h := &Handler{UserRepo: repo, RefreshRepo: sessions}
+		repo.On("UpdateRole", mock.Anything, "user-2", model.EditorRole, "admin-1").Return(nil).Once()
 
-		loginReq := LoginRequest{
-			Identifier: "test@example.com",
-			Password:   password,
-		}
-		body, _ := json.Marshal(loginReq)
-
-		mockRepo.On("GetByIdentifier", mock.Anything, loginReq.Identifier).Return(testUser, nil)
-
-		req, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(body))
-		req.Header.Set("Content-Type", "application/json")
+		body, _ := json.Marshal(UpdateRoleRequest{Role: model.EditorRole})
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/users/user-2/role", bytes.NewReader(body)).
+			WithContext(newAdminCtx())
+		req.SetPathValue("id", "user-2")
 		rr := httptest.NewRecorder()
 
-		h.Login(rr, req)
+		h.UpdateRole(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		var resp map[string]string
-		err := json.Unmarshal(rr.Body.Bytes(), &resp)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, resp["token"])
-		mockRepo.AssertExpectations(t)
+		// The old role is baked into any token already issued, so the
+		// user's sessions must end.
+		assert.Positive(t, sessions.revokeAll, "a role change must end existing sessions")
+		repo.AssertExpectations(t)
 	})
 
-	t.Run("Invalid Password", func(t *testing.T) {
-		mockRepo := new(MockUserRepository)
-		h := &Handler{UserRepo: mockRepo}
+	t.Run("non-admin is refused", func(t *testing.T) {
+		repo := new(MockUserRepository)
+		h := &Handler{UserRepo: repo, RefreshRepo: newFakeRefreshRepo()}
 
-		loginReq := LoginRequest{
-			Identifier: "test@example.com",
-			Password:   "wrongpassword",
-		}
-		body, _ := json.Marshal(loginReq)
+		ctx := context.WithValue(context.Background(), auth.ClaimsContextKey,
+			&auth.Claims{UserID: "editor-1", Role: string(model.EditorRole)})
 
-		mockRepo.On("GetByIdentifier", mock.Anything, loginReq.Identifier).Return(testUser, nil)
-
-		req, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(body))
-		req.Header.Set("Content-Type", "application/json")
+		body, _ := json.Marshal(UpdateRoleRequest{Role: model.AdminRole})
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/users/editor-1/role", bytes.NewReader(body)).
+			WithContext(ctx)
+		req.SetPathValue("id", "editor-1")
 		rr := httptest.NewRecorder()
 
-		h.Login(rr, req)
+		h.UpdateRole(rr, req)
 
-		assert.Equal(t, http.StatusUnauthorized, rr.Code)
-		mockRepo.AssertExpectations(t)
+		assert.Equal(t, http.StatusForbidden, rr.Code)
+		repo.AssertNotCalled(t, "UpdateRole", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
 
-	t.Run("User Not Found", func(t *testing.T) {
-		mockRepo := new(MockUserRepository)
-		h := &Handler{UserRepo: mockRepo}
+	t.Run("unknown role is rejected", func(t *testing.T) {
+		repo := new(MockUserRepository)
+		h := &Handler{UserRepo: repo, RefreshRepo: newFakeRefreshRepo()}
 
-		loginReq := LoginRequest{
-			Identifier: "nonexistent@example.com",
-			Password:   password,
-		}
-		body, _ := json.Marshal(loginReq)
-
-		mockRepo.On("GetByIdentifier", mock.Anything, loginReq.Identifier).Return(nil, errors.New("not found"))
-
-		req, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(body))
-		req.Header.Set("Content-Type", "application/json")
+		body := []byte(`{"role":"superuser"}`)
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/users/user-2/role", bytes.NewReader(body)).
+			WithContext(newAdminCtx())
+		req.SetPathValue("id", "user-2")
 		rr := httptest.NewRecorder()
 
-		h.Login(rr, req)
+		h.UpdateRole(rr, req)
 
-		assert.Equal(t, http.StatusUnauthorized, rr.Code)
-		mockRepo.AssertExpectations(t)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		repo.AssertNotCalled(t, "UpdateRole", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
 }

@@ -75,22 +75,32 @@ ScoutPulse Micro is a high-performance football database platform (similar to Tr
 - [x] 2.6 Health Check Endpoint (/health)
 - [x] 2.7 Unit Tests (Mocking) & Integration Tests (Testcontainers)
 
-### Phase 3: Football Service (Domain) ⚽
+### Phase 3: Football Service (Domain) ⚽ [COMPLETED]
 - [x] 3.1 Service Initialization
 - [x] 3.2 Core Models (Leagues, Teams, Coaches - Database Migration & Schema)
-- [ ] 3.3 Internal Service Communication
-      (specced as gRPC; an event bus is the better fit — see ISSUES.md F6)
+- [x] 3.3 Internal Service Communication
+      (specced as gRPC; implemented as a NATS event bus instead — asynchronous
+      publish/subscribe lets a new app integrate without the football service
+      being changed to call it, which synchronous RPC does not)
 - [x] 3.4 Auth Middleware Integration
 - [x] 3.5 Full CRUD, service-layer RBAC, pagination, lookup indexes
-- [ ] 3.6 Temporal domain model: transfers, market-value history, seasons
-      (ISSUES.md A7 — required before Phase 4, as it reshapes every response)
+- [x] 3.6 Temporal domain model: transfers, market-value history, seasons,
+      coach spells, enriched player and club detail. Current state is derived
+      from history rather than overwriting it.
 
 ### Phase 3.5: Platform Hardening 🛠️ [COMPLETED]
 - [x] Go workspace (`go.work`) replacing the phantom root module
-- [x] `libs/platform`: shared error taxonomy, HTTP bootstrap, middleware, helpers
-- [x] JWT signing key from environment; registration privilege escalation closed
+- [x] `libs/platform`: error taxonomy, HTTP bootstrap, middleware, JSON helpers
+- [x] Registration privilege escalation closed; admin-only role management
+- [x] RS256 signing with JWKS — only identity-svc can mint tokens
+- [x] Short access tokens, rotating revocable refresh tokens, leak detection
+- [x] Editor grants moved out of the JWT into the service that owns clubs
+- [x] Money as integer minor units
 - [x] golang-migrate runner replacing first-boot-only schema mounts
 - [x] Server timeouts, graceful shutdown, CORS, structured logs, request IDs
+- [x] Caddy API gateway; one Postgres instance with a role per service
+- [x] NATS event bus; Prometheus metrics and OpenTelemetry tracing
+- [x] Service template and `make new-service`
 - [x] `.golangci.yml` and a CI matrix over every module
 
 ### Phase 4: Frontend Development (UI) 🎨

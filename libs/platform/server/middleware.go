@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 )
@@ -121,8 +123,19 @@ func Recover(logger *slog.Logger) Middleware {
 						slog.String("method", r.Method),
 						slog.String("path", r.URL.Path),
 						slog.String("request_id", RequestIDFrom(r.Context())),
+						slog.String("stack", string(debug.Stack())),
 					)
-					http.Error(w, "internal server error", http.StatusInternalServerError)
+
+					// JSON, matching every other error this platform emits, so
+					// a client needs one error parser rather than a special
+					// case for panics. The stack goes to the log only.
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusInternalServerError)
+					_ = json.NewEncoder(w).Encode(map[string]string{
+						"error":      "internal server error",
+						"code":       "internal",
+						"request_id": RequestIDFrom(r.Context()),
+					})
 				}
 			}()
 			next.ServeHTTP(w, r)
@@ -133,11 +146,15 @@ func Recover(logger *slog.Logger) Middleware {
 // CORSOriginsEnvVar configures allowed origins as a comma-separated list.
 const CORSOriginsEnvVar = "CORS_ALLOWED_ORIGINS"
 
+// allowedOriginsFromEnv reads the allowed origins.
+//
+// An unset variable yields no origins, not "*". A deployment that forgets to
+// configure CORS should refuse cross-origin requests rather than accept every
+// one of them: the failure has to be visible in the browser console, not
+// silently permissive. The wildcard is still available, but it has to be
+// spelled out.
 func allowedOriginsFromEnv() []string {
 	raw := os.Getenv(CORSOriginsEnvVar)
-	if raw == "" {
-		return []string{"*"}
-	}
 
 	parts := strings.Split(raw, ",")
 	origins := make([]string, 0, len(parts))
@@ -145,9 +162,6 @@ func allowedOriginsFromEnv() []string {
 		if trimmed := strings.TrimSpace(p); trimmed != "" {
 			origins = append(origins, trimmed)
 		}
-	}
-	if len(origins) == 0 {
-		return []string{"*"}
 	}
 	return origins
 }

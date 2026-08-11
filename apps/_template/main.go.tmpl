@@ -1,0 +1,72 @@
+package main
+
+import (
+	"context"
+	"log"
+	"log/slog"
+	"net/http"
+	"os"
+
+	"github.com/scoutpulse/libs/auth"
+	"github.com/scoutpulse/libs/platform/events"
+	"github.com/scoutpulse/libs/platform/observability"
+	"github.com/scoutpulse/libs/platform/server"
+)
+
+const (
+	serviceName = "SERVICE_NAME"
+	listenAddr  = ":SERVICE_PORT"
+	version     = "0.1.0"
+)
+
+func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
+	// Verification only. A service that is not the identity service holds no
+	// private key, so it can check tokens but not mint them.
+	if err := auth.LoadFromEnv(); err != nil {
+		log.Fatalf("Failed to configure token verification: %v", err)
+	}
+
+	// Uncomment when this service owns a database.
+	//
+	// database, err := db.ConnectFromEnv()
+	// if err != nil {
+	//     log.Fatalf("Failed to connect to database: %v", err)
+	// }
+	// defer database.Close()
+
+	// Optional: without NATS_URL this is a no-op, so the service still runs
+	// with no broker present.
+	publisher, err := events.PublisherFromEnv(logger)
+	if err != nil {
+		log.Fatalf("Failed to connect to the event bus: %v", err)
+	}
+	defer func() { _ = publisher.Close() }()
+	_ = events.NewSafePublisher(publisher, logger)
+
+	shutdownTracing, err := observability.InitTracing(context.Background(), serviceName, version, logger)
+	if err != nil {
+		log.Fatalf("Failed to initialise tracing: %v", err)
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /health", server.Health(serviceName))
+	mux.Handle("GET "+observability.MetricsPath, observability.Handler())
+
+	// Register routes here. Reads are public; wrap writes in
+	// auth.AuthMiddleware and decide the role in the service layer.
+
+	err = server.RunWithOptions(serviceName, listenAddr, mux, server.Options{
+		Logger: logger,
+		Middleware: []server.Middleware{
+			observability.Tracing(serviceName),
+			observability.Metrics(serviceName),
+		},
+		OnShutdown: []func(context.Context) error{shutdownTracing},
+	})
+	if err != nil {
+		log.Fatalf("Server error: %v", err)
+	}
+}

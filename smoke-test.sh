@@ -27,9 +27,14 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# 4. Wait a few seconds for DBs to initialize
-echo "Waiting for services to stabilize (10s)..."
-sleep 10
+# 4. Wait for the stack to become healthy.
+#
+# The gateway now waits on `service_healthy` for both services rather than on
+# their containers merely existing, so readiness is sequenced: migrations, then
+# the services, then their healthchecks passing, then the gateway. That takes
+# longer than a bare `up -d` did.
+echo "Waiting for services to stabilize (40s)..."
+sleep 40
 
 # 5. Check if containers are running
 # We expect 4 containers based on your previous output

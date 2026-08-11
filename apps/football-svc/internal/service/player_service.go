@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/scoutpulse/football-svc/internal/domain"
 	"github.com/scoutpulse/football-svc/internal/repository"
+	"github.com/scoutpulse/libs/platform/apperr"
+	"github.com/scoutpulse/libs/platform/events"
 )
 
 type PlayerService interface {
@@ -17,11 +20,13 @@ type PlayerService interface {
 }
 
 type playerService struct {
-	repo repository.PlayerRepository
+	repo      repository.PlayerRepository
+	authz     *Authorizer
+	publisher events.Publisher
 }
 
-func NewPlayerService(repo repository.PlayerRepository) PlayerService {
-	return &playerService{repo: repo}
+func NewPlayerService(repo repository.PlayerRepository, authz *Authorizer, publisher events.Publisher) PlayerService {
+	return &playerService{repo: repo, authz: authz, publisher: publisher}
 }
 
 func (s *playerService) GetPlayer(ctx context.Context, id string) (*domain.Player, error) {
@@ -37,30 +42,86 @@ func (s *playerService) ListPlayers(ctx context.Context, filter repository.Playe
 	return s.repo.List(ctx, filter, page)
 }
 
-func (s *playerService) CreatePlayer(ctx context.Context, player *domain.Player) error {
-	if err := footballAuthz.requireAdminOrManagedTargetTeam(ctx, player.TeamID); err != nil {
-		return err
+func validatePlayer(p *domain.Player) error {
+	if p.Name == "" {
+		return apperr.Invalid("name is required")
 	}
-	return s.repo.Create(ctx, player)
+	if p.Position == "" {
+		return apperr.Invalid("position is required")
+	}
+	if p.PreferredFoot != nil && !domain.ValidFoot(*p.PreferredFoot) {
+		return apperr.Invalid("preferred_foot must be one of: left, right, both")
+	}
+	if p.HeightCM != nil && (*p.HeightCM < 100 || *p.HeightCM > 250) {
+		return apperr.Invalid("height_cm must be between 100 and 250")
+	}
+	if p.SquadNumber != nil && (*p.SquadNumber < 1 || *p.SquadNumber > 99) {
+		return apperr.Invalid("squad_number must be between 1 and 99")
+	}
+	if p.DateOfBirth != nil && p.DateOfBirth.After(time.Now()) {
+		return apperr.Invalid("date_of_birth cannot be in the future")
+	}
+	if p.ContractStart != nil && p.ContractUntil != nil && p.ContractUntil.Before(*p.ContractStart) {
+		return apperr.Invalid("contract_until must be on or after contract_start")
+	}
+	if p.MarketValue < 0 {
+		return apperr.Invalid("market_value_minor cannot be negative")
+	}
+	if p.Currency == "" {
+		p.Currency = domain.DefaultCurrency
+	}
+	return nil
 }
 
+func (s *playerService) CreatePlayer(ctx context.Context, player *domain.Player) error {
+	if err := s.authz.RequireTargetTeam(ctx, player.TeamID); err != nil {
+		return err
+	}
+	if err := validatePlayer(player); err != nil {
+		return err
+	}
+	if err := s.repo.Create(ctx, player); err != nil {
+		return err
+	}
+
+	_ = s.publisher.Publish(ctx, events.SubjectPlayerCreated, events.PlayerCreated{
+		PlayerID: player.ID,
+		Name:     player.Name,
+		TeamID:   player.TeamID,
+		Position: player.Position,
+	})
+	return nil
+}
+
+// UpdatePlayer edits a player's descriptive fields.
+//
+// It cannot move a player between clubs: that is a transfer, and it goes
+// through TransferService so the move is recorded in the history rather than
+// silently overwriting the current club. The authorization check therefore
+// only needs the player's existing club.
 func (s *playerService) UpdatePlayer(ctx context.Context, player *domain.Player) error {
-	// The existing row is loaded first so that a transfer can be authorized
-	// against both the current squad and the destination squad: an editor who
-	// manages either side may move the player.
 	existing, err := s.repo.GetByID(ctx, player.ID)
 	if err != nil {
 		return err
 	}
 
-	if err := footballAuthz.requireAdminOrManagedCurrentOrTargetTeam(ctx, existing.TeamID, player.TeamID); err != nil {
+	if err := s.authz.RequireTargetTeam(ctx, existing.TeamID); err != nil {
 		return err
 	}
+	if err := validatePlayer(player); err != nil {
+		return err
+	}
+
+	// Preserve derived state the caller has no authority to set here.
+	player.TeamID = existing.TeamID
+	player.MarketValue = existing.MarketValue
+	player.Currency = existing.Currency
+
 	return s.repo.Update(ctx, player)
 }
 
 func (s *playerService) DeletePlayer(ctx context.Context, id string) error {
-	if err := footballAuthz.requireAdmin(ctx); err != nil {
+	if err := s.authz.RequireAdmin(ctx); err != nil {
 		return err
 	}
 	return s.repo.Delete(ctx, id)

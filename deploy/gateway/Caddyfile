@@ -1,0 +1,88 @@
+# API gateway.
+#
+# Without this, the frontend has to know a port per service -- 8080, 8081, and
+# then 8082, 8083 as apps are added. Everything now enters on one origin and is
+# routed by path prefix, so adding a service is a block here and no frontend
+# change at all.
+#
+# It is also where TLS terminates and where the correlation id is assigned.
+#
+# Rate limiting is deliberately *not* here: Caddy's rate-limit module is a
+# third-party plugin absent from the official image, so a limit configured here
+# would only exist for whoever remembers to build a custom gateway. It lives in
+# libs/platform/server instead, applied by the service that owns the endpoint --
+# see identity-svc's credential routes.
+
+{
+	admin off
+	# Structured logs, matching the services' format so a request can be
+	# followed across the whole chain.
+	log {
+		format json
+	}
+}
+
+:8000 {
+	# Correlation id. Generated here when a client does not supply one, so
+	# every service in the chain shares the id the edge assigned.
+	@no_request_id not header X-Request-ID *
+	request_header @no_request_id X-Request-ID {http.request.uuid}
+
+	# Public key distribution. Kept at its well-known path rather than behind
+	# a service prefix, because verifiers expect to find it there.
+	handle /.well-known/jwks.json {
+		reverse_proxy identity-svc:8080
+	}
+
+	# Metrics are internal. These blocks come first because a prefixed path --
+	# /api/identity/metrics -- is stripped by handle_path below and arrives at
+	# the service as /metrics, so blocking the bare /metrics at the root is not
+	# enough on its own: the service prefix is a way straight through it.
+	handle /api/identity/metrics {
+		respond "not found" 404
+	}
+
+	handle /api/football/metrics {
+		respond "not found" 404
+	}
+
+	# Identity service. The prefix is stripped, so /api/identity/api/v1/auth/login
+	# reaches the service as /api/v1/auth/login.
+	handle_path /api/identity/* {
+		reverse_proxy identity-svc:8080 {
+			header_up X-Forwarded-Prefix /api/identity
+		}
+	}
+
+	# Football service.
+	handle_path /api/football/* {
+		reverse_proxy football-svc:8081 {
+			header_up X-Forwarded-Prefix /api/football
+		}
+	}
+
+	# Adding a service means one more block:
+	#
+	#   handle_path /api/<name>/* {
+	#       reverse_proxy <name>-svc:<port>
+	#   }
+
+	# Aggregate health. Reports the gateway itself; per-service health is at
+	# /api/<name>/health.
+	handle /health {
+		respond "gateway healthy" 200
+	}
+
+	# The bare path, for completeness. Exposing metrics at the edge would
+	# publish request volumes and latency profiles to anyone who asks; the
+	# prefixed routes are blocked above.
+	handle /metrics {
+		respond "not found" 404
+	}
+
+	# Anything unrouted.
+	handle {
+		header Content-Type application/json
+		respond `{"error":"no route matches this path","code":"not_found"}` 404
+	}
+}

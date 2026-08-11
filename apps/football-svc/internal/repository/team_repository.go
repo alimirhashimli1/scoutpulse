@@ -23,7 +23,8 @@ func NewPostgresTeamRepository(db *sqlx.DB) TeamRepository {
 	return &postgresTeamRepository{db: db}
 }
 
-const teamColumns = `id, league_id, name, fan_badge_url, created_at`
+const teamColumns = `id, league_id, name, short_name, founded_year, stadium, city, country,
+	fan_badge_url, created_at`
 
 func (r *postgresTeamRepository) GetByID(ctx context.Context, id string) (*domain.Team, error) {
 	var team domain.Team
@@ -44,15 +45,23 @@ func (r *postgresTeamRepository) ListByLeague(ctx context.Context, leagueID stri
 }
 
 func (r *postgresTeamRepository) Create(ctx context.Context, team *domain.Team) error {
-	query := `INSERT INTO teams (league_id, name, fan_badge_url) VALUES ($1, $2, $3) RETURNING id, created_at`
-	err := r.db.QueryRowContext(ctx, query, team.LeagueID, team.Name, team.FanBadgeURL).
-		Scan(&team.ID, &team.CreatedAt)
+	query := `INSERT INTO teams
+		(league_id, name, short_name, founded_year, stadium, city, country, fan_badge_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at`
+	err := r.db.QueryRowContext(ctx, query,
+		team.LeagueID, team.Name, team.ShortName, team.FoundedYear,
+		team.Stadium, team.City, team.Country, team.FanBadgeURL,
+	).Scan(&team.ID, &team.CreatedAt)
 	return translate("team", err)
 }
 
 func (r *postgresTeamRepository) Update(ctx context.Context, team *domain.Team) error {
-	query := `UPDATE teams SET league_id = $1, name = $2, fan_badge_url = $3 WHERE id = $4`
-	res, err := r.db.ExecContext(ctx, query, team.LeagueID, team.Name, team.FanBadgeURL, team.ID)
+	query := `UPDATE teams SET league_id = $1, name = $2, short_name = $3, founded_year = $4,
+		stadium = $5, city = $6, country = $7, fan_badge_url = $8 WHERE id = $9`
+	res, err := r.db.ExecContext(ctx, query,
+		team.LeagueID, team.Name, team.ShortName, team.FoundedYear,
+		team.Stadium, team.City, team.Country, team.FanBadgeURL, team.ID,
+	)
 	return affected("team", res, err)
 }
 

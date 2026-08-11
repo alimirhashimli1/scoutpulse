@@ -25,7 +25,11 @@ const (
 	ReadTimeout       = 15 * time.Second
 	WriteTimeout      = 30 * time.Second
 	IdleTimeout       = 60 * time.Second
-	ShutdownTimeout   = 15 * time.Second
+	// ShutdownTimeout exceeds WriteTimeout deliberately. A request that is
+	// still inside its own write budget must be allowed to finish during a
+	// drain; a shorter shutdown window would cut off exactly the slow requests
+	// the write timeout was sized for.
+	ShutdownTimeout = WriteTimeout + 5*time.Second
 )
 
 // Options tunes the server. The zero value is valid and used by Run.
@@ -35,6 +39,14 @@ type Options struct {
 	AllowedOrigins []string
 	// Logger receives request logs. Defaults to slog.Default().
 	Logger *slog.Logger
+	// Middleware is applied inside the standard chain, so metrics and
+	// tracing see the request after a correlation id exists but before the
+	// route handler runs. Supplied by callers so this package does not
+	// depend on the observability stack.
+	Middleware []Middleware
+	// OnShutdown runs after in-flight requests drain, for flushing
+	// telemetry and closing connections.
+	OnShutdown []func(context.Context) error
 }
 
 // Run starts an HTTP server on addr with the standard middleware chain and
@@ -56,12 +68,26 @@ func RunWithOptions(name, addr string, h http.Handler, opts Options) error {
 		origins = allowedOriginsFromEnv()
 	}
 
-	handler := Chain(h,
+	// Order matters. RequestID is outermost so every later layer can log the
+	// correlation id.
+	//
+	// Recover appears twice, and deliberately. The outer copy sits directly
+	// inside RequestID so a panic anywhere below -- including in the caller's
+	// metrics or tracing middleware -- becomes a 500 rather than a dropped
+	// connection. The inner copy sits closest to the route handler so that the
+	// common case, a panic in application code, is still caught below the
+	// observability layers and is therefore counted and traced like any other
+	// 500 rather than bypassing them.
+	chain := []Middleware{
 		RequestID,
+		Recover(logger),
 		Logging(logger),
 		CORS(origins),
-		Recover(logger),
-	)
+	}
+	chain = append(chain, opts.Middleware...)
+	chain = append(chain, Recover(logger))
+
+	handler := Chain(h, chain...)
 
 	srv := &http.Server{
 		Addr:              addr,
@@ -101,6 +127,14 @@ func RunWithOptions(name, addr string, h http.Handler, opts Options) error {
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("graceful shutdown: %w", err)
+	}
+
+	// Run after the server drains, so telemetry for the final requests is
+	// flushed rather than discarded.
+	for _, fn := range opts.OnShutdown {
+		if err := fn(shutdownCtx); err != nil {
+			logger.Error("shutdown hook failed", "service", name, "error", err)
+		}
 	}
 
 	logger.Info("server stopped cleanly", "service", name)

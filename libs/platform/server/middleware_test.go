@@ -126,8 +126,16 @@ func TestChainOrder(t *testing.T) {
 }
 
 func TestAllowedOriginsFromEnv(t *testing.T) {
-	t.Run("defaults to wildcard", func(t *testing.T) {
+	// Deny by default. An unconfigured deployment must refuse cross-origin
+	// requests rather than accept every one of them: the wildcard is still
+	// available, but only when it is spelled out.
+	t.Run("defaults to no origins, not the wildcard", func(t *testing.T) {
 		t.Setenv(CORSOriginsEnvVar, "")
+		assert.Empty(t, allowedOriginsFromEnv())
+	})
+
+	t.Run("wildcard must be explicit", func(t *testing.T) {
+		t.Setenv(CORSOriginsEnvVar, "*")
 		assert.Equal(t, []string{"*"}, allowedOriginsFromEnv())
 	})
 
@@ -135,4 +143,57 @@ func TestAllowedOriginsFromEnv(t *testing.T) {
 		t.Setenv(CORSOriginsEnvVar, "http://a.example, http://b.example ")
 		assert.Equal(t, []string{"http://a.example", "http://b.example"}, allowedOriginsFromEnv())
 	})
+}
+
+// TestCORSUnconfiguredSendsNoAllowOrigin is the behaviour N9 was about: with
+// nothing configured, a browser must not be handed the response.
+func TestCORSUnconfiguredSendsNoAllowOrigin(t *testing.T) {
+	h := CORS(nil)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Origin", "http://evil.example")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	assert.Empty(t, rr.Header().Get("Access-Control-Allow-Origin"))
+}
+
+func TestRateLimitBlocksAfterBurst(t *testing.T) {
+	// A rate low enough that no token is refilled during the test.
+	h := Limit(0.001, 2, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	call := func() int {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+		req.RemoteAddr = "203.0.113.7:5000"
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		return rr.Code
+	}
+
+	assert.Equal(t, http.StatusOK, call())
+	assert.Equal(t, http.StatusOK, call())
+	assert.Equal(t, http.StatusTooManyRequests, call(), "burst exhausted, third call must be throttled")
+}
+
+func TestRateLimitIsPerClient(t *testing.T) {
+	h := Limit(0.001, 1, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	call := func(ip string) int {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+		req.RemoteAddr = ip + ":5000"
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		return rr.Code
+	}
+
+	assert.Equal(t, http.StatusOK, call("198.51.100.1"))
+	assert.Equal(t, http.StatusTooManyRequests, call("198.51.100.1"))
+	// One client exhausting its bucket must not throttle anyone else.
+	assert.Equal(t, http.StatusOK, call("198.51.100.2"))
 }

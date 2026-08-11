@@ -26,8 +26,11 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # 4. Wait a few seconds for DBs to initialize
-Write-Host "Waiting for services to stabilize..."
-Start-Sleep -Seconds 5
+# The gateway waits on `service_healthy` for both services rather than on their
+# containers merely existing, so readiness is sequenced: migrations, then the
+# services, then their healthchecks passing, then the gateway.
+Write-Host "Waiting for services to stabilize (40s)..."
+Start-Sleep -Seconds 40
 
 # 5. Check if containers are running
 $containers = docker compose ps --format json | ConvertFrom-Json

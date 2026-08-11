@@ -1,0 +1,18 @@
+module github.com/scoutpulse/SERVICE_NAME
+
+go 1.24.0
+
+require (
+	github.com/scoutpulse/libs/auth v0.0.0
+	github.com/scoutpulse/libs/db v0.0.0
+	github.com/scoutpulse/libs/platform v0.0.0
+)
+
+// Local libraries are resolved by path. go.work handles this during
+// development; the replace directives are what make a Docker build work, since
+// images build with GOWORK=off.
+replace github.com/scoutpulse/libs/auth => ../../libs/auth
+
+replace github.com/scoutpulse/libs/db => ../../libs/db
+
+replace github.com/scoutpulse/libs/platform => ../../libs/platform

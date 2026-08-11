@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	"github.com/jmoiron/sqlx"
@@ -16,6 +17,7 @@ import (
 	"github.com/scoutpulse/football-svc/internal/handler"
 	"github.com/scoutpulse/football-svc/internal/repository"
 	"github.com/scoutpulse/football-svc/internal/service"
+	"github.com/scoutpulse/libs/platform/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -71,24 +73,34 @@ func TestFootballServiceIntegration(t *testing.T) {
 	assert.NoError(t, err)
 	defer db.Close()
 
-	// 2. Apply Migrations
-	migrationPath := filepath.Join("..", "..", "migrations", "000001_init_football_schema.up.sql")
-	migrationSQL, err := os.ReadFile(migrationPath)
+	// 2. Apply every migration in order, so the schema under test is the one
+	// the service actually runs against.
+	migrations, err := filepath.Glob(filepath.Join("..", "..", "migrations", "*.up.sql"))
 	assert.NoError(t, err)
+	sort.Strings(migrations)
+	assert.NotEmpty(t, migrations, "expected migration files")
 
-	_, err = db.Exec(string(migrationSQL))
-	assert.NoError(t, err)
+	for _, path := range migrations {
+		migrationSQL, err := os.ReadFile(path)
+		assert.NoError(t, err)
+		_, err = db.Exec(string(migrationSQL))
+		assert.NoError(t, err, "applying %s", filepath.Base(path))
+	}
 
 	// 3. Initialize App (Service layer)
 	leagueRepo := repository.NewPostgresLeagueRepository(db)
 	teamRepo := repository.NewPostgresTeamRepository(db)
 	coachRepo := repository.NewPostgresCoachRepository(db)
 	playerRepo := repository.NewPostgresPlayerRepository(db)
+	teamEditorRepo := repository.NewPostgresTeamEditorRepository(db)
 
-	leagueSvc := service.NewLeagueService(leagueRepo)
-	teamSvc := service.NewTeamService(teamRepo)
-	coachSvc := service.NewCoachService(coachRepo)
-	playerSvc := service.NewPlayerService(playerRepo)
+	authz := service.NewAuthorizer(teamEditorRepo)
+	publisher := events.NopPublisher{}
+
+	leagueSvc := service.NewLeagueService(leagueRepo, authz)
+	teamSvc := service.NewTeamService(teamRepo, authz, publisher)
+	coachSvc := service.NewCoachService(coachRepo, authz)
+	playerSvc := service.NewPlayerService(playerRepo, authz, publisher)
 
 	leagueHandler := handler.NewLeagueHandler(leagueSvc)
 	teamHandler := handler.NewTeamHandler(teamSvc, playerSvc, coachSvc)
