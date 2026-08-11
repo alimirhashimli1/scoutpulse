@@ -186,11 +186,20 @@ func loadJWKSOnce(rawURL string) error {
 		return fmt.Errorf("auth: JWKS URL must use https (got %q)", parsed.Scheme)
 	}
 
+	// gosec G704 flags rawURL as tainted because it originates in the
+	// environment. Fetching an operator-configured URL is the entire purpose
+	// of this function -- JWKS_URL is deployment configuration, not user input,
+	// and anyone able to set it can already set JWT_PUBLIC_KEY directly. The
+	// scheme and host are validated above, which is the part that does carry
+	// weight: it stops the key set being served over plain http off-network.
+	//
+	//nolint:gosec // G704: JWKS_URL is operator configuration, validated above
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, rawURL, nil)
 	if err != nil {
 		return fmt.Errorf("auth: building JWKS request: %w", err)
 	}
 
+	//nolint:gosec // G704: same operator-configured URL, validated above
 	resp, err := jwksClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("auth: fetching JWKS from %s: %w", rawURL, err)

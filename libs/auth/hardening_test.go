@@ -62,8 +62,8 @@ func TestJWKS_RejectsWeakKey(t *testing.T) {
 
 	jwk := JWK{
 		Kty: "RSA", Use: "sig", Alg: "RS256", Kid: "weak",
-		N: base64.RawURLEncoding.EncodeToString(weak.PublicKey.N.Bytes()),
-		E: base64.RawURLEncoding.EncodeToString(big.NewInt(int64(weak.PublicKey.E)).Bytes()),
+		N: base64.RawURLEncoding.EncodeToString(weak.N.Bytes()),
+		E: base64.RawURLEncoding.EncodeToString(big.NewInt(int64(weak.E)).Bytes()),
 	}
 
 	_, err = jwk.toRSAPublicKey()

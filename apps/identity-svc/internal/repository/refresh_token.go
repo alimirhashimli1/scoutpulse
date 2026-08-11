@@ -43,6 +43,10 @@ func NewPostgresRefreshTokenRepository(db *sqlx.DB) *PostgresRefreshTokenReposit
 	return &PostgresRefreshTokenRepository{db: db}
 }
 
+// The column list, not a secret. gosec's G101 matches on the substring
+// "token_hash" and cannot tell a SELECT list from a credential.
+//
+//nolint:gosec // G101 false positive: this is a SQL column list
 const refreshTokenColumns = `id, user_id, token_hash, issued_at, expires_at, revoked_at, replaced_by, user_agent`
 
 func (r *PostgresRefreshTokenRepository) Create(ctx context.Context, t *model.RefreshToken) error {

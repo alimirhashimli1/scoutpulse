@@ -87,7 +87,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer database.Close()
+	// Closing on the way out of main: there is nothing left to report the
+	// failure to, so the error is discarded explicitly rather than implicitly.
+	defer func() { _ = database.Close() }()
 
 	userRepo := repository.NewPostgresUserRepository(database)
 	refreshRepo := repository.NewPostgresRefreshTokenRepository(database)

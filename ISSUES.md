@@ -23,8 +23,8 @@ parsed by `docker compose config`. Everything else was run.
 | **Round 1 total** | **36** | **1** |
 | Round 2 | 21 | 0 |
 | Round 2b | 10 | 0 |
-| Round 2c (fallout) | 5 | 0 |
-| **Total** | **72** | **1** |
+| Round 2c (fallout) | 7 | 0 |
+| **Total** | **74** | **1** |
 
 S6 is a key rotation only you can perform.
 
@@ -467,6 +467,27 @@ every module.
   - The tidy check failed, because `go mod tidy` raises the directive back to `1.25.0` to satisfy those dependencies, and `git diff --exit-code` then sees the rewrite.
 - **Why local verification missed it:** the local toolchain is Go 1.26.1, and with `GOTOOLCHAIN=auto` the build silently used it. `go build` going green on a machine with a newer toolchain says nothing about whether the pinned CI version can build the module. The check that would have caught it is reading what the dependencies require, not whether the build passes locally.
 - **Fixed:** directives set by `go mod tidy` rather than by hand, `GO_VERSION` and all three Dockerfiles raised to 1.25, `apps/_template` raised to match, and the tidy fixpoint verified by snapshotting `go.mod`/`go.sum`, re-running tidy in all six modules and diffing — the check CI actually performs, which the first attempt never ran.
+
+### N37. Turning the lint gate on surfaced 63 pre-existing violations
+- [x] N2 established that golangci-lint had been rejecting three modules before linting them. Once it actually ran, it reported 63 issues. **These are not new — they are what the gate had been hiding.** Installed `golangci-lint v2.12.2` locally and worked through the whole list rather than the samples.
+- Breakdown, and what each turned out to be:
+
+| Linter | Count | Verdict |
+|---|---|---|
+| `noctx` | 48 | Test-only. Excluded. |
+| `govet` (shadow) | 11 | All the standard idiom. Analyzer disabled. |
+| `errcheck` | 2 | **Real.** Fixed. |
+| `gosec` | 3 | False positives. Suppressed at the site. |
+| `staticcheck` | 1 | **Real.** Fixed. |
+
+- **`shadow` disabled, after reading all 11.** Every hit is `if err := f(); err != nil` or a block-scoped `x, err := ...`, in each case where the outer `err` had already been handled and returned on. One (`coach_spell_repository.go:98`) passes the outer `err` *into* the call that shadows it, which is correct by construction. The analyzer is experimental and off by default in `go vet` because it flags the idiom Effective Go recommends. Keeping it means renaming errors to `sizeErr`/`closeErr` at 11 sites — worse code, no defect caught. It was enabled in the round-1 config and its output had simply never been seen.
+- **`noctx` excluded for `_test.go`**, joining `gosec`/`errcheck`/`unparam` which were already excluded there. It wants `httptest.NewRequestWithContext` and `Client.Do` over `Client.Get`. That matters in production, where an uncancellable request outlives the work that needed it; in a test served in-process and bounded by the test's own timeout it buys nothing at ~48 call sites. **No production code was excluded** — the two `noctx` hits in `libs/auth/jwks.go` were already fixed properly during N19.
+- **Fixed for real:** `defer database.Close()` in both services now discards the error explicitly (`errcheck`), and a `weak.PublicKey.N` selector in a test I wrote for N6 was simplified to `weak.N` (`staticcheck QF1008`).
+- **Suppressed with justification, not blanket rules:** `G101` on `refreshTokenColumns` matches the substring `token_hash` in a SQL column list; `G704` on `loadJWKSOnce` flags `JWKS_URL` as tainted, but fetching an operator-configured URL is the function's purpose — and anyone who can set `JWKS_URL` can already set `JWT_PUBLIC_KEY`. Each carries a `//nolint` naming the rule and the reason.
+
+### N38. The lint timeout was too short for tests/integration
+- [x] `tests/integration` reported `0 issues.` and then failed anyway with *"Timeout exceeded"* — it pulls in the testcontainers and Docker client trees, so type-checking alone exceeded the 5m budget. CI would have gone red on a module with nothing wrong with it.
+- **Fixed:** `run.timeout` raised to 15m. Verified locally at exit code 0.
 
 ### N2, revisited — golangci-lint v2
 Aligning up forces the linter upgrade the first attempt was trying to dodge.

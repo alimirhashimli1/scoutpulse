@@ -15,7 +15,10 @@
 version: "2"
 
 run:
-  timeout: 5m
+  # 5m was not enough for tests/integration, which reported no issues and then
+  # failed on the timeout anyway -- it pulls in the testcontainers and Docker
+  # client trees, so type-checking alone is minutes of work.
+  timeout: 15m
   tests: true
 
 linters:
@@ -41,8 +44,25 @@ linters:
       exclude-functions:
         - (net/http.ResponseWriter).Write
     govet:
-      enable:
-        - shadow
+      # `shadow` is deliberately NOT enabled.
+      #
+      # It was enabled here, but the gate never ran (see N2), so its output was
+      # never seen. Turning the gate on surfaced 11 hits and every one is the
+      # idiom Effective Go recommends:
+      #
+      #     if err := f(); err != nil { return err }
+      #
+      # or a block-scoped `x, err := ...` inside an if/for, in each case after
+      # the outer err has already been handled and returned on. One of them
+      # (coach_spell_repository.go) even passes the outer err *into* the call
+      # that shadows it, which is correct by construction.
+      #
+      # The analyzer is experimental and off by default in `go vet` for this
+      # reason. Enabling it here means banning the standard idiom and renaming
+      # errors to sizeErr/closeErr/rotateErr to appease it -- worse code in
+      # exchange for no defect caught. Each of the 11 was read before this was
+      # switched off; none was a bug.
+      enable: []
     revive:
       rules:
         - name: exported
@@ -51,11 +71,19 @@ linters:
   exclusions:
     rules:
       # Test files may hardcode credentials and skip error checks on fixtures.
+      #
+      # noctx joins that list: it wants httptest.NewRequestWithContext over
+      # httptest.NewRequest, and http.Client.Do over .Get. In production code
+      # that matters -- an uncancellable request outlives the work that needed
+      # it. In a test the request is served in-process and the test's own
+      # timeout bounds it, so the rule buys nothing and costs readability at
+      # ~48 call sites.
       - path: _test\.go
         linters:
           - gosec
           - errcheck
           - unparam
+          - noctx
 
 issues:
   max-issues-per-linter: 0
