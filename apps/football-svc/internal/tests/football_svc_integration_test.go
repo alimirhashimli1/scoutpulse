@@ -150,7 +150,20 @@ func TestFootballServiceIntegration(t *testing.T) {
 	defer server.Close()
 
 	// 4. Seed Data
-	league := &domain.League{Name: "Premier League", Country: "England"}
+	//
+	// Seeding goes through the repositories rather than the services, so it
+	// skips the service layer's defaulting. competition_type must therefore be
+	// set explicitly: the column has a DEFAULT, but an explicit empty string
+	// overrides it and trips leagues_competition_type_valid.
+	//
+	// Callers of the API never hit this -- validateLeague fills the default in
+	// before the row is written. It is only reachable from a direct repository
+	// call, which is what this arrange step does.
+	league := &domain.League{
+		Name:            "Premier League",
+		Country:         "England",
+		CompetitionType: domain.CompetitionLeague,
+	}
 	err = leagueRepo.Create(ctx, league)
 	require.NoError(t, err, "seeding the league")
 

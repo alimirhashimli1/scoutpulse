@@ -23,8 +23,8 @@ parsed by `docker compose config`. Everything else was run.
 | **Round 1 total** | **36** | **1** |
 | Round 2 | 21 | 0 |
 | Round 2b | 10 | 0 |
-| Round 2c (fallout) | 9 | 0 |
-| **Total** | **76** | **1** |
+| Round 2c (fallout) | 12 | 0 |
+| **Total** | **79** | **1** |
 
 S6 is a key rotation only you can perform.
 
@@ -504,6 +504,39 @@ every module.
 - The net effect: a real, reproducible infrastructure race was presented as an environment problem, which is the kind of misreporting that gets a genuine failure dismissed as flake.
 - **Fixed:** preconditions use `require` so a failure stops the test at the real error; the recover block is now bounded by a `containerStarted` flag and re-raises any panic that happens after the container is up. The same bounding was applied to identity-svc's copy, which had the same unbounded block.
 - Also aligned: identity-svc's suite tested against `postgres:15-alpine` while compose and football-svc run 16.
+
+### N41. Getting started required three tools Windows does not ship
+- [x] The documented first run is `make keys && make up`, which needs **make**, **openssl** and **Docker**. On a clean Windows checkout none of the three is present, so the stack could not be started at all — and there was no documented alternative.
+- Also: `smoke-test.sh`/`.ps1` validate the compose file and count running containers. Neither ever calls an endpoint, so "the stack is up" was the strongest claim available.
+- **Fixed:**
+  - `libs/auth/cmd/genkeys` generates the key pair in Go. `make keys` uses it, so openssl is no longer required anywhere.
+  - `scripts/dev-setup.ps1` — creates the roles, databases and schema against an existing Postgres, with no Docker, make or openssl. Idempotent, and applies migrations in filename order against a local tracking table.
+  - `scripts/dev-run.ps1` — runs either service from source with the right environment.
+  - `scripts/check-endpoints.ps1` — walks the real API and asserts on responses: registration, login, RBAC, the full transfer flow, the temporal invariants, envelope shape, and the error contracts. This is the first thing in the repo that verifies the API rather than the deployment.
+- The Docker path is unchanged and remains the reference; these are an alternative for machines without it.
+
+### N42. The integration suite seeded a league that the schema rejects
+- [x] CI: `pq: new row for relation "leagues" violates check constraint "leagues_competition_type_valid" (23514)`, seeding the league in `TestFootballServiceIntegration`.
+- **Not a product defect — the API path is fine.** `POST /api/v1/leagues` goes through `validateLeague`, which defaults an unset `competition_type` to `league` before the row is written. A caller posting only a name and a country gets exactly what the documentation promises.
+- **The test bypasses the service.** It seeds with `leagueRepo.Create` directly, so nothing fills the default in. The column has `NOT NULL DEFAULT 'league'`, but the repository writes the column explicitly, and an **explicit empty string overrides a DEFAULT rather than falling back to it** — so `''` reached the CHECK and was refused.
+- **Why it surfaced only now**, three changes deep:
+  - The integration job is gated on `needs: [build, migrations]`, and the build job had been failing, so this suite had not run in CI in a long time. The breakage was already there.
+  - N22 mapped `23514` to `Invalid`, which turned an opaque 500 into an error naming the constraint.
+  - N40 switched the seed from `assert` to `require`, so the run stopped at the real line instead of cascading into unrelated failures further down.
+  - Together those three turned a silent, long-standing failure into a one-line diagnosis. That is the outcome they were for.
+- **Fixed:** the seed sets `CompetitionType` explicitly, with a comment recording that this is only reachable from a direct repository call. Six service-level tests in `league_test.go` now pin the behaviour that actually matters — that an unset competition type is defaulted before the insert, never written as an empty string, and that every valid type round-trips.
+
+### N43. `\gexec` never ran, so no role or database was created
+- [x] `dev-setup.ps1` failed with `database "identity_db" does not exist`, after printing the `CREATE ROLE ...` and `CREATE DATABASE ...` statements as query results rather than executing them.
+- **Two independent bugs, both of which produce garbage silently rather than failing:**
+
+  **1. `\gexec` was given an empty query buffer.** `\gexec` executes the *current* buffer, so terminating the preceding `SELECT` with a semicolon sends and clears it first — leaving `\gexec` nothing to run. The generated statement is then merely displayed. The `SELECT` before a `\gexec` must not be semicolon-terminated.
+
+  **This one also affected `deploy/postgres/init-databases.sh`**, which I rewrote in N24 to fix the password-escaping hole. The rewrite introduced this regression, which means **the Docker path would have failed to create its roles and databases** — the services would have started against a database that did not exist. CI never caught it: the migrations job uses its own Postgres service, and `docker compose config` only parses the file. The suite that would have caught it, `tests/integration`, has still never run.
+
+  **2. PowerShell native-argument parsing.** `-v role=$svc.Role` expands only `$svc` and appends `.Role` as literal text, yielding `role=System.Collections.Hashtable.Role`. A *bare* `$svc.Db` token evaluates the property correctly, which is why `--dbname` worked while `-v role=` did not — the same script was half right, which is what made the failure confusing. Verified against a live shell rather than assumed.
+
+- **Fixed:** semicolons removed before every `\gexec` in both files; all property access moved to locals, so no native-command argument interpolates a property. Both scripts now **verify** the database exists immediately after creating it and fail with a message naming the real cause, rather than letting a silently-skipped `\gexec` surface three steps later as a connection error.
 
 ### N2, revisited — golangci-lint v2
 Aligning up forces the linter upgrade the first attempt was trying to dodge.

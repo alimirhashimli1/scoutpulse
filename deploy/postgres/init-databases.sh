@@ -27,10 +27,16 @@ create_service_database() {
 
     # \gexec runs each generated statement. format() quotes the identifier with
     # %I and the password with %L, so neither can break out of its position.
+    #
+    # None of these SELECTs is semicolon-terminated, and that is deliberate:
+    # \gexec runs the *current query buffer*, so a trailing ';' would send and
+    # clear the buffer first, leaving \gexec nothing to execute. The generated
+    # statement would then simply be printed and the role never created --
+    # which fails later, confusingly, as "database does not exist".
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
         -v role="$role" -v password="$password" <<-'EOSQL'
         SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'role', :'password')
-         WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'role');
+         WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'role')
         \gexec
 EOSQL
 
@@ -39,15 +45,23 @@ EOSQL
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
         -v db="$db" -v role="$role" <<-'EOSQL'
         SELECT format('CREATE DATABASE %I OWNER %I', :'db', :'role')
-         WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'db');
+         WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'db')
         \gexec
 EOSQL
 
+    # Fail loudly here rather than letting a silently-skipped \gexec surface as
+    # a connection error three steps later.
+    if ! psql --username "$POSTGRES_USER" --dbname postgres -tAc \
+        "SELECT 1 FROM pg_database WHERE datname = '${db}'" | grep -q 1; then
+        echo "FATAL: database ${db} was not created" >&2
+        exit 1
+    fi
+
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "${db}" \
         -v db="$db" -v role="$role" <<-'EOSQL'
-        SELECT format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', :'db', :'role');
+        SELECT format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', :'db', :'role')
         \gexec
-        SELECT format('GRANT ALL ON SCHEMA public TO %I', :'role');
+        SELECT format('GRANT ALL ON SCHEMA public TO %I', :'role')
         \gexec
 EOSQL
 }

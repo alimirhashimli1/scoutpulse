@@ -1,0 +1,691 @@
+# ScoutPulse — every endpoint, in an order you can click straight down.
+#
+# Needs the "REST Client" extension (humao.rest-client). A "Send Request" link
+# appears above each request. Run them top to bottom the first time, since each
+# section uses ids from the one before; after that any block works on its own.
+#
+# Before you start:
+#   1. .\scripts\dev-setup.ps1          (once — keys, databases, schema)
+#   2. .\scripts\dev-run.ps1 identity   (leave running)
+#   3. .\scripts\dev-run.ps1 football   (leave running)
+#
+# No gateway in this mode, so services are on their own ports and paths carry
+# no /api/identity or /api/football prefix.
+#
+# TWO RULES this file has to obey, both of which fail confusingly:
+#   - A request body must be separated from its headers by ONE blank line, and
+#     nothing may follow it except the next "###". REST Client treats anything
+#     after the body as MORE body, so a stray line gets posted to the server.
+#   - Every "@variable" definition therefore lives in this header block, never
+#     beside the request that produces it.
+
+@identity = http://localhost:8080
+@football = http://localhost:8081
+@json = application/json
+
+# --- your test account -------------------------------------------------
+# Placeholders on purpose. This file is committed to the repository, so do not
+# put a real password or a personal email address here. Change @user between
+# runs, or registration returns 409.
+@user = aligsbsu1
+@pass = 1Kaybettim.
+@email = alimirhashimli@gmail.com
+
+
+# '{"username":"scout1","email":"scout1@example.test","password":"local-dev-password"}'
+```
+# --- pulled out of responses -------------------------------------------
+# Resolved when a request that uses them is sent, so the order here does not
+# matter — only that they are not sitting inside a request block.
+@token = {{login.response.body.$.access_token}}
+@refresh = {{login.response.body.$.refresh_token}}
+@newRefresh = {{refreshed.response.body.$.refresh_token}}
+@myId = {{me.response.body.$.id}}
+@leagueId = {{league.response.body.$.id}}
+@seasonId = {{season.response.body.$.id}}
+@sellingId = {{selling.response.body.$.id}}
+@buyingId = {{buying.response.body.$.id}}
+@playerId = {{player.response.body.$.id}}
+@transferId = {{transfer.response.body.$.id}}
+@valueId = {{value.response.body.$.id}}
+@coachId = {{coach.response.body.$.id}}
+@spellId = {{spell.response.body.$.id}}
+
+
+# ============================================================
+# 1. HEALTH — start here. Both must answer.
+# ============================================================
+
+### identity-svc is up
+GET {{identity}}/health
+
+### football-svc is up
+GET {{football}}/health
+
+
+# ============================================================
+# 2. ACCOUNTS AND TOKENS
+# ============================================================
+
+### Register. Always creates a plain "user" — the role is not client-settable.
+POST {{identity}}/api/v1/auth/register
+Content-Type: {{json}}
+
+{
+  "username": "{{user}}",
+  "email": "{{email}}",
+  "password": "{{pass}}"
+}
+
+### Smuggle a role in. Expect 400 — unknown fields are refused, not ignored.
+POST {{identity}}/api/v1/auth/register
+Content-Type: {{json}}
+
+{
+  "username": "{{user}}_sneaky",
+  "email": "sneaky_{{email}}",
+  "password": "{{pass}}",
+  "role": "admin"
+}
+
+### Log in. Everything below reuses this response.
+# @name login
+POST {{identity}}/api/v1/auth/login
+Content-Type: {{json}}
+
+{
+  "identifier": "{{user}}",
+  "password": "{{pass}}"
+}
+
+### Wrong password. Expect 401 — and it takes as long as a real login, which
+# is deliberate: a fast "no such account" would leak who exists.
+POST {{identity}}/api/v1/auth/login
+Content-Type: {{json}}
+
+{
+  "identifier": "{{user}}",
+  "password": "definitely-wrong"
+}
+
+### Who am I
+# @name me
+GET {{identity}}/api/v1/users/me
+Authorization: Bearer {{token}}
+
+### The public keys every other service verifies with
+GET {{identity}}/.well-known/jwks.json
+
+
+# ============================================================
+# 3. BECOME AN ADMIN
+#
+# Everything below needs admin. A fresh account is a plain "user", and only an
+# admin can promote — so the first one is made directly in the database. Use
+# whatever name you set in @user above:
+#
+#   $env:PGPASSWORD='password'
+#   psql -U identity_user -d identity_db -c "UPDATE users SET role='admin' WHERE username='scout1'"
+#
+# Then send "Log in" again: the role is read at login, so the new token carries
+# it. That is also why a role change takes up to 15 minutes to bite — the token
+# you already hold keeps the old role until it expires.
+# ============================================================
+
+### Confirm the promotion took — role should now read "admin"
+GET {{identity}}/api/v1/users/me
+Authorization: Bearer {{token}}
+
+### Change a role (admin only). Also ends that user's refresh tokens.
+PUT {{identity}}/api/v1/users/{{myId}}/role
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{ "role": "admin" }
+
+### An invalid role. Expect 400.
+PUT {{identity}}/api/v1/users/{{myId}}/role
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{ "role": "wizard" }
+
+
+# ============================================================
+# 4. COMPETITIONS
+# ============================================================
+
+### Create a league
+# @name league
+POST {{football}}/api/v1/leagues
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "name": "Süper Lig",
+  "country": "Türkiye",
+  "tier": 1,
+  "competition_type": "league"
+}
+
+### List leagues — note the envelope: items / limit / offset / has_more
+GET {{football}}/api/v1/leagues
+
+### One league
+GET {{football}}/api/v1/leagues/{{leagueId}}
+
+### Rename it
+PUT {{football}}/api/v1/leagues/{{leagueId}}
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "id": "{{leagueId}}",
+  "name": "Süper Ligi",
+  "country": "Türkiye",
+  "tier": 1,
+  "competition_type": "league"
+}
+
+### An unknown competition type. Expect 400.
+POST {{football}}/api/v1/leagues
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{ "name": "Odd Cup", "country": "Testland", "competition_type": "friendly_kickabout" }
+
+
+# ============================================================
+# 5. SEASONS
+# ============================================================
+
+### Create a season
+# @name season
+POST {{football}}/api/v1/seasons
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "label": "2026/27",
+  "start_date": "2026-08-14T00:00:00Z",
+  "end_date": "2027-05-31T00:00:00Z"
+}
+
+### Overlapping dates. Expect 409 — the database forbids overlap outright.
+POST {{football}}/api/v1/seasons
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "label": "overlapping",
+  "start_date": "2026-01-01T00:00:00Z",
+  "end_date": "2026-09-30T00:00:00Z"
+}
+
+### The season containing today (404 if none covers it)
+GET {{football}}/api/v1/seasons/current
+
+### All seasons
+GET {{football}}/api/v1/seasons
+
+### One season
+GET {{football}}/api/v1/seasons/{{seasonId}}
+
+### Update a season
+PUT {{football}}/api/v1/seasons/{{seasonId}}
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "id": "{{seasonId}}",
+  "label": "2025/26 (revised)",
+  "start_date": "2025-08-01T00:00:00Z",
+  "end_date": "2026-05-31T00:00:00Z"
+}
+
+
+# ============================================================
+# 6. CLUBS
+#
+# Two ordinary clubs. "selling" and "buying" are only names for this test data
+# -- there is no such thing in the API. They exist so the transfer in section 8
+# reads clearly: the player starts at the selling club and moves to the buying
+# one.
+#
+# The real fields are from_team_id (the club being left) and to_team_id (the
+# club being joined). Those stay neutral because most transfers are not sales:
+# a loan, a free transfer, a youth promotion or a retirement all use the same
+# two fields, and either may be null -- from_team_id is null for a player
+# arriving from nowhere, to_team_id is null for one leaving the dataset.
+# ============================================================
+
+### The selling club — where the player starts
+# @name selling
+POST {{football}}/api/v1/teams
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "league_id": "{{leagueId}}",
+  "name": "Galatasaray",
+  "short_name": "GSK",
+  "founded_year": 1905,
+  "stadium": "Ali Sami Yen Spor Kompleksi Rams Park",
+  "city": "Istanbul",
+  "country": "Türkiye"
+}
+
+### The buying club
+# @name buying
+POST {{football}}/api/v1/teams
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "league_id": "{{leagueId}}",
+  "name": "Buying FC",
+  "short_name": "BUY",
+  "founded_year": 1888,
+  "city": "Testburg",
+  "country": "Testland"
+}
+
+### List clubs — league_id is REQUIRED here, there is no list-all
+GET {{football}}/api/v1/teams?league_id={{leagueId}}
+
+### One club
+GET {{football}}/api/v1/teams/{{sellingId}}
+
+### Update a club. As a non-admin, league_id here is silently preserved.
+PUT {{football}}/api/v1/teams/{{sellingId}}
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "id": "{{sellingId}}",
+  "league_id": "{{leagueId}}",
+  "name": "Selling FC (renamed)",
+  "short_name": "SEL",
+  "founded_year": 1901,
+  "city": "Testville"
+}
+
+### A founding year before 1850. Expect 400.
+POST {{football}}/api/v1/teams
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{ "league_id": "{{leagueId}}", "name": "Selling FC (renamed)", "founded_year": 1850 }
+
+
+# ============================================================
+# 7. PLAYERS
+#
+# contract_start matters more than it looks: it dates the opening transfer that
+# is written automatically. Omit it and that record is dated today, which makes
+# the historical transfer below a backdated one.
+# ============================================================
+
+### Create a player at the selling club
+# @name player
+POST {{football}}/api/v1/players
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "team_id": "{{sellingId}}",
+  "name": "Victor Osimhen",
+  "first_name": "Victor",
+  "last_name": "Osimhen",
+  "position": "Forward",
+  "nationality": "Nigeria",
+  "date_of_birth": "1998-12-29T00:00:00Z",
+  "height_cm": 186,
+  "preferred_foot": "right",
+  "squad_number": 45,
+  "contract_start": "2020-07-01T00:00:00Z",
+  "contract_until": "2027-06-30T00:00:00Z",
+  "market_value_minor": 1500000000
+}
+
+### The player
+GET {{football}}/api/v1/players/{{playerId}}
+
+### Creating the player wrote an opening transfer — expect ONE item, from null
+GET {{football}}/api/v1/players/{{playerId}}/transfers
+
+### ...and an opening valuation — expect ONE item
+GET {{football}}/api/v1/players/{{playerId}}/market-values
+
+### Filter by club
+GET {{football}}/api/v1/players?team_id={{sellingId}}
+
+### Free agents only
+GET {{football}}/api/v1/players?free_agent=true
+
+### By position and nationality
+GET {{football}}/api/v1/players?position=Forward&nationality=Nigeria
+
+### By value band (minor units)
+GET {{football}}/api/v1/players?min_value_minor=1000000000&max_value_minor=9000000000
+
+### Paging — limit is clamped to 100 however large you ask
+GET {{football}}/api/v1/players?limit=9999&offset=0
+
+### Update descriptive fields. team_id here is IGNORED — try it and see.
+PUT {{football}}/api/v1/players/{{playerId}}
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "id": "{{playerId}}",
+  "team_id": "{{buyingId}}",
+  "name": "Test Player",
+  "position": "Midfielder",
+  "squad_number": 8
+}
+
+### Confirm the club did NOT change — a player moves only through a transfer
+GET {{football}}/api/v1/players/{{playerId}}
+
+### An unknown preferred foot. Expect 400.
+POST {{football}}/api/v1/players
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{ "name": "Bad Foot", "position": "Forward", "preferred_foot": "sideways" }
+
+
+# ============================================================
+# 8. TRANSFERS — the centre of the product
+# ============================================================
+
+### Record the move. The season attaches automatically if one covers the date.
+# @name transfer
+POST {{football}}/api/v1/transfers
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "player_id": "{{playerId}}",
+  "from_team_id": "{{sellingId}}",
+  "to_team_id": "{{buyingId}}",
+  "transfer_date": "2025-08-15T00:00:00Z",
+  "transfer_type": "permanent",
+  "fee_minor": 2500000000,
+  "currency": "EUR"
+}
+
+### NOW the club has changed — because the history says so
+GET {{football}}/api/v1/players/{{playerId}}
+
+### Two records: the move, then the opening one. Newest first.
+GET {{football}}/api/v1/players/{{playerId}}/transfers
+
+### One transfer
+GET {{football}}/api/v1/transfers/{{transferId}}
+
+### The feed, filtered by club (matches either side of a move)
+GET {{football}}/api/v1/transfers?team_id={{buyingId}}
+
+### By type
+GET {{football}}/api/v1/transfers?type=permanent
+
+### By minimum fee — undisclosed fees are excluded, since null cannot compare
+GET {{football}}/api/v1/transfers?min_fee_minor=1000000000
+
+### By season
+GET {{football}}/api/v1/transfers?season_id={{seasonId}}
+
+### A BACKDATED move. Recorded, but must NOT change the current club.
+POST {{football}}/api/v1/transfers
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "player_id": "{{playerId}}",
+  "from_team_id": "{{buyingId}}",
+  "to_team_id": "{{sellingId}}",
+  "transfer_date": "2019-01-10T00:00:00Z",
+  "transfer_type": "permanent"
+}
+
+### Still at the buying club — this is the invariant that matters
+GET {{football}}/api/v1/players/{{playerId}}
+
+### A wrong origin. Expect 400 — the stated origin must match reality.
+POST {{football}}/api/v1/transfers
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "player_id": "{{playerId}}",
+  "from_team_id": "{{sellingId}}",
+  "to_team_id": "{{buyingId}}",
+  "transfer_date": "2026-01-10T00:00:00Z",
+  "transfer_type": "permanent"
+}
+
+
+# ============================================================
+# 9. MARKET VALUES
+# ============================================================
+
+### Record a new valuation
+# @name value
+POST {{football}}/api/v1/players/{{playerId}}/market-values
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "value_minor": 100000,
+  "valued_on": "2026-02-01T00:00:00Z",
+  "currency": "EUR"
+}
+
+### The player's current value now follows the latest entry
+GET {{football}}/api/v1/players/{{playerId}}
+
+### The curve
+GET {{football}}/api/v1/players/{{playerId}}/market-values
+
+### A decimal. Expect 400 — refused rather than truncated, since 1.5 cents
+# is ambiguous.
+POST {{football}}/api/v1/players/{{playerId}}/market-values
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{ "value_minor": 1.5 }
+
+### Delete a valuation — the player resets to the newest survivor
+DELETE {{football}}/api/v1/players/{{playerId}}/market-values/{{valueId}}
+Authorization: Bearer {{token}}
+
+### Confirm the current value fell back
+GET {{football}}/api/v1/players/{{playerId}}
+
+
+# ============================================================
+# 10. COACHES
+# ============================================================
+
+### Create a coach
+# @name coach
+POST {{football}}/api/v1/coaches
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "team_id": "{{buyingId}}",
+  "name": "Okan Buruk",
+  "nationality": "Türkiye",
+  "date_of_birth": "1975-05-20T00:00:00Z"
+}
+
+### Coaches by club — team_id is REQUIRED, and there is no fetch-by-id
+GET {{football}}/api/v1/coaches?team_id={{buyingId}}
+
+### Record a spell
+# @name spell
+POST {{football}}/api/v1/coaches/{{coachId}}/spells
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "coach_id": "{{coachId}}",
+  "team_id": "{{buyingId}}",
+  "role": "head_coach",
+  "start_date": "2025-07-01T00:00:00Z"
+}
+
+### The coach's career
+GET {{football}}/api/v1/coaches/{{coachId}}/spells
+
+### The club's managerial history
+GET {{football}}/api/v1/teams/{{buyingId}}/coaches
+
+### An unknown role. Expect 400.
+POST {{football}}/api/v1/coaches/{{coachId}}/spells
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{
+  "coach_id": "{{coachId}}",
+  "team_id": "{{buyingId}}",
+  "role": "supreme_overlord",
+  "start_date": "2025-07-01T00:00:00Z"
+}
+
+### Update the coach
+PUT {{football}}/api/v1/coaches/{{coachId}}
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{ "id": "{{coachId}}", "team_id": "{{buyingId}}", "name": "Test Coach Renamed" }
+
+
+# ============================================================
+# 11. EDITOR GRANTS
+#
+# Grant a club to a user and they can edit it without being an admin. Granting
+# to yourself proves the plumbing; use a second account to see it properly.
+# ============================================================
+
+### Who may edit this club (admin only — this is access-control data)
+GET {{football}}/api/v1/teams/{{buyingId}}/editors
+Authorization: Bearer {{token}}
+
+### Grant
+POST {{football}}/api/v1/teams/{{buyingId}}/editors
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{ "user_id": "{{myId}}" }
+
+### Which clubs may this user edit
+GET {{football}}/api/v1/users/{{myId}}/teams
+Authorization: Bearer {{token}}
+
+### Revoke — immediate, not at the end of a cache window
+DELETE {{football}}/api/v1/teams/{{buyingId}}/editors/{{myId}}
+Authorization: Bearer {{token}}
+
+
+# ============================================================
+# 12. ERROR CONTRACTS — easy to regress silently, worth checking
+# ============================================================
+
+### A malformed id. Expect 400 with a generic message, NOT 500, and no SQL.
+GET {{football}}/api/v1/players/not-a-uuid
+
+### Well-formed but absent. Expect 404.
+GET {{football}}/api/v1/players/00000000-0000-0000-0000-000000000000
+
+### No token. Expect 401 as JSON — {"error","code"} — not plain text.
+POST {{football}}/api/v1/leagues
+Content-Type: {{json}}
+
+{ "name": "No Auth", "country": "Testland" }
+
+### A junk token. Expect 401.
+POST {{football}}/api/v1/leagues
+Authorization: Bearer not-a-real-token
+Content-Type: {{json}}
+
+{ "name": "Bad Token", "country": "Testland" }
+
+### An unknown field. Expect 400 — bodies are strict.
+POST {{football}}/api/v1/leagues
+Authorization: Bearer {{token}}
+Content-Type: {{json}}
+
+{ "name": "Extra", "country": "Testland", "not_a_real_field": true }
+
+### Rate limiting: send six or seven times quickly. Expect 429 with a
+# Retry-After header once the burst of 5 is spent.
+POST {{identity}}/api/v1/auth/login
+Content-Type: {{json}}
+
+{ "identifier": "{{user}}", "password": "wrong-on-purpose" }
+
+
+# ============================================================
+# 13. SESSIONS
+# ============================================================
+
+### Rotate the refresh token. The old one dies here.
+# @name refreshed
+POST {{identity}}/api/v1/auth/refresh
+Content-Type: {{json}}
+
+{ "refresh_token": "{{refresh}}" }
+
+### Reuse the OLD refresh token. Expect 401 — and it kills every session the
+# user holds, because a re-presented token means a copy is circulating.
+POST {{identity}}/api/v1/auth/refresh
+Content-Type: {{json}}
+
+{ "refresh_token": "{{refresh}}" }
+
+### Log out. Always 204, whether or not the token existed.
+POST {{identity}}/api/v1/auth/logout
+Content-Type: {{json}}
+
+{ "refresh_token": "{{newRefresh}}" }
+
+
+# ============================================================
+# 14. CLEANUP — delete in this order, or foreign keys refuse
+# ============================================================
+
+### Delete the spell
+DELETE {{football}}/api/v1/coaches/{{coachId}}/spells/{{spellId}}
+Authorization: Bearer {{token}}
+
+### Delete the transfer (does NOT rewind the player's club, by design)
+DELETE {{football}}/api/v1/transfers/{{transferId}}
+Authorization: Bearer {{token}}
+
+### Delete the player — cascades their history
+DELETE {{football}}/api/v1/players/{{playerId}}
+Authorization: Bearer {{token}}
+
+### Delete the coach
+DELETE {{football}}/api/v1/coaches/{{coachId}}
+Authorization: Bearer {{token}}
+
+### Delete the selling club
+DELETE {{football}}/api/v1/teams/{{sellingId}}
+Authorization: Bearer {{token}}
+
+### Delete the buying club
+DELETE {{football}}/api/v1/teams/{{buyingId}}
+Authorization: Bearer {{token}}
+
+### Delete the season
+DELETE {{football}}/api/v1/seasons/{{seasonId}}
+Authorization: Bearer {{token}}
+
+### Delete the league
+DELETE {{football}}/api/v1/leagues/{{leagueId}}
+Authorization: Bearer {{token}}
