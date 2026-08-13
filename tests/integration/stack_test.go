@@ -143,10 +143,27 @@ func endpoint(ctx context.Context, t *testing.T, stack compose.ComposeStack, ser
 	require.NoError(t, err, "resolving container for %s", service)
 
 	host, err := container.Host(ctx)
-	require.NoError(t, err)
+	require.NoError(t, err, "resolving host for %s", service)
 
 	mapped, err := container.MappedPort(ctx, nat.Port(port+"/tcp"))
-	require.NoError(t, err)
+	if err != nil {
+		// Say what Docker actually published before failing.
+		//
+		// docker-compose.yml binds these to 127.0.0.1 rather than 0.0.0.0, so
+		// the published bindings carry a host IP. If that is what stops the
+		// port being resolved here, the map below shows it directly instead of
+		// leaving a bare "port not found" to be guessed at.
+		if lister, ok := any(container).(interface {
+			Ports(context.Context) (nat.PortMap, error)
+		}); ok {
+			if published, pErr := lister.Ports(ctx); pErr == nil {
+				t.Logf("published ports for %s: %+v", service, published)
+			} else {
+				t.Logf("could not read published ports for %s: %v", service, pErr)
+			}
+		}
+		require.NoError(t, err, "resolving mapped port %s/tcp for %s", port, service)
+	}
 
 	return host, mapped.Port()
 }
