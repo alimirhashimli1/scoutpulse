@@ -23,8 +23,8 @@ parsed by `docker compose config`. Everything else was run.
 | **Round 1 total** | **36** | **1** |
 | Round 2 | 21 | 0 |
 | Round 2b | 10 | 0 |
-| Round 2c (fallout) | 12 | 0 |
-| **Total** | **79** | **1** |
+| Round 2c (fallout) | 14 | 0 |
+| **Total** | **81** | **1** |
 
 S6 is a key rotation only you can perform.
 
@@ -537,6 +537,22 @@ every module.
   **2. PowerShell native-argument parsing.** `-v role=$svc.Role` expands only `$svc` and appends `.Role` as literal text, yielding `role=System.Collections.Hashtable.Role`. A *bare* `$svc.Db` token evaluates the property correctly, which is why `--dbname` worked while `-v role=` did not — the same script was half right, which is what made the failure confusing. Verified against a live shell rather than assumed.
 
 - **Fixed:** semicolons removed before every `\gexec` in both files; all property access moved to locals, so no native-command argument interpolates a property. Both scripts now **verify** the database exists immediately after creating it and fail with a message naming the real cause, rather than letting a silently-skipped `\gexec` surface three steps later as a connection error.
+
+### N44. Deleting a club failed once its players had an opening transfer
+- [x] `DELETE /api/v1/teams/{id}` returned **400** instead of 204 for any club a player had joined. Found by `TestTeamDeletionNullsPlayerTeam`, the first time that suite ever ran to completion in CI.
+- **A real product bug, not a test problem.** Two rules migration `000003` introduced contradict each other:
+  - the foreign keys say *"a club may be deleted without erasing the transfer that references it"* — `from_team_id` and `to_team_id` are both `ON DELETE SET NULL`;
+  - `transfers_has_direction` says *"a transfer must move a player from somewhere or to somewhere"* — `CHECK (from_team_id IS NOT NULL OR to_team_id IS NOT NULL)`.
+- Both are reasonable; together they are impossible. A transfer naming exactly one club loses its only non-null reference when that club is deleted, and the CHECK then refuses the delete.
+- **My N12 change is what made it reachable.** Creating a player now writes an opening transfer with `from_team_id` NULL and `to_team_id` set, so every club with players has such a row. Before that, a player created through the API had no transfers at all and the case never arose. N22 then surfaced the `23514` as a 400 rather than a 500, which is how it was identifiable at all.
+- **Fixed** by migration `000006`, dropping the CHECK rather than the SET NULL behaviour. The two rules are enforced at different times and only one belongs in the database: *"needs a direction"* is a rule about **creating** a transfer, which `validateTransfer` already enforces with a clear message; *"history survives a club deletion"* is a rule about the row's whole lifetime, and a CHECK cannot tell an insert from a cascade. A transfer that has lost both clubs is degraded, not corrupt — player, date, type and fee all survive.
+- The down migration re-adds the constraint `NOT VALID`, so a rollback succeeds even when such rows exist rather than requiring history to be deleted to satisfy it.
+- `TestRecordTransfer_Validation`'s "no direction" case is now the sole enforcement, and says so in a comment.
+
+### N45. The failing assertion was unreadable in CI
+- [x] Four cycles were spent on N44 because the integration job emits a line per container per state change. The one `--- FAIL:` block was buried in hundreds of lines of compose output, and repeatedly scrolled past.
+- **Fixed:** the job tees test output to a file and a `Failure summary` step, running `if: failure()`, greps the assertion, error trace and any diagnostic logging, printing it as the **last thing in the job**. `endpoint()` also now reports the container's published port map when a lookup fails, instead of a bare error.
+- Worth doing on the first cycle, not the fourth: when a log buries its own signal, fix the reporting before continuing to read it.
 
 ### N2, revisited — golangci-lint v2
 Aligning up forces the linter upgrade the first attempt was trying to dodge.

@@ -157,6 +157,13 @@ func TestRecordTransfer_OriginMustMatch(t *testing.T) {
 	}
 }
 
+// TestRecordTransfer_Validation covers the input rules.
+//
+// The "no direction" case carries more weight than the others: migration
+// 000006 dropped the transfers_has_direction CHECK, because ON DELETE SET NULL
+// may legitimately null both clubs when they are deleted and a CHECK cannot
+// tell that from an insert. This assertion is now the only thing preventing a
+// directionless transfer from being written in the first place.
 func TestRecordTransfer_Validation(t *testing.T) {
 	tests := []struct {
 		name     string
