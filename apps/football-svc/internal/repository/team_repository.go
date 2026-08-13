@@ -9,7 +9,10 @@ import (
 
 type TeamRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Team, error)
-	ListByLeague(ctx context.Context, leagueID string, page domain.Page) ([]domain.Team, error)
+	// List returns clubs, optionally narrowed to one competition. A nil
+	// leagueID means every club, which is what an all-clubs page needs;
+	// requiring a league made that page impossible to build.
+	List(ctx context.Context, leagueID *string, page domain.Page) ([]domain.Team, error)
 	Create(ctx context.Context, team *domain.Team) error
 	Update(ctx context.Context, team *domain.Team) error
 	Delete(ctx context.Context, id string) error
@@ -35,10 +38,25 @@ func (r *postgresTeamRepository) GetByID(ctx context.Context, id string) (*domai
 	return &team, nil
 }
 
-func (r *postgresTeamRepository) ListByLeague(ctx context.Context, leagueID string, page domain.Page) ([]domain.Team, error) {
-	var teams []domain.Team
-	query := `SELECT ` + teamColumns + ` FROM teams WHERE league_id = $1 ORDER BY name, id LIMIT $2 OFFSET $3`
-	if err := r.db.SelectContext(ctx, &teams, query, leagueID, page.FetchLimit(), page.Offset); err != nil {
+func (r *postgresTeamRepository) List(ctx context.Context, leagueID *string, page domain.Page) ([]domain.Team, error) {
+	var (
+		teams []domain.Team
+		err   error
+	)
+
+	// Ordered by (name, id) so paging is stable across pages even when two
+	// clubs share a name -- the same ordering idx_teams_name_id supports.
+	if leagueID != nil && *leagueID != "" {
+		query := `SELECT ` + teamColumns + ` FROM teams WHERE league_id = $1
+		          ORDER BY name, id LIMIT $2 OFFSET $3`
+		err = r.db.SelectContext(ctx, &teams, query, *leagueID, page.FetchLimit(), page.Offset)
+	} else {
+		query := `SELECT ` + teamColumns + ` FROM teams
+		          ORDER BY name, id LIMIT $1 OFFSET $2`
+		err = r.db.SelectContext(ctx, &teams, query, page.FetchLimit(), page.Offset)
+	}
+
+	if err != nil {
 		return nil, translate("team", err)
 	}
 	return teams, nil

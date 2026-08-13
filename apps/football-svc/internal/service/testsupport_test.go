@@ -78,6 +78,15 @@ func (s *stubEditors) Revoke(_ context.Context, userID, teamID string) error {
 	return nil
 }
 
+func (s *stubEditors) RevokeAllForUser(_ context.Context, userID string) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	removed := int64(len(s.grants[userID]))
+	delete(s.grants, userID)
+	return removed, nil
+}
+
 // recordingPublisher captures published events so tests can assert on them.
 type recordingPublisher struct {
 	mu       sync.Mutex

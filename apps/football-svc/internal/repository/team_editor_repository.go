@@ -23,6 +23,11 @@ type TeamEditorRepository interface {
 	ListEditors(ctx context.Context, teamID string, page domain.Page) ([]TeamEditor, error)
 	Grant(ctx context.Context, userID, teamID string, grantedBy *string) error
 	Revoke(ctx context.Context, userID, teamID string) error
+	// RevokeAllForUser drops every grant a user holds and reports how many
+	// went. Used when the identity service says the account was deleted:
+	// there is no foreign key to do it, because users live in another
+	// service's database.
+	RevokeAllForUser(ctx context.Context, userID string) (int64, error)
 }
 
 type postgresTeamEditorRepository struct {
@@ -67,6 +72,17 @@ func (r *postgresTeamEditorRepository) Grant(ctx context.Context, userID, teamID
 	          ON CONFLICT (user_id, team_id) DO NOTHING`
 	_, err := r.db.ExecContext(ctx, query, userID, teamID, grantedBy)
 	return translate("team editor", err)
+}
+
+func (r *postgresTeamEditorRepository) RevokeAllForUser(ctx context.Context, userID string) (int64, error) {
+	// No affected() here: removing the grants of a user who held none is a
+	// success, not a 404. The caller is reacting to an account deletion, and
+	// an account with no grants is the common case.
+	res, err := r.db.ExecContext(ctx, `DELETE FROM team_editors WHERE user_id = $1`, userID)
+	if err != nil {
+		return 0, translate("team editor", err)
+	}
+	return res.RowsAffected()
 }
 
 func (r *postgresTeamEditorRepository) Revoke(ctx context.Context, userID, teamID string) error {

@@ -58,6 +58,13 @@ func main() {
 	// Labelled with the service name so events_published_total distinguishes
 	// which service dropped an event.
 	safePublisher := events.NewSafePublisherFor(serviceName, publisher, logger)
+
+	// Subscribing needs the concrete NATS connection, not the Publisher
+	// interface. With no broker configured the publisher is a no-op that
+	// cannot subscribe, and the service runs without the consumer -- editor
+	// grants then survive a deleted account until a broker exists, which is a
+	// stale-data problem rather than a broken service.
+	subscriber, canSubscribe := publisher.(events.Subscriber)
 	defer func() { _ = publisher.Close() }()
 
 	// Repositories
@@ -70,10 +77,26 @@ func main() {
 	seasonRepo := repository.NewPostgresSeasonRepository(database)
 	coachSpellRepo := repository.NewPostgresCoachSpellRepository(database)
 	teamEditorRepo := repository.NewPostgresTeamEditorRepository(database)
+	teamSeasonRepo := repository.NewPostgresTeamSeasonRepository(database)
+	searchRepo := repository.NewPostgresSearchRepository(database)
 
 	// Authorization: one instance, shared by every service, so the grant
 	// cache is shared and an invalidation reaches all of them.
 	authz := service.NewAuthorizer(teamEditorRepo)
+
+	// Keep user-keyed data in step with the identity service. team_editors has
+	// no foreign key to users -- they live in another database -- so this
+	// subscription is the only thing that will ever tell this service an
+	// account was deleted.
+	if canSubscribe {
+		consumer := service.NewIdentityEventConsumer(teamEditorRepo, authz, logger)
+		if err := consumer.Register(ctx, subscriber); err != nil {
+			log.Fatalf("Failed to subscribe to identity events: %v", err)
+		}
+		logger.Info("subscribed to identity events")
+	} else {
+		logger.Warn("no event bus: editor grants will not be cleaned up when an account is deleted")
+	}
 
 	// Services
 	leagueService := service.NewLeagueService(leagueRepo, authz)
@@ -85,6 +108,8 @@ func main() {
 	marketValueService := service.NewMarketValueService(marketValueRepo, playerRepo, authz, safePublisher)
 	coachSpellService := service.NewCoachSpellService(coachSpellRepo, coachRepo, authz, safePublisher)
 	teamEditorService := service.NewTeamEditorService(teamEditorRepo, teamRepo, authz)
+	teamSeasonService := service.NewTeamSeasonService(teamSeasonRepo, teamRepo, seasonRepo, leagueRepo, authz)
+	searchService := service.NewSearchService(searchRepo)
 
 	handlers := handler.Handlers{
 		League:      handler.NewLeagueHandler(leagueService),
@@ -96,6 +121,8 @@ func main() {
 		Season:      handler.NewSeasonHandler(seasonService),
 		CoachSpell:  handler.NewCoachSpellHandler(coachSpellService),
 		TeamEditor:  handler.NewTeamEditorHandler(teamEditorService),
+		TeamSeason:  handler.NewTeamSeasonHandler(teamSeasonService),
+		Search:      handler.NewSearchHandler(searchService),
 	}
 
 	// Tracing is optional: with no collector configured this installs a

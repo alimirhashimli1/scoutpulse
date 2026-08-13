@@ -86,7 +86,20 @@ func (r *statusRecorder) Write(b []byte) (int, error) {
 	return n, err
 }
 
-// Logging emits one structured line per request.
+// probePaths are hit on a fixed interval by infrastructure rather than by a
+// user, so a successful one carries no information.
+//
+// Docker healthchecks poll /health every few seconds and Prometheus scrapes
+// /metrics, which between them produce thousands of identical lines a day and
+// bury the requests somebody actually wants to read. A *failing* probe is
+// worth knowing about, so only the successful ones are dropped.
+var probePaths = map[string]bool{
+	"/health":  true,
+	"/metrics": true,
+}
+
+// Logging emits one structured line per request, except for successful
+// infrastructure probes.
 func Logging(logger *slog.Logger) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -97,6 +110,10 @@ func Logging(logger *slog.Logger) Middleware {
 
 			if rec.status == 0 {
 				rec.status = http.StatusOK
+			}
+
+			if probePaths[r.URL.Path] && rec.status < http.StatusBadRequest {
+				return
 			}
 
 			logger.LogAttrs(r.Context(), slog.LevelInfo, "http request",

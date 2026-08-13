@@ -17,6 +17,20 @@ func NewCoachHandler(service service.CoachService) *CoachHandler {
 	return &CoachHandler{service: service}
 }
 
+// GetCoach serves one coach.
+//
+// Until this existed a coach was only reachable through their club or their
+// spells, so a coach profile page had no way to load its subject.
+func (h *CoachHandler) GetCoach(w http.ResponseWriter, r *http.Request) {
+	coach, err := h.service.GetCoach(r.Context(), r.PathValue("id"))
+	if err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+
+	httpx.WriteJSON(w, http.StatusOK, coach)
+}
+
 func (h *CoachHandler) GetCoachByTeam(w http.ResponseWriter, r *http.Request) {
 	teamID := r.URL.Query().Get("team_id")
 	if teamID == "" {

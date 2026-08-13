@@ -15,6 +15,8 @@ type TransferService interface {
 	ListTransfers(ctx context.Context, filter repository.TransferFilter, page domain.Page) ([]domain.Transfer, error)
 	// RecordTransfer registers a move and updates the player's current club.
 	RecordTransfer(ctx context.Context, transfer *domain.Transfer) error
+	// UpdateTransfer corrects a recorded move's type, fee, currency or season.
+	UpdateTransfer(ctx context.Context, transfer *domain.Transfer) error
 	DeleteTransfer(ctx context.Context, id string) error
 }
 
@@ -157,6 +159,50 @@ func checkOrigin(player *domain.Player, t *domain.Transfer) error {
 	default:
 		return nil
 	}
+}
+
+// UpdateTransfer corrects a recorded move.
+//
+// Only the descriptive fields change: type, fee, currency and season. The
+// player, both clubs and the date are preserved from the stored row, because
+// they are what the player's current club is derived from — see the note on
+// repository.TransferRepository.Update. A client that round-trips a GET into a
+// PUT therefore cannot move anyone by accident.
+//
+// Authorization matches recording: either club's editor may correct a move
+// they were entitled to file in the first place.
+func (s *transferService) UpdateTransfer(ctx context.Context, t *domain.Transfer) error {
+	if t.ID == "" {
+		return apperr.Invalid("transfer id is required")
+	}
+
+	existing, err := s.repo.GetByID(ctx, t.ID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.authz.RequireEitherTeam(ctx, existing.FromTeam, existing.ToTeam); err != nil {
+		return err
+	}
+
+	// Immutable fields come from the stored row, never the request.
+	t.PlayerID = existing.PlayerID
+	t.FromTeam = existing.FromTeam
+	t.ToTeam = existing.ToTeam
+	t.TransferDate = existing.TransferDate
+	t.CreatedAt = existing.CreatedAt
+
+	if err := validateTransfer(t); err != nil {
+		return err
+	}
+
+	// A season the caller did not supply keeps the one already on the record,
+	// rather than being silently cleared.
+	if t.SeasonID == nil {
+		t.SeasonID = existing.SeasonID
+	}
+
+	return s.repo.Update(ctx, t)
 }
 
 // DeleteTransfer removes a mistaken record. It is admin-only and deliberately

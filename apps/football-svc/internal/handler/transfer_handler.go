@@ -106,6 +106,26 @@ func (h *TransferHandler) RecordTransfer(w http.ResponseWriter, r *http.Request)
 	httpx.WriteJSON(w, http.StatusCreated, transfer)
 }
 
+// UpdateTransfer corrects a recorded move's type, fee, currency or season.
+// The player, both clubs and the date are preserved by the service.
+func (h *TransferHandler) UpdateTransfer(w http.ResponseWriter, r *http.Request) {
+	var transfer domain.Transfer
+	if err := httpx.DecodeJSON(w, r, &transfer); err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+	// The path names the record, so a body claiming a different id cannot
+	// redirect the write.
+	transfer.ID = r.PathValue("id")
+
+	if err := h.service.UpdateTransfer(r.Context(), &transfer); err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+
+	httpx.WriteJSON(w, http.StatusOK, transfer)
+}
+
 func (h *TransferHandler) DeleteTransfer(w http.ResponseWriter, r *http.Request) {
 	if err := h.service.DeleteTransfer(r.Context(), r.PathValue("id")); err != nil {
 		httpx.WriteError(w, r, err)

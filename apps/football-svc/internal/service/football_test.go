@@ -23,7 +23,7 @@ func (m *MockTeamRepository) GetByID(ctx context.Context, id string) (*domain.Te
 	return args.Get(0).(*domain.Team), args.Error(1)
 }
 
-func (m *MockTeamRepository) ListByLeague(ctx context.Context, leagueID string, page domain.Page) ([]domain.Team, error) {
+func (m *MockTeamRepository) List(ctx context.Context, leagueID *string, page domain.Page) ([]domain.Team, error) {
 	args := m.Called(ctx, leagueID, page)
 	return args.Get(0).([]domain.Team), args.Error(1)
 }

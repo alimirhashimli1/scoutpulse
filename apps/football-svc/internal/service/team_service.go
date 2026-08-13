@@ -12,7 +12,8 @@ import (
 
 type TeamService interface {
 	GetTeam(ctx context.Context, id string) (*domain.Team, error)
-	ListTeamsByLeague(ctx context.Context, leagueID string, page domain.Page) ([]domain.Team, error)
+	// ListTeams returns clubs, optionally narrowed to one competition.
+	ListTeams(ctx context.Context, leagueID *string, page domain.Page) ([]domain.Team, error)
 	CreateTeam(ctx context.Context, team *domain.Team) error
 	UpdateTeam(ctx context.Context, team *domain.Team) error
 	DeleteTeam(ctx context.Context, id string) error
@@ -32,8 +33,9 @@ func (s *teamService) GetTeam(ctx context.Context, id string) (*domain.Team, err
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *teamService) ListTeamsByLeague(ctx context.Context, leagueID string, page domain.Page) ([]domain.Team, error) {
-	return s.repo.ListByLeague(ctx, leagueID, page)
+// ListTeams is a public read; no authorization check applies.
+func (s *teamService) ListTeams(ctx context.Context, leagueID *string, page domain.Page) ([]domain.Team, error) {
+	return s.repo.List(ctx, leagueID, page)
 }
 
 func validateTeam(t *domain.Team) error {

@@ -11,6 +11,7 @@ import (
 	"github.com/scoutpulse/identity-svc/internal/repository"
 	"github.com/scoutpulse/libs/auth"
 	"github.com/scoutpulse/libs/platform/apperr"
+	"github.com/scoutpulse/libs/platform/events"
 	"github.com/scoutpulse/libs/platform/httpx"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -43,6 +44,45 @@ func mustGenerateDummyHash() []byte {
 type Handler struct {
 	UserRepo    repository.UserRepository
 	RefreshRepo repository.RefreshTokenRepository
+	// Publisher announces account changes other services hold data against.
+	// Optional: with no broker configured this is a no-op, and every endpoint
+	// still works — events are a secondary effect of a write, not part of it.
+	Publisher events.Publisher
+	// OAuth carries the external sign-in providers. Optional: with no provider
+	// credentials configured, the password endpoints work exactly as before
+	// and the provider routes report that none is enabled.
+	OAuth OAuthDeps
+}
+
+// publishUserDeleted tells the rest of the platform an account is gone.
+//
+// The football service keeps editor grants keyed by user id in its own
+// database, where no foreign key can reach. Without this event those grants
+// would outlive the account and, worse than being useless, would apply again
+// if the id were ever reused.
+func (h *Handler) publishUserDeleted(r *http.Request, userID, username string) {
+	if h.Publisher == nil {
+		return
+	}
+	// The row is already deleted, so a delivery failure must not be reported
+	// to the caller as a failed deletion. SafePublisher logs and counts it.
+	_ = h.Publisher.Publish(r.Context(), events.SubjectUserDeleted, events.UserDeleted{
+		UserID:   userID,
+		Username: username,
+	})
+}
+
+// publishRoleChanged lets consumers drop cached authorization decisions at
+// once rather than waiting out a TTL.
+func (h *Handler) publishRoleChanged(r *http.Request, userID, oldRole, newRole string) {
+	if h.Publisher == nil {
+		return
+	}
+	_ = h.Publisher.Publish(r.Context(), events.SubjectUserRoleChanged, events.UserRoleChanged{
+		UserID:  userID,
+		OldRole: oldRole,
+		NewRole: newRole,
+	})
 }
 
 // RegisterRequest is the payload for public self-registration.
@@ -278,10 +318,22 @@ func (h *Handler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := r.PathValue("id")
+
+	// Read the old role first, so the event can carry what actually changed.
+	// A consumer caching authorization decisions needs the transition, not
+	// just the destination.
+	existing, err := h.UserRepo.GetByID(r.Context(), userID)
+	if err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+
 	if err := h.UserRepo.UpdateRole(r.Context(), userID, req.Role, claims.UserID); err != nil {
 		httpx.WriteError(w, r, err)
 		return
 	}
+
+	h.publishRoleChanged(r, userID, string(existing.Role), string(req.Role))
 
 	// The old role is baked into any token already issued, so end the user's
 	// sessions and make them obtain a token carrying the new one. Without

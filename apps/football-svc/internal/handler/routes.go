@@ -22,6 +22,8 @@ type Handlers struct {
 	Season      *SeasonHandler
 	CoachSpell  *CoachSpellHandler
 	TeamEditor  *TeamEditorHandler
+	TeamSeason  *TeamSeasonHandler
+	Search      *SearchHandler
 }
 
 // RegisterRoutes registers all API routes for the football service.
@@ -31,6 +33,12 @@ type Handlers struct {
 // the service layer.
 func RegisterRoutes(mux *http.ServeMux, h Handlers) {
 	mux.HandleFunc("GET /health", server.Health("Football Service"))
+
+	// --- search ---
+	// Public, because everything it returns is reachable through the public
+	// entity endpoints anyway; requiring a token would only break the search
+	// box for signed-out visitors.
+	mux.HandleFunc("GET /api/v1/search", h.Search.Search)
 
 	// --- competitions ---
 	mux.HandleFunc("GET /api/v1/leagues", h.League.ListLeagues)
@@ -44,15 +52,23 @@ func RegisterRoutes(mux *http.ServeMux, h Handlers) {
 	mux.HandleFunc("GET /api/v1/seasons/current", h.Season.GetCurrentSeason)
 	mux.HandleFunc("GET /api/v1/seasons", h.Season.ListSeasons)
 	mux.HandleFunc("GET /api/v1/seasons/{id}", h.Season.GetSeason)
+	// Every club entered in this season; ?league_id= narrows it to one
+	// competition, which is what a "who played in this league that year" page
+	// needs.
+	mux.HandleFunc("GET /api/v1/seasons/{id}/teams", h.TeamSeason.ListBySeason)
 	protect(mux, "POST /api/v1/seasons", h.Season.CreateSeason)
 	protect(mux, "PUT /api/v1/seasons/{id}", h.Season.UpdateSeason)
 	protect(mux, "DELETE /api/v1/seasons/{id}", h.Season.DeleteSeason)
 
 	// --- clubs ---
-	// GET /api/v1/teams requires a league_id query parameter.
+	// league_id is an optional filter on GET /api/v1/teams, not a requirement.
 	mux.HandleFunc("GET /api/v1/teams", h.Team.ListTeams)
 	mux.HandleFunc("GET /api/v1/teams/{id}", h.Team.GetTeam)
 	mux.HandleFunc("GET /api/v1/teams/{id}/coaches", h.CoachSpell.ListByTeam)
+	// Which competitions this club has contested, newest season first.
+	mux.HandleFunc("GET /api/v1/teams/{id}/seasons", h.TeamSeason.ListByTeam)
+	protect(mux, "POST /api/v1/teams/{id}/seasons", h.TeamSeason.Enter)
+	protect(mux, "DELETE /api/v1/teams/{id}/seasons/{entryID}", h.TeamSeason.Withdraw)
 	protect(mux, "POST /api/v1/teams", h.Team.CreateTeam)
 	protect(mux, "PUT /api/v1/teams/{id}", h.Team.UpdateTeam)
 	protect(mux, "DELETE /api/v1/teams/{id}", h.Team.DeleteTeam)
@@ -67,6 +83,7 @@ func RegisterRoutes(mux *http.ServeMux, h Handlers) {
 	// --- coaches ---
 	// GET /api/v1/coaches requires a team_id query parameter.
 	mux.HandleFunc("GET /api/v1/coaches", h.Coach.GetCoachByTeam)
+	mux.HandleFunc("GET /api/v1/coaches/{id}", h.Coach.GetCoach)
 	mux.HandleFunc("GET /api/v1/coaches/{id}/spells", h.CoachSpell.ListByCoach)
 	protect(mux, "POST /api/v1/coaches", h.Coach.CreateCoach)
 	protect(mux, "PUT /api/v1/coaches/{id}", h.Coach.UpdateCoach)
@@ -90,6 +107,9 @@ func RegisterRoutes(mux *http.ServeMux, h Handlers) {
 	mux.HandleFunc("GET /api/v1/transfers", h.Transfer.ListTransfers)
 	mux.HandleFunc("GET /api/v1/transfers/{id}", h.Transfer.GetTransfer)
 	protect(mux, "POST /api/v1/transfers", h.Transfer.RecordTransfer)
+	// Corrects type, fee, currency and season. The clubs and the date are not
+	// writable here -- they are what the current squad is derived from.
+	protect(mux, "PUT /api/v1/transfers/{id}", h.Transfer.UpdateTransfer)
 	protect(mux, "DELETE /api/v1/transfers/{id}", h.Transfer.DeleteTransfer)
 }
 

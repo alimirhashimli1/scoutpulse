@@ -35,6 +35,21 @@ type User struct {
 	CreatedAt    time.Time `json:"created_at" db:"created_at"`
 }
 
+// Identity links a local account to an account at an external provider.
+//
+// Accounts are keyed on ProviderUserID, never on Email: an address at a
+// provider can be changed or reassigned to somebody else, while the provider's
+// subject id is stable for the life of that account.
+type Identity struct {
+	ID             string     `db:"id" json:"id"`
+	UserID         string     `db:"user_id" json:"user_id"`
+	Provider       string     `db:"provider" json:"provider"`
+	ProviderUserID string     `db:"provider_user_id" json:"-"`
+	Email          *string    `db:"email" json:"email,omitempty"`
+	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
+	LastLoginAt    *time.Time `db:"last_login_at" json:"last_login_at,omitempty"`
+}
+
 // RefreshToken is a server-side session record.
 //
 // The plaintext token is returned to the client once and never stored: only

@@ -28,9 +28,22 @@ const (
 	SubjectTeamDeleted        = "football.team.deleted"
 )
 
+// Subjects published by the identity service.
+//
+// identity-svc owns accounts; other services hold data keyed by user id that
+// no foreign key can protect, because it lives in a different database. These
+// events are how that data learns an account is gone.
+const (
+	SubjectUserDeleted     = "identity.user.deleted"
+	SubjectUserRoleChanged = "identity.user.role_changed"
+)
+
 // AllFootballSubjects is the wildcard a consumer can use to receive everything
 // the football service emits.
 const AllFootballSubjects = "football.>"
+
+// AllIdentitySubjects is the same for the identity service.
+const AllIdentitySubjects = "identity.>"
 
 // Envelope wraps every published payload with the metadata a consumer needs to
 // deduplicate, order, and trace.
@@ -131,4 +144,26 @@ type TeamCreated struct {
 // it; they become free agents.
 type TeamDeleted struct {
 	TeamID string `json:"team_id"`
+}
+
+// UserDeleted is emitted when an account is removed.
+//
+// This is what lets the football service drop that user's editor grants.
+// team_editors deliberately has no foreign key to users -- they live in
+// another service's database -- so nothing else would ever tell it.
+type UserDeleted struct {
+	UserID string `json:"user_id"`
+	// Username is included for logs and audit trails; the row is already gone
+	// by the time a consumer sees this, so the id alone would be unresolvable.
+	Username string `json:"username,omitempty"`
+}
+
+// UserRoleChanged is emitted when an account's role changes.
+//
+// A consumer caching authorization decisions can use this to drop them
+// immediately rather than waiting out a TTL.
+type UserRoleChanged struct {
+	UserID  string `json:"user_id"`
+	OldRole string `json:"old_role"`
+	NewRole string `json:"new_role"`
 }

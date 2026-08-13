@@ -64,6 +64,22 @@ func (m *MockUserRepository) UpdateRole(ctx context.Context, userID string, role
 	return m.Called(ctx, userID, role, updatedBy).Error(0)
 }
 
+func (m *MockUserRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
+	return m.Called(ctx, userID, passwordHash).Error(0)
+}
+
+func (m *MockUserRepository) List(ctx context.Context, query string, limit, offset int) ([]model.User, error) {
+	args := m.Called(ctx, query, limit, offset)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]model.User), args.Error(1)
+}
+
+func (m *MockUserRepository) Delete(ctx context.Context, userID string) error {
+	return m.Called(ctx, userID).Error(0)
+}
+
 // fakeRefreshRepo is an in-memory session store.
 type fakeRefreshRepo struct {
 	mu        sync.Mutex
@@ -409,6 +425,10 @@ func TestUpdateRole(t *testing.T) {
 		repo := new(MockUserRepository)
 		sessions := newFakeRefreshRepo()
 		h := &Handler{UserRepo: repo, RefreshRepo: sessions}
+		// The handler reads the current role first, so the emitted event can
+		// carry the transition rather than only its destination.
+		repo.On("GetByID", mock.Anything, "user-2").
+			Return(&model.User{ID: "user-2", Username: "u2", Role: model.UserRole}, nil).Once()
 		repo.On("UpdateRole", mock.Anything, "user-2", model.EditorRole, "admin-1").Return(nil).Once()
 
 		body, _ := json.Marshal(UpdateRoleRequest{Role: model.EditorRole})

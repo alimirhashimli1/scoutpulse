@@ -30,6 +30,15 @@ type TransferRepository interface {
 	// the matching squad change would leave the history disagreeing with the
 	// current state.
 	Record(ctx context.Context, transfer *domain.Transfer) error
+	// Update corrects the descriptive fields of a recorded move: type, fee,
+	// currency and season.
+	//
+	// The player, both clubs and the date are deliberately not writable here.
+	// They are what players.team_id is derived from, so changing them would
+	// have to re-run the origin check, the FOR UPDATE lock and the
+	// latest-move guard that Record performs -- at which point it is the same
+	// operation. Correcting those means deleting the row and filing it again.
+	Update(ctx context.Context, transfer *domain.Transfer) error
 	Delete(ctx context.Context, id string) error
 }
 
@@ -170,6 +179,15 @@ func sameTeam(a, b *string) bool {
 	default:
 		return *a == *b
 	}
+}
+
+func (r *postgresTransferRepository) Update(ctx context.Context, t *domain.Transfer) error {
+	query := `UPDATE transfers
+	             SET transfer_type = $1, fee_minor = $2, currency = $3, season_id = $4
+	           WHERE id = $5`
+	res, err := r.db.ExecContext(ctx, query,
+		string(t.Type), t.Fee, t.Currency, t.SeasonID, t.ID)
+	return affected("transfer", res, err)
 }
 
 func (r *postgresTransferRepository) Delete(ctx context.Context, id string) error {

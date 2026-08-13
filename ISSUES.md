@@ -440,6 +440,119 @@ and the Postgres bootstrap.
 
 ---
 
+# Round 3 — features, 2026-08-13
+
+Not defects. This round closed the API gaps a frontend would hit immediately,
+added search and external sign-in, and finished one of the three round-2
+partials. Match data (fixtures, results, standings, appearances) was
+deliberately excluded.
+
+## Closed API gaps
+
+| Was | Now |
+|---|---|
+| No fetch-a-coach-by-id | `GET /api/v1/coaches/{id}` |
+| `GET /teams` **required** `league_id` | Optional filter, so an all-clubs page is possible |
+| Transfers create/delete only | `PUT /api/v1/transfers/{id}` |
+| `team_seasons` modelled but unreachable | `GET/POST /teams/{id}/seasons`, `DELETE .../{entryID}`, `GET /seasons/{id}/teams` |
+
+`PUT /transfers/{id}` edits **only** type, fee, currency and season. The player,
+both clubs and the date are taken from the stored row and the request's values
+ignored, because those are what `players.team_id` is derived from — changing
+them would have to repeat the `FOR UPDATE` lock and latest-move guard that
+recording performs. Correcting those means deleting and re-filing.
+`TestUpdateTransfer_CannotMoveThePlayer` pins it.
+
+## Search (migration `000007`)
+
+`GET /api/v1/search?q=&kind=` — ranked hits across players, clubs, coaches and
+competitions. Postgres FTS with `tsvector` generated columns and GIN indexes,
+plus `pg_trgm` for the partial and misspelt case.
+
+Three decisions worth knowing:
+
+- **Generated columns, not triggers.** Postgres keeps them in step itself, so
+  they cannot drift when a row is updated by a path that forgot to fire a
+  trigger.
+- **The `simple` configuration, not `english`.** English stemming mangles
+  proper nouns — it strips what it takes for suffixes, so surnames ending in
+  `-s`, `-ing` or `-ed` match the wrong stem. Names are not English words and
+  this dataset is multilingual.
+- **The tsquery is built in Go, not parameterised.** `to_tsquery` takes an
+  expression with its own operators, so raw input would be a syntax error at
+  best and a pathologically slow query at worst. Everything that is not a
+  letter or digit is dropped and the operators are supplied by
+  `ToTSQuery`, which appends `:*` per term so typing "mess" finds "Messi".
+  Eight tests cover the stripping and the prefix behaviour.
+
+## Identity
+
+- `PUT /api/v1/users/me/password` — requires the current password even though
+  the caller holds a valid token, because a token can be taken from an unlocked
+  machine. Ends **every** session including the caller's own: if the password
+  is being changed because it leaked, leaving sessions alive defeats it.
+- `GET /api/v1/users?q=` — administrative list, same envelope shape as the
+  football service.
+- `DELETE /api/v1/users/{id}` — admin-only, and an administrator cannot delete
+  themselves. An installation whose last administrator does that has no route
+  back through the API.
+- **Also fixed:** `translateUserErr` had the same `22P02` gap that N22 closed in
+  the football service, so a malformed UUID returned 500 here too.
+
+## Sign in with Google and Facebook
+
+Backend redirect flow. The browser goes to `GET /api/v1/auth/{provider}`, the
+provider calls back to the service, and the completed sign-in is handed to the
+frontend as a **single-use 60-second code** which it exchanges at
+`POST /api/v1/auth/exchange` for the normal token pair.
+
+**Tokens never travel in a redirect URL.** Putting them there would write a
+refresh token into browser history, server access logs, and any `Referer` the
+next page sends.
+
+Other decisions:
+
+- **Accounts are keyed on the provider's subject id, never the email.** An
+  email at a provider can be changed or reassigned; the subject id cannot.
+- **Auto-linking requires `email_verified`.** Treating an unverified provider
+  address as proof of ownership is an account-takeover route: anyone able to
+  register that address at the provider could claim the matching local account.
+  Refused with a 409 telling the user to sign in and link deliberately.
+  **Facebook's profile endpoint does not report verification at all, so a
+  Facebook sign-in never auto-links.**
+- `password_hash` became nullable rather than taking a placeholder — a
+  placeholder in a password column is exactly what later gets compared against.
+- State and PKCE verifier travel in `HttpOnly`, `SameSite=Lax` cookies scoped
+  to the auth path. Lax and not Strict because the callback is a top-level
+  navigation from the provider's domain, and Strict would withhold the cookie
+  exactly then.
+- Unlinking is refused when it would leave an account with no password and no
+  other provider. There is no password reset, so that is not recoverable.
+
+## N16 — closed
+
+`team_editors` keys grants by `user_id` with no foreign key, because users live
+in another service's database. football-svc now subscribes to
+`identity.user.deleted` and drops the grants, and to
+`identity.user.role_changed` to clear cached authorization decisions.
+
+Without it those grants outlive the account — and would apply again if the id
+were ever reissued. Six tests, including that an event with an **empty** user id
+changes nothing, which is the worst bug this code could have.
+
+## Still open from round 2
+
+- **N28** — the event bus is still at-most-once with no outbox. The new
+  identity events ride the same bus, so account deletion cleanup inherits the
+  same caveat: if the broker is down at that moment, the grants are not cleaned
+  up and nothing retries.
+- **N7** — role changes still take effect within one access-token lifetime.
+  The new `user.role_changed` event clears football-svc's *cached grant*
+  decisions immediately, but the role inside an already-issued access token is
+  still only corrected when it expires.
+
+---
+
 # Round 2 resolution log — 2026-08-11
 
 What was actually changed, per item.

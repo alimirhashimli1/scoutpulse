@@ -32,6 +32,10 @@ func (m *MockTransferRepository) Record(ctx context.Context, t *domain.Transfer)
 	return m.Called(ctx, t).Error(0)
 }
 
+func (m *MockTransferRepository) Update(ctx context.Context, transfer *domain.Transfer) error {
+	return m.Called(ctx, transfer).Error(0)
+}
+
 func (m *MockTransferRepository) Delete(ctx context.Context, id string) error {
 	return m.Called(ctx, id).Error(0)
 }

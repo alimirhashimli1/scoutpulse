@@ -46,7 +46,7 @@ func (m *MockTeamService) GetTeam(ctx context.Context, id string) (*domain.Team,
 	return args.Get(0).(*domain.Team), args.Error(1)
 }
 
-func (m *MockTeamService) ListTeamsByLeague(ctx context.Context, leagueID string, page domain.Page) ([]domain.Team, error) {
+func (m *MockTeamService) ListTeams(ctx context.Context, leagueID *string, page domain.Page) ([]domain.Team, error) {
 	args := m.Called(ctx, leagueID, page)
 	return args.Get(0).([]domain.Team), args.Error(1)
 }

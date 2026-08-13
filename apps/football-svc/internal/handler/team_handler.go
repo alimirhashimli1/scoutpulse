@@ -29,20 +29,19 @@ func NewTeamHandler(teamService service.TeamService, playerService service.Playe
 	}
 }
 
+// ListTeams serves clubs, optionally narrowed to one competition.
+//
+// league_id used to be mandatory, which meant there was no way to list every
+// club -- a browse-all page could not be built at all. It is now an ordinary
+// optional filter, like the ones on players and transfers.
 func (h *TeamHandler) ListTeams(w http.ResponseWriter, r *http.Request) {
-	leagueID := r.URL.Query().Get("league_id")
-	if leagueID == "" {
-		httpx.WriteError(w, r, apperr.Invalid("league_id is required"))
-		return
-	}
-
 	page, err := pageFrom(r)
 	if err != nil {
 		httpx.WriteError(w, r, err)
 		return
 	}
 
-	teams, err := h.teamService.ListTeamsByLeague(r.Context(), leagueID, page)
+	teams, err := h.teamService.ListTeams(r.Context(), httpx.QueryString(r, "league_id"), page)
 	if err != nil {
 		httpx.WriteError(w, r, err)
 		return
