@@ -141,11 +141,33 @@ jobs:
 
       # Docker is available on ubuntu-latest runners, so the testcontainers
       # suites run for real here instead of skipping.
+      #
+      # Output is teed to a file as well as the log. Compose prints a line per
+      # container per state change, which buries the one thing anybody reads
+      # this job for -- the failing assertion. The summary step below reprints
+      # it at the end.
       - name: Run integration tests
+        id: run
         run: |
-          set -e
+          set -o pipefail
+          status=0
           for module in apps/identity-svc apps/football-svc tests/integration; do
             echo "::group::$module"
-            (cd "$module" && go test -timeout 20m ./...)
+            if ! (cd "$module" && go test -timeout 20m ./... 2>&1) | tee -a "$RUNNER_TEMP/tests.log"; then
+              status=1
+            fi
             echo "::endgroup::"
           done
+          exit $status
+
+      # Runs only on failure, and is the last thing in the log.
+      - name: Failure summary
+        if: failure()
+        run: |
+          echo "=============== FAILING TESTS ==============="
+          grep -nE '^(\s*)--- FAIL|^\s*Error Trace:|^\s*Error:|^\s*Messages:|^panic:|published ports' \
+            -A 2 "$RUNNER_TEMP/tests.log" || echo "(no assertion output found — the failure was not a test assertion)"
+          echo "============================================="
+          echo
+          echo "Package results:"
+          grep -E '^(ok|FAIL|---)' "$RUNNER_TEMP/tests.log" | grep -v '^ok' || true
