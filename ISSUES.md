@@ -859,3 +859,51 @@ docs). Two are defects the round-2 fixes introduced. All fixed.
 ### N35. Healthchecks outpaced the smoke scripts
 - [x] Making the gateway wait on `service_healthy` (N21) lengthened startup, but `smoke-test.sh` counted running containers after 10s and `smoke-test.ps1` after 5. Both would have reported a false failure.
 - **Fixed:** healthcheck `interval` and `start_period` tightened to 5s, and both scripts now wait 40s with a comment explaining the sequencing.
+
+---
+
+# Round 4 — found while building the frontend
+
+Building a UI against an API is the most thorough review it will get: every
+field has to be rendered or deliberately omitted, and every rule has to be
+explained to a user. Two gaps surfaced that no backend test would have caught,
+because the API behaves exactly as written — the problem is what it makes
+impossible.
+
+### N46. An OAuth-only account can never obtain a password
+
+- [ ] `UnlinkIdentity` refuses to remove the last way into an account, and
+  says: *"this is the only way to sign in to this account; set a password
+  before unlinking it"*. That advice cannot be followed. `ChangePassword`
+  requires a correct `current_password`, and an account created through Google
+  or Facebook has an empty `password_hash` — so it answers *"this account signs
+  in with a linked provider and has no password to change"*. There is no
+  set-password endpoint and no password reset.
+- The result: anyone who signed up with a provider is permanently tied to that
+  provider. Not a security hole, and both messages are individually correct —
+  but together they point at a door that does not exist.
+- **Fix:** either let `PUT /users/me/password` set an initial password when the
+  hash is empty (no `current_password` to verify against, so the bearer token
+  is the credential), or add `POST /users/me/password`. The first is smaller
+  and makes the existing error message true.
+
+### N47. `GET /users/me` does not say whether the account has a password
+
+- [ ] A consequence of N46 rather than a separate bug, but it is what stops the
+  frontend from being honest in advance. The account page cannot tell whether
+  to offer a password form, so it offers one to everybody and lets the API
+  explain. A `has_password` boolean on the user response would let the page say
+  the right thing before anyone types into a field that cannot work.
+- The frontend is written to work either way — the API message is passed
+  through unchanged — so this is a polish item, not a blocker.
+
+### N48. `GET /teams/{id}/editors` returns ids that cannot be resolved
+
+- [ ] The grant rows carry `user_id`, and identity-svc exposes no
+  `GET /users/{id}`. The only way to turn an id into a username is to page
+  through `GET /users` and match locally, which the admin screen now does with
+  a 100-account page. It is adequate for a small deployment and wrong for a
+  large one.
+- **Fix:** either include the username on the grant row, or add a batch
+  `GET /users?ids=`. The same shape would help the club and competition lookups
+  the transfer feed does — see the `LookupStore` note in docs/FRONTEND.md.

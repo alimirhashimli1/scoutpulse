@@ -23,13 +23,23 @@
 @football = http://localhost:8081
 @json = application/json
 
-# --- your test account -------------------------------------------------
-# Placeholders on purpose. This file is committed to the repository, so do not
-# put a real password or a personal email address here. Change @user between
-# runs, or registration returns 409.
-@user = aligsbsu1
-@pass = 1Kaybettim.
-@email = alimirhashimli@gmail.com
+# --- your account ------------------------------------------------------
+#
+# @user, @pass and @email are NOT defined here. They live in
+# .vscode/settings.json, which is gitignored, because this file is committed to
+# a public repository and a password in a committed file is a published one.
+#
+# Select the "local" environment before sending anything, or {{user}} resolves
+# to an empty string and requests fail with a validation error that says
+# nothing about the real cause:
+#
+#   status bar, bottom right  →  local        (or Ctrl+Alt+E)
+#
+# Do not add "@user = ..." back to this file. A file-level definition silently
+# overrides the environment, which is exactly how these ended up committed.
+#
+# The hostnames above stay here on purpose — they are not secrets, and a file
+# variable is resolvable without an environment selected.
 
 
 # '{"username":"scout1","email":"scout1@example.test","password":"local-dev-password"}'
