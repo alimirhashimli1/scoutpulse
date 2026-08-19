@@ -4,6 +4,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 
 import { AuthFacade } from '../core/auth/auth-facade';
 import { SessionStore } from '../core/auth/session-store';
+import { ThemeStore } from '../core/theme/theme';
 
 /**
  * The frame every page renders inside: masthead, navigation, search, footer.
@@ -40,6 +41,21 @@ import { SessionStore } from '../core/auth/session-store';
         </nav>
 
         <div class="account">
+          <!--
+            Cycles system → light → dark. aria-label carries the destination,
+            because the glyph alone tells a screen reader nothing, and the
+            label changing is what announces that the press did something.
+          -->
+          <button
+            type="button"
+            class="theme"
+            [attr.aria-label]="theme.nextLabel()"
+            [title]="theme.nextLabel()"
+            (click)="theme.cycle()"
+          >
+            <span aria-hidden="true">{{ theme.icon() }}</span>
+          </button>
+
           @if (session.isAuthenticated()) {
             @if (session.isAdmin()) {
               <a routerLink="/admin/users" routerLinkActive="active">Users</a>
@@ -114,7 +130,10 @@ import { SessionStore } from '../core/auth/session-store';
       text-decoration: none;
       letter-spacing: -0.01em;
     }
-    .search { flex: 1 1 14rem; min-width: 0; }
+    .search {
+      flex: 1 1 14rem;
+      min-width: 0;
+    }
     .search input {
       width: 100%;
       padding: var(--space-2) var(--space-3);
@@ -122,22 +141,38 @@ import { SessionStore } from '../core/auth/session-store';
       border-radius: var(--radius);
       background: var(--ground);
     }
-    .links { display: flex; gap: var(--space-4); }
+    .links {
+      display: flex;
+      gap: var(--space-4);
+    }
     .links a {
       color: var(--ink-soft);
       text-decoration: none;
       font-size: var(--text-sm);
     }
-    .links a:hover, .links a.active { color: var(--accent); }
+    .links a:hover,
+    .links a.active {
+      color: var(--accent);
+    }
     .account {
       display: flex;
       align-items: center;
       gap: var(--space-3);
       font-size: var(--text-sm);
     }
-    .account a { color: var(--ink-soft); text-decoration: none; }
-    .account a:hover, .account a.active { color: var(--accent); }
-    .who { display: flex; align-items: center; gap: var(--space-2); }
+    .account a {
+      color: var(--ink-soft);
+      text-decoration: none;
+    }
+    .account a:hover,
+    .account a.active {
+      color: var(--accent);
+    }
+    .who {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
     .role {
       font-family: var(--font-mono);
       font-size: 10px;
@@ -156,7 +191,20 @@ import { SessionStore } from '../core/auth/session-store';
       cursor: pointer;
       color: var(--ink-soft);
     }
-    .account button:hover { border-color: var(--accent); color: var(--accent); }
+    .account button:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .theme {
+      /* Square, so the three glyphs do not resize the masthead as it cycles. */
+      width: 2rem;
+      height: 2rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      line-height: 1;
+    }
 
     .footer {
       border-top: 1px solid var(--line);
@@ -165,16 +213,24 @@ import { SessionStore } from '../core/auth/session-store';
       font-size: var(--text-sm);
       color: var(--ink-soft);
     }
-    .muted { color: var(--muted); }
+    .muted {
+      color: var(--muted);
+    }
 
     @media (max-width: 40rem) {
-      .bar { gap: var(--space-3); }
-      .search { order: 3; flex-basis: 100%; }
+      .bar {
+        gap: var(--space-3);
+      }
+      .search {
+        order: 3;
+        flex-basis: 100%;
+      }
     }
   `,
 })
 export class Shell {
   protected readonly session = inject(SessionStore);
+  protected readonly theme = inject(ThemeStore);
   private readonly auth = inject(AuthFacade);
   private readonly router = inject(Router);
 

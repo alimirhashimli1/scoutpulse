@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  afterRenderEffect,
+  inject,
+  input,
+} from '@angular/core';
 
 /**
  * A labelled form control: label, optional hint, optional error.
@@ -34,7 +41,11 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
     </div>
   `,
   styles: `
-    .field { display: flex; flex-direction: column; gap: var(--space-2); }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
     label {
       font-size: var(--text-xs);
       font-weight: 700;
@@ -53,8 +64,16 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       color: var(--muted);
       opacity: 0.8;
     }
-    .hint { font-size: var(--text-xs); color: var(--muted); margin: 0; }
-    .error { font-size: var(--text-xs); color: var(--critical); margin: 0; }
+    .hint {
+      font-size: var(--text-xs);
+      color: var(--muted);
+      margin: 0;
+    }
+    .error {
+      font-size: var(--text-xs);
+      color: var(--critical);
+      margin: 0;
+    }
 
     /*
       The control itself is styled in styles.css, not here. It arrives by
@@ -65,6 +84,8 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   `,
 })
 export class Field {
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
   /** The id of the control being labelled. Required — a label with no target is decoration. */
   readonly for = input.required<string>();
   readonly label = input.required<string>();
@@ -77,4 +98,40 @@ export class Field {
    * so flagging the minority is less noise than an asterisk on everything.
    */
   readonly optional = input(false);
+
+  constructor() {
+    /*
+      Points the control at its hint and error.
+
+      This component's whole claim is that it owns the accessibility wiring,
+      and until now it rendered `<p id="name-hint">` that nothing referenced —
+      so a screen reader announced the label and then fell silent about the
+      constraint the field was rejecting on.
+
+      The control is projected, so the attribute cannot be bound in the
+      template; it is set on the element after render instead. `afterRenderEffect`
+      re-runs when the error appears or clears, and does not run during server
+      rendering — which is correct, because these attributes only mean anything
+      to assistive technology reading a live document.
+    */
+    afterRenderEffect(() => {
+      const control = this.host.nativeElement.querySelector<HTMLElement>('input, select, textarea');
+      if (!control) return;
+
+      const described = [
+        this.hint() ? `${this.for()}-hint` : null,
+        this.error() ? `${this.for()}-error` : null,
+      ].filter((id): id is string => id !== null);
+
+      if (described.length > 0) {
+        control.setAttribute('aria-describedby', described.join(' '));
+      } else {
+        control.removeAttribute('aria-describedby');
+      }
+
+      // Announced by the control itself, so someone tabbing back to a field
+      // they already failed hears that it is still invalid.
+      control.setAttribute('aria-invalid', this.error() ? 'true' : 'false');
+    });
+  }
 }
