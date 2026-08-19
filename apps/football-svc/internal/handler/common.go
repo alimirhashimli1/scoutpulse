@@ -8,9 +8,12 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/scoutpulse/football-svc/internal/domain"
+	"github.com/scoutpulse/libs/platform/apperr"
 	"github.com/scoutpulse/libs/platform/httpx"
 )
 
@@ -27,4 +30,37 @@ func pageFrom(r *http.Request) (domain.Page, error) {
 	}
 
 	return domain.NewPage(limit, offset), nil
+}
+
+// maxIDsPerRequest bounds a batch lookup.
+//
+// An unbounded ?ids= list is a denial-of-service shape: the query text and the
+// argument array both grow with it, and the caller controls the size. The cap
+// matches domain.MaxPageSize, since more ids than a page can return is a
+// request that cannot be answered in full anyway.
+const maxIDsPerRequest = domain.MaxPageSize
+
+// idsFrom reads a comma-separated id list, e.g. ?ids=uuid1,uuid2.
+//
+// Blank entries are dropped rather than passed through, so a trailing comma or
+// a doubled separator is not turned into a lookup for the empty string -- which
+// Postgres rejects as a malformed uuid, producing a 400 that blames the caller
+// for a stray character.
+func idsFrom(r *http.Request, name string) ([]string, error) {
+	raw := r.URL.Query().Get(name)
+	if raw == "" {
+		return nil, nil
+	}
+
+	var ids []string
+	for _, part := range strings.Split(raw, ",") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			ids = append(ids, trimmed)
+		}
+	}
+
+	if len(ids) > maxIDsPerRequest {
+		return nil, apperr.Invalid(fmt.Sprintf("at most %d ids per request", maxIDsPerRequest))
+	}
+	return ids, nil
 }

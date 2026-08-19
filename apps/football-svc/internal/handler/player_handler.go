@@ -31,7 +31,17 @@ func (h *PlayerHandler) ListPlayers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ?ids=a,b,c resolves a known set in one request. The transfer feed needs
+	// it: each row carries a player_id and no name, so without this the client
+	// makes one request per row.
+	ids, err := idsFrom(r, "ids")
+	if err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+
 	filter := repository.PlayerFilter{
+		IDs:         ids,
 		FreeAgent:   freeAgent,
 		Position:    httpx.QueryString(r, "position"),
 		TeamID:      httpx.QueryString(r, "team_id"),

@@ -41,6 +41,13 @@ export interface PlayerFilter extends PageQuery {
   free_agent?: boolean;
   min_value_minor?: number;
   max_value_minor?: number;
+  /**
+   * Resolve a known set of players in one request.
+   *
+   * Serialised by `String(value)`, so an array becomes `a,b,c` — which is the
+   * form the API parses. Capped server-side at 100 ids.
+   */
+  ids?: string[];
 }
 
 export interface PlayerReader {

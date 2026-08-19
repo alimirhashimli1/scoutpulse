@@ -780,15 +780,10 @@ Real gaps, listed so they are not rediscovered by surprise:
   the competition page has a season picker reading `SeasonReader.teams()`.
   Administrators can withdraw an entry, which was a third method with no caller.
   All three existed and were dead before this. See §12.
-- **The transfer feed says "Player" on every row.** The landing page's Player
-  column is a hardcoded placeholder — `transfer-feed.ts` links to
-  `/players/{player_id}` with the literal text `Player`. A transfer carries
-  `player_id` and no name, and unlike clubs and competitions, players cannot be
-  bulk-cached: there are 45 now and could be a hundred thousand. Fixing it
-  properly needs the API to help, either with a batch `GET /players?ids=` or a
-  name embedded on the transfer row. A frontend-only fix means up to 25 extra
-  requests per page. **This is the most visible defect in the app** — it is on
-  the page everyone lands on.
+- ~~The transfer feed says "Player" on every row.~~ **Closed** — 2026-08-19.
+  The API gained the batch filter this needed: `GET /players?ids=a,b,c`, capped
+  at 100. `PlayerNames` resolves a whole feed page in **one** request and caches
+  what it has seen. See §13.
 - **A missing entity returns 200.** `/clubs/<unknown-id>` renders "No club with
   that id" with an OK status. `ServerRoute.status` is static per route, so
   fixing this needs the render to influence the response — a real limitation,
@@ -927,3 +922,53 @@ pages render server-side without error. **Not verified:** the actual data path
 — the backend was down while this was written, so the sections have not been
 seen populated with real entries. That is the first thing to check when the
 stack is back up.
+
+---
+
+## 13. The feed's player column, and why it needed the API
+
+The landing page linked to the right player and called every one of them
+`Player`. The column was a placeholder nobody filled in.
+
+It stayed a placeholder because the obvious fix is bad. A transfer row carries
+`player_id` and no name, so the names have to come from somewhere — and
+`LookupStore`'s approach does not transfer:
+
+| | Clubs and competitions | Players |
+|---|---|---|
+| How many | hundreds, dozens | potentially hundreds of thousands |
+| Strategy | load all once, cache | impossible |
+
+Fetching one player per row is twenty-five requests for a twenty-five row
+feed, and all of them run **during the server render of the landing page** —
+the slowest possible place to put an N+1.
+
+### The API grew a batch filter
+
+`GET /players?ids=a,b,c`, capped at 100 — matching `MaxPageSize`, since more
+ids than a page can return is a request that cannot be answered anyway. An
+unbounded list would be a denial-of-service shape: both the query text and the
+argument array grow with a caller-controlled input.
+
+Blank entries are dropped, so a trailing comma from joining ids in a client
+does not become a lookup for the empty string — which Postgres rejects as a
+malformed uuid, producing a 400 that blames the caller for a stray character.
+
+### `PlayerNames`, and what it guarantees
+
+One request per page, cached across pages, de-duplicated within a page (a
+player can appear twice — a loan out and the return), and single-flighted so
+two components rendering the same feed do not both fetch.
+
+A failed lookup is swallowed: the name falls back to "Unknown player" and the
+page still renders. A broken name is a worse row; a thrown error is a broken
+page.
+
+Eight tests pin this, and the one that matters asserts the **request count**
+rather than the output — the regression to guard against is not a wrong name,
+it is twenty-five requests where there should be one. The stub's `byId` rejects
+outright, so reaching for it fails loudly instead of quietly working.
+
+**Verified against the running stack:** the feed renders Folarin Balogun, Mike
+Maignan and Scott McTominay where it used to say "Player", and a malformed id
+returns 400 rather than 500.

@@ -12,6 +12,7 @@ import { RouterLink } from '@angular/router';
 import { ApiError } from '../../core/api/api-error';
 import { TRANSFER_READER } from '../../core/api/contracts';
 import { LookupStore } from '../../core/api/lookup-store';
+import { PlayerNames } from '../../core/api/player-names';
 import { PageQuery } from '../../core/api/page';
 import { Transfer, TransferType } from '../../core/models/football';
 import { Seo } from '../../core/seo/seo';
@@ -86,7 +87,9 @@ const TYPES: { value: TransferType | ''; label: string }[] = [
                 <tr>
                   <td class="tabular muted">{{ transfer.transfer_date | date: 'd MMM y' }}</td>
                   <td>
-                    <a [routerLink]="['/players', transfer.player_id]">Player</a>
+                    <a [routerLink]="['/players', transfer.player_id]">{{
+                      playerName(transfer.player_id)
+                    }}</a>
                   </td>
                   <td>{{ clubName(transfer.from_team_id) }}</td>
                   <td>{{ clubName(transfer.to_team_id) }}</td>
@@ -191,6 +194,7 @@ const TYPES: { value: TransferType | ''; label: string }[] = [
 export class TransferFeed {
   private readonly reader = inject(TRANSFER_READER);
   private readonly lookup = inject(LookupStore);
+  private readonly players = inject(PlayerNames);
   private readonly seo = inject(Seo);
 
   constructor() {
@@ -217,10 +221,17 @@ export class TransferFeed {
       // Club names are needed to render a row, so both land before the table
       // does — otherwise every club flashes as a dash and then fills in.
       await this.lookup.loadTeams();
-      return this.reader.list({
+      const page = await this.reader.list({
         ...params.page,
         type: params.type || undefined,
       });
+
+      // Player names come from a second request rather than the transfer row,
+      // which carries only player_id. It has to be a second request because
+      // the ids are not known until the page lands — but it is one request for
+      // the whole page, not one per row.
+      await this.players.resolve(page.items.map((t) => t.player_id));
+      return page;
     },
   });
 
@@ -237,6 +248,10 @@ export class TransferFeed {
   /** A null club is a real fact: arriving from nowhere, or leaving the game. */
   protected clubName(id: string | null): string {
     return this.lookup.teamName(id, '—');
+  }
+
+  protected playerName(id: string): string {
+    return this.players.name(id);
   }
 
   protected label(type: TransferType): string {

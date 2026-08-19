@@ -6,13 +6,21 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	"github.com/scoutpulse/football-svc/internal/domain"
 )
 
 // PlayerFilter narrows a player listing. A nil field means "no filter on this
 // dimension", which is distinct from filtering on the zero value.
 type PlayerFilter struct {
-	FreeAgent   *bool
+	FreeAgent *bool
+	// IDs restricts the listing to specific players.
+	//
+	// This exists for one caller: the transfer feed, where every row carries a
+	// player_id and no name. Resolving those one request at a time is an N+1 --
+	// twenty-five rows, twenty-five round trips, and all of them during server
+	// rendering of the landing page. One ANY() lookup replaces the lot.
+	IDs         []string
 	Position    *string
 	TeamID      *string
 	Nationality *string
@@ -63,6 +71,9 @@ func (r *postgresPlayerRepository) List(ctx context.Context, filter PlayerFilter
 		return fmt.Sprintf("$%d", len(args))
 	}
 
+	if len(filter.IDs) > 0 {
+		conditions = append(conditions, "id = ANY("+placeholder(pq.Array(filter.IDs))+")")
+	}
 	if filter.FreeAgent != nil {
 		if *filter.FreeAgent {
 			conditions = append(conditions, "team_id IS NULL")
