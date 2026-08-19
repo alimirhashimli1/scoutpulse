@@ -171,3 +171,109 @@ jobs:
           echo
           echo "Package results:"
           grep -E '^(ok|FAIL|---)' "$RUNNER_TEMP/tests.log" | grep -v '^ok' || true
+
+  # The frontend. A separate job rather than a matrix entry, because none of
+  # the Go steps apply — there is no `go vet` for TypeScript, and the useful
+  # checks here (a type-checked production build, a bundle budget, and the SSR
+  # server actually rendering) have no Go equivalent.
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      # ci, not install: it installs exactly the lockfile and fails if
+      # package.json has drifted from it, which is the point in CI.
+      - name: Install
+        run: npm ci
+
+      - name: Check formatting
+        run: npx prettier --check "src/**/*.{ts,html,css}"
+
+      # The production build is the type check. Angular's compiler checks
+      # templates too, so this catches a renamed property used in an HTML
+      # binding — which `tsc` alone does not see. It also enforces the bundle
+      # budgets in angular.json.
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npx ng test --watch=false
+
+      # The check that has actually caught things: a build can succeed while
+      # SSR silently falls back to client rendering — an Angular 21 host-header
+      # mismatch does exactly that, and presents as a working build serving
+      # empty pages. Asserting on rendered markup is the only way to see it.
+      - name: SSR renders real content
+        run: |
+          node dist/frontend/server/server.mjs &
+          server_pid=$!
+          trap 'kill $server_pid 2>/dev/null || true' EXIT
+
+          # Wait for the port rather than sleeping a fixed amount.
+          for _ in $(seq 1 30); do
+            if curl -fsS -o /dev/null http://localhost:4000/ 2>/dev/null; then break; fi
+            sleep 1
+          done
+
+          html="$(curl -fsS http://localhost:4000/)"
+
+          # The shell proves the app rendered server-side rather than shipping
+          # an empty index.html for the browser to fill in.
+          echo "$html" | grep -q "<app-shell" \
+            || { echo "SSR produced no shell — check NG_ALLOWED_HOSTS"; exit 1; }
+
+          # SEO metadata is the reason this app is server-rendered at all, so
+          # its absence is a failure, not a warning.
+          echo "$html" | grep -q 'property="og:title"' \
+            || { echo "no Open Graph tags in the server-rendered HTML"; exit 1; }
+          echo "$html" | grep -q 'rel="canonical"' \
+            || { echo "no canonical link in the server-rendered HTML"; exit 1; }
+
+          # A private route must NOT be server-rendered: it would leak a
+          # signed-out shell into the index and evaluate guards against a
+          # session the server does not have.
+          account="$(curl -fsS http://localhost:4000/account)"
+          if echo "$account" | grep -q "<app-account-page"; then
+            echo "/account was server-rendered; it must be RenderMode.Client"
+            exit 1
+          fi
+
+          # An unknown URL must answer 404, not 200. This regressed once
+          # already: a wildcard route that resolves to a component is still a
+          # match, so the render succeeds and the status stays 200 while the
+          # page says "not found". It only works while every real route is
+          # enumerated in app.routes.server.ts, which is easy to forget when
+          # adding a page — so it is asserted rather than trusted.
+          missing_status="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4000/nope)"
+          [ "$missing_status" = "404" ] \
+            || { echo "unknown URL answered $missing_status, expected 404 (soft 404)"; exit 1; }
+
+          # And a real page must still be 200 — the enumeration above can just
+          # as easily 404 something that exists.
+          home_status="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4000/clubs)"
+          [ "$home_status" = "200" ] \
+            || { echo "/clubs answered $home_status; check the server route list"; exit 1; }
+
+          echo "SSR checks passed."
+
+      # Builds the runtime image the compose stack uses. Catches a Dockerfile
+      # that has drifted from the build — a missing dependency or a moved
+      # output path — without needing the whole stack up.
+      #
+      # The context is the repository root, because the Dockerfile copies
+      # repo-relative paths (apps/frontend/package.json). Two levels up from
+      # this job's working directory.
+      - name: Build the container image
+        run: docker build -f apps/frontend/Dockerfile -t scoutpulse-frontend:ci .
+        working-directory: .

@@ -175,17 +175,41 @@ services:
       start_period: 5s
     networks: [scoutpulse-net]
 
-  # The Angular frontend is not built yet (Phase 4). Kept behind a profile so
-  # `docker compose up` does not build an empty nginx image; start it with
-  # `docker compose --profile frontend up`.
+  # The Angular frontend. Server-rendered, so this is a Node process on 4000 —
+  # not static files on 80, which is what the placeholder assumed.
+  #
+  # Still behind a profile: the image takes a few minutes to build and the
+  # backend stack is useful without it. Start with
+  # `docker compose --profile frontend up -d --build`.
   frontend:
     profiles: ["frontend"]
     build:
       context: .
       dockerfile: apps/frontend/Dockerfile
+    environment:
+      # The renderer's own network position. `localhost` in this container is
+      # this process, not the gateway.
+      GATEWAY_INTERNAL_URL: http://gateway:8000
+      # The address a visitor uses, for canonical links and og:url. Set this to
+      # the real domain in any deployment that has one.
+      SITE_URL: ${SITE_URL:-http://localhost:4000}
+      # Angular checks the Host header and silently degrades to client-side
+      # rendering when it does not match — a working build that renders
+      # nothing. Extend this when fronting the app with a real domain.
+      NG_ALLOWED_HOSTS: localhost,127.0.0.1,frontend
     ports:
-      - "4200:80"
-    depends_on: [gateway]
+      - "4000:4000"
+    # Readiness, not just "the container started": the renderer fetches from
+    # the gateway during the first request, so coming up before it is ready
+    # means the first page renders its error state.
+    depends_on:
+      gateway: {condition: service_started}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks: [scoutpulse-net]
 
   # Observability, behind a profile so the default stack stays small.
