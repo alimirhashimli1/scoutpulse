@@ -3,7 +3,7 @@ import { provideServerRendering, withRoutes } from '@angular/ssr';
 
 import { appConfig } from './app.config';
 import { serverRoutes } from './app.routes.server';
-import { API_CONFIG, apiConfigFor, BROWSER_GATEWAY } from './core/tokens/api-config';
+import { API_CONFIG, apiConfigFor, apiConfigOf, BROWSER_GATEWAY } from './core/tokens/api-config';
 import { SITE_URL, normaliseOrigin } from './core/tokens/site-url';
 
 /**
@@ -21,6 +21,21 @@ import { SITE_URL, normaliseOrigin } from './core/tokens/site-url';
 const serverGateway = process.env['GATEWAY_INTERNAL_URL'] ?? BROWSER_GATEWAY;
 
 /**
+ * Per-service overrides, for running without a gateway.
+ *
+ * Both must be set together — half an override would leave the other service
+ * pointing at a gateway that is not there, and the failure would look like one
+ * feature being broken rather than a misconfiguration.
+ */
+const footballDirect = process.env['FOOTBALL_API_URL'];
+const identityDirect = process.env['IDENTITY_API_URL'];
+
+const apiConfig =
+  footballDirect && identityDirect
+    ? apiConfigOf(footballDirect, identityDirect)
+    : apiConfigFor(serverGateway);
+
+/**
  * The public address, for canonical links and Open Graph URLs.
  *
  * The browser can read its own origin; the renderer cannot — the `Host` header
@@ -34,7 +49,7 @@ const siteUrl = normaliseOrigin(process.env['SITE_URL'] ?? 'http://localhost:400
 const serverConfig: ApplicationConfig = {
   providers: [
     provideServerRendering(withRoutes(serverRoutes)),
-    { provide: API_CONFIG, useValue: apiConfigFor(serverGateway) },
+    { provide: API_CONFIG, useValue: apiConfig },
     { provide: SITE_URL, useValue: siteUrl },
   ],
 };

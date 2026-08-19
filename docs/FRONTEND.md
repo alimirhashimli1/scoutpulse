@@ -780,10 +780,28 @@ Real gaps, listed so they are not rediscovered by surprise:
   the competition page has a season picker reading `SeasonReader.teams()`.
   Administrators can withdraw an entry, which was a third method with no caller.
   All three existed and were dead before this. See §12.
+- **The transfer feed says "Player" on every row.** The landing page's Player
+  column is a hardcoded placeholder — `transfer-feed.ts` links to
+  `/players/{player_id}` with the literal text `Player`. A transfer carries
+  `player_id` and no name, and unlike clubs and competitions, players cannot be
+  bulk-cached: there are 45 now and could be a hundred thousand. Fixing it
+  properly needs the API to help, either with a batch `GET /players?ids=` or a
+  name embedded on the transfer row. A frontend-only fix means up to 25 extra
+  requests per page. **This is the most visible defect in the app** — it is on
+  the page everyone lands on.
 - **A missing entity returns 200.** `/clubs/<unknown-id>` renders "No club with
   that id" with an OK status. `ServerRoute.status` is static per route, so
   fixing this needs the render to influence the response — a real limitation,
   not an oversight.
+- **`ng serve` cannot reach the split-service dev mode.** `apiConfigFor` always
+  appends `/api/football` and `/api/identity`, which only exist behind the
+  gateway. `scripts\dev-run.ps1` runs the services on their own ports with no
+  gateway — the documented path on a machine without Docker — and every request
+  from the browser 404s. The SSR side now takes `FOOTBALL_API_URL` and
+  `IDENTITY_API_URL` overrides; the browser has no runtime environment to read,
+  so it needs either a `proxy.conf.json` for `ng serve` or a build-time config.
+  That those services set `CORS_ALLOWED_ORIGINS` to the frontend's origin shows
+  the mode was always meant to be usable from the app.
 - **No `sitemap.xml`.** It has to be generated from the API at request time;
   `robots.txt` already points at it.
 - Phase 3's `[~]` items: no type-ahead dropdown, transfer feed filters by type

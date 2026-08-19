@@ -38,3 +38,23 @@ export function apiConfigFor(gateway: string): ApiConfig {
     identity: `${base}/api/identity`,
   };
 }
+
+/**
+ * Points at each service directly, bypassing the gateway's path prefixes.
+ *
+ * There is a second way to run this stack that the gateway assumption above
+ * silently excludes: `scripts\dev-run.ps1` starts the two services on their own
+ * ports with no gateway at all, which is the documented path on a machine
+ * without Docker — and the one `api.http` uses. Those services are reached at
+ * `http://localhost:8081/api/v1/...`, with no `/api/football` in front, so
+ * `apiConfigFor` produces a URL that 404s on every request.
+ *
+ * That it sets `CORS_ALLOWED_ORIGINS` to the frontend's origin is the giveaway:
+ * the split mode was always meant to be usable from the app.
+ */
+export function apiConfigOf(football: string, identity: string): ApiConfig {
+  return {
+    football: football.replace(/\/+$/, ''),
+    identity: identity.replace(/\/+$/, ''),
+  };
+}
