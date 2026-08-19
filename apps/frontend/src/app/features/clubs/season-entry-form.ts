@@ -1,13 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, resource, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  resource,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
-import {
-  LEAGUE_READER,
-  SEASON_READER,
-  TEAM_READER,
-  TEAM_WRITER,
-} from '../../core/api/contracts';
+import { LEAGUE_READER, SEASON_READER, TEAM_READER, TEAM_WRITER } from '../../core/api/contracts';
 import { Permissions } from '../../core/auth/permissions';
 import { TeamSeason } from '../../core/models/football';
 import { Field } from '../../shared/forms/field';
@@ -89,15 +92,29 @@ import { ErrorState, Loading } from '../../shared/ui/states';
     </main>
   `,
   styles: `
-    .form-page { max-width: 36rem; padding-block: var(--space-6) var(--space-8); }
-    .head { margin-bottom: var(--space-6); }
-    .eyebrow {
-      font-family: var(--font-mono); font-size: var(--text-xs);
-      letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: var(--space-2);
+    .form-page {
+      max-width: 36rem;
+      padding-block: var(--space-6) var(--space-8);
     }
-    h1 { font-size: var(--text-2xl); }
-    form { display: flex; flex-direction: column; gap: var(--space-5); }
+    .head {
+      margin-bottom: var(--space-6);
+    }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: var(--space-2);
+    }
+    h1 {
+      font-size: var(--text-2xl);
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
@@ -110,7 +127,10 @@ import { ErrorState, Loading } from '../../shared/ui/states';
       font-size: var(--text-sm);
       color: var(--ink-soft);
     }
-    .actions { display: flex; gap: var(--space-3); }
+    .actions {
+      display: flex;
+      gap: var(--space-3);
+    }
   `,
 })
 export class SeasonEntryForm {

@@ -12,14 +12,14 @@
 
 :root {
   /* --- colour: light is the base ---------------------------------- */
-  --ground: #fbfbf9;          /* page */
-  --surface: #ffffff;         /* cards, panels */
-  --surface-2: #f3f5f1;       /* table headers, insets */
-  --ink: #16191c;             /* primary text */
-  --ink-soft: #3d4744;        /* secondary text */
-  --muted: #66736e;           /* captions, labels */
-  --line: #e1e5df;            /* borders */
-  --line-soft: #edf0eb;       /* row separators */
+  --ground: #fbfbf9; /* page */
+  --surface: #ffffff; /* cards, panels */
+  --surface-2: #f3f5f1; /* table headers, insets */
+  --ink: #16191c; /* primary text */
+  --ink-soft: #3d4744; /* secondary text */
+  --muted: #66736e; /* captions, labels */
+  --line: #e1e5df; /* borders */
+  --line-soft: #edf0eb; /* row separators */
 
   /* Deep viridian. Neutrals carry a slight green bias to match, so the greys
      read as chosen rather than inherited. */
@@ -70,7 +70,7 @@
   --radius-lg: 8px;
 
   /* --- layout ----------------------------------------------------- */
-  --measure: 68ch;            /* readable prose width */
+  --measure: 68ch; /* readable prose width */
   --page-width: 1120px;
 
   --shadow-sm: 0 1px 2px rgb(22 25 28 / 6%);
@@ -156,7 +156,9 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
   font-family: var(--font-display);
   font-weight: 400;
   line-height: var(--leading-tight);
@@ -165,12 +167,20 @@ h1, h2, h3 {
   margin: 0;
 }
 
-h1 { font-size: var(--text-3xl); }
-h2 { font-size: var(--text-2xl); }
-h3 { font-size: var(--text-xl); }
+h1 {
+  font-size: var(--text-3xl);
+}
+h2 {
+  font-size: var(--text-2xl);
+}
+h3 {
+  font-size: var(--text-xl);
+}
 
 /* Section labels and column headers: small, spaced, uppercase. */
-h4, h5, h6 {
+h4,
+h5,
+h6 {
   font-family: var(--font-body);
   font-size: var(--text-xs);
   font-weight: 700;
@@ -180,14 +190,19 @@ h4, h5, h6 {
   margin: 0;
 }
 
-p { margin: 0; max-width: var(--measure); }
+p {
+  margin: 0;
+  max-width: var(--measure);
+}
 
 a {
   color: var(--accent);
   text-underline-offset: 3px;
 }
 
-a:hover { text-decoration: none; }
+a:hover {
+  text-decoration: none;
+}
 
 /* Never remove the focus ring without replacing it. */
 :focus-visible {
@@ -196,23 +211,33 @@ a:hover { text-decoration: none; }
   border-radius: var(--radius-sm);
 }
 
-button, input, select, textarea {
+button,
+input,
+select,
+textarea {
   font: inherit;
   color: inherit;
 }
 
-code, kbd, samp, pre {
+code,
+kbd,
+samp,
+pre {
   font-family: var(--font-mono);
   font-size: 0.9em;
 }
 
-img, svg, video {
+img,
+svg,
+video {
   max-width: 100%;
   height: auto;
 }
 
 /* Digits that line up in columns — squad numbers, fees, dates. */
-.tabular { font-variant-numeric: tabular-nums; }
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
 
 /* Wide content scrolls inside its own container so the page body never
    scrolls sideways. */
@@ -281,8 +306,14 @@ img, svg, video {
   gap: var(--space-2);
 }
 
-.btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.btn:disabled { opacity: 0.55; cursor: default; }
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
 
 .btn.primary {
   background: var(--accent);
@@ -290,10 +321,19 @@ img, svg, video {
   color: var(--accent-ink);
 }
 
-.btn.primary:hover:not(:disabled) { opacity: 0.9; color: var(--accent-ink); }
+.btn.primary:hover:not(:disabled) {
+  opacity: 0.9;
+  color: var(--accent-ink);
+}
 
-.btn.danger { border-color: var(--critical); color: var(--critical); }
-.btn.danger:hover:not(:disabled) { background: var(--critical-soft); color: var(--critical); }
+.btn.danger {
+  border-color: var(--critical);
+  color: var(--critical);
+}
+.btn.danger:hover:not(:disabled) {
+  background: var(--critical-soft);
+  color: var(--critical);
+}
 
 @media (prefers-reduced-motion: reduce) {
   *,

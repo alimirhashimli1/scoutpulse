@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, resource, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  resource,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
@@ -163,7 +172,14 @@ const POSITIONS = [
                 [optional]="true"
                 [error]="fieldError('height_cm')"
               >
-                <input id="height" name="height" type="number" min="100" max="250" [(ngModel)]="heightCm" />
+                <input
+                  id="height"
+                  name="height"
+                  type="number"
+                  min="100"
+                  max="250"
+                  [(ngModel)]="heightCm"
+                />
               </app-field>
 
               <app-field for="foot" label="Preferred foot" [optional]="true">
@@ -186,7 +202,14 @@ const POSITIONS = [
                 [optional]="true"
                 [error]="fieldError('squad_number')"
               >
-                <input id="squad" name="squad" type="number" min="1" max="99" [(ngModel)]="squadNumber" />
+                <input
+                  id="squad"
+                  name="squad"
+                  type="number"
+                  min="1"
+                  max="99"
+                  [(ngModel)]="squadNumber"
+                />
               </app-field>
 
               <app-field for="agent" label="Agent" [optional]="true">
@@ -223,15 +246,29 @@ const POSITIONS = [
     </main>
   `,
   styles: `
-    .form-page { max-width: 44rem; padding-block: var(--space-6) var(--space-8); }
-    .head { margin-bottom: var(--space-6); }
-    .eyebrow {
-      font-family: var(--font-mono); font-size: var(--text-xs);
-      letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: var(--space-2);
+    .form-page {
+      max-width: 44rem;
+      padding-block: var(--space-6) var(--space-8);
     }
-    h1 { font-size: var(--text-2xl); }
-    form { display: flex; flex-direction: column; gap: var(--space-5); }
+    .head {
+      margin-bottom: var(--space-6);
+    }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: var(--space-2);
+    }
+    h1 {
+      font-size: var(--text-2xl);
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
@@ -247,10 +284,19 @@ const POSITIONS = [
       margin-bottom: var(--space-4);
       color: var(--ink-soft);
     }
-    .actions { display: flex; gap: var(--space-3); align-items: center; }
+    .actions {
+      display: flex;
+      gap: var(--space-3);
+      align-items: center;
+    }
     @media (max-width: 30rem) {
-      .actions { flex-direction: column; align-items: stretch; }
-      .actions .btn { justify-content: center; }
+      .actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .actions .btn {
+        justify-content: center;
+      }
     }
   `,
 })
@@ -304,7 +350,9 @@ export class PlayerForm {
 
   protected readonly loading = computed(() => this.isEdit() && this.existing.isLoading());
   protected readonly loadError = computed(() => this.existing.error());
-  protected readonly loadErrorMessage = computed(() => messageFor(this.existing.error(), 'Could not load the player.'));
+  protected readonly loadErrorMessage = computed(() =>
+    messageFor(this.existing.error(), 'Could not load the player.'),
+  );
 
   constructor() {
     // Fill the form once the record lands. An effect rather than doing it in
@@ -386,7 +434,11 @@ export class PlayerForm {
       errors['date_of_birth'] = 'Cannot be in the future.';
     }
 
-    if (this.contractStart() && this.contractUntil() && this.contractUntil() < this.contractStart()) {
+    if (
+      this.contractStart() &&
+      this.contractUntil() &&
+      this.contractUntil() < this.contractStart()
+    ) {
       errors['contract_until'] = 'Must be on or after the contract start.';
     }
 
@@ -412,7 +464,7 @@ export class PlayerForm {
       nationality: blankToUndefined(this.nationality()),
       second_nationality: blankToUndefined(this.secondNationality()),
       height_cm: this.heightCm() ?? undefined,
-      preferred_foot: (blankToUndefined(this.preferredFoot()) as Player['preferred_foot']),
+      preferred_foot: blankToUndefined(this.preferredFoot()) as Player['preferred_foot'],
       agent: blankToUndefined(this.agent()),
       squad_number: this.squadNumber() ?? undefined,
       contract_start: toApiDate(this.contractStart()),
@@ -445,7 +497,6 @@ export class PlayerForm {
     this.contractStart.set(toDateInput(player.contract_start));
     this.contractUntil.set(toDateInput(player.contract_until));
   }
-
 }
 
 /** An untouched optional text field must be omitted, not sent as "". */

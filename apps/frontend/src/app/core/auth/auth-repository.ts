@@ -62,7 +62,11 @@ export class AuthRepository {
    */
   refresh(refreshToken: string): Promise<TokenPair> {
     return firstValueFrom(
-      this.http.post<TokenPair>(this.url('auth/refresh'), { refresh_token: refreshToken }, skipAuth()),
+      this.http.post<TokenPair>(
+        this.url('auth/refresh'),
+        { refresh_token: refreshToken },
+        skipAuth(),
+      ),
     );
   }
 

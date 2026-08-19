@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, resource, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  resource,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
@@ -82,22 +90,42 @@ import { ErrorState, Loading } from '../../shared/ui/states';
     </main>
   `,
   styles: `
-    .form-page { max-width: 34rem; padding-block: var(--space-6) var(--space-8); }
-    .head { margin-bottom: var(--space-6); }
-    .eyebrow {
-      font-family: var(--font-mono); font-size: var(--text-xs);
-      letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: var(--space-2);
+    .form-page {
+      max-width: 34rem;
+      padding-block: var(--space-6) var(--space-8);
     }
-    h1 { font-size: var(--text-2xl); margin-bottom: var(--space-2); }
-    .current { color: var(--ink-soft); }
-    form { display: flex; flex-direction: column; gap: var(--space-5); }
+    .head {
+      margin-bottom: var(--space-6);
+    }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: var(--space-2);
+    }
+    h1 {
+      font-size: var(--text-2xl);
+      margin-bottom: var(--space-2);
+    }
+    .current {
+      color: var(--ink-soft);
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
       gap: var(--space-4);
     }
-    .actions { display: flex; gap: var(--space-3); }
+    .actions {
+      display: flex;
+      gap: var(--space-3);
+    }
   `,
 })
 export class ValueForm {
@@ -141,7 +169,8 @@ export class ValueForm {
       // exists to state a number.
       if (minor === null) errors['value_minor'] = 'A value is required.';
     } catch (error) {
-      errors['value_minor'] = error instanceof MoneyParseError ? error.message : 'Not a valid amount.';
+      errors['value_minor'] =
+        error instanceof MoneyParseError ? error.message : 'Not a valid amount.';
     }
 
     if (!this.valuedOn()) {

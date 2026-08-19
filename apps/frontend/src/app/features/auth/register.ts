@@ -18,10 +18,23 @@ const MIN_PASSWORD_LENGTH = 8;
 
       <form (ngSubmit)="submit()">
         <label for="username">Username</label>
-        <input id="username" name="username" autocomplete="username" required [(ngModel)]="username" />
+        <input
+          id="username"
+          name="username"
+          autocomplete="username"
+          required
+          [(ngModel)]="username"
+        />
 
         <label for="email">Email</label>
-        <input id="email" name="email" type="email" autocomplete="email" required [(ngModel)]="email" />
+        <input
+          id="email"
+          name="email"
+          type="email"
+          autocomplete="email"
+          required
+          [(ngModel)]="email"
+        />
 
         <label for="password">Password</label>
         <input
@@ -47,9 +60,18 @@ const MIN_PASSWORD_LENGTH = 8;
     </main>
   `,
   styles: `
-    .auth { max-width: 26rem; padding-block: var(--space-8); }
-    h1 { margin-bottom: var(--space-6); }
-    form { display: flex; flex-direction: column; gap: var(--space-2); }
+    .auth {
+      max-width: 26rem;
+      padding-block: var(--space-8);
+    }
+    h1 {
+      margin-bottom: var(--space-6);
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
     label {
       font-size: var(--text-xs);
       font-weight: 700;
@@ -64,7 +86,10 @@ const MIN_PASSWORD_LENGTH = 8;
       border-radius: var(--radius);
       background: var(--surface);
     }
-    .hint { font-size: var(--text-xs); color: var(--muted); }
+    .hint {
+      font-size: var(--text-xs);
+      color: var(--muted);
+    }
     button {
       margin-top: var(--space-5);
       padding: var(--space-3);
@@ -75,7 +100,10 @@ const MIN_PASSWORD_LENGTH = 8;
       cursor: pointer;
       font-weight: 600;
     }
-    button:disabled { opacity: 0.6; cursor: default; }
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
     .error {
       color: var(--critical);
       background: var(--critical-soft);
@@ -84,7 +112,11 @@ const MIN_PASSWORD_LENGTH = 8;
       margin-top: var(--space-4);
       font-size: var(--text-sm);
     }
-    .alt { margin-top: var(--space-6); font-size: var(--text-sm); color: var(--muted); }
+    .alt {
+      margin-top: var(--space-6);
+      font-size: var(--text-sm);
+      color: var(--muted);
+    }
   `,
 })
 export class Register {
@@ -120,9 +152,7 @@ export class Register {
       });
       await this.router.navigateByUrl('/');
     } catch (error) {
-      this.error.set(
-        error instanceof ApiError ? error.message : 'Could not create the account.',
-      );
+      this.error.set(error instanceof ApiError ? error.message : 'Could not create the account.');
     } finally {
       this.busy.set(false);
     }

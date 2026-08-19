@@ -64,9 +64,18 @@ import { AuthRepository } from '../../core/auth/auth-repository';
     </main>
   `,
   styles: `
-    .auth { max-width: 26rem; padding-block: var(--space-8); }
-    h1 { margin-bottom: var(--space-6); }
-    form { display: flex; flex-direction: column; gap: var(--space-2); }
+    .auth {
+      max-width: 26rem;
+      padding-block: var(--space-8);
+    }
+    h1 {
+      margin-bottom: var(--space-6);
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
     label {
       font-size: var(--text-xs);
       font-weight: 700;
@@ -91,7 +100,10 @@ import { AuthRepository } from '../../core/auth/auth-repository';
       cursor: pointer;
       font-weight: 600;
     }
-    button:disabled { opacity: 0.6; cursor: default; }
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
     .error {
       color: var(--critical);
       background: var(--critical-soft);
@@ -100,7 +112,11 @@ import { AuthRepository } from '../../core/auth/auth-repository';
       margin-top: var(--space-4);
       font-size: var(--text-sm);
     }
-    .providers { margin-top: var(--space-6); display: grid; gap: var(--space-3); }
+    .providers {
+      margin-top: var(--space-6);
+      display: grid;
+      gap: var(--space-3);
+    }
     .divider {
       text-align: center;
       color: var(--muted);
@@ -115,8 +131,15 @@ import { AuthRepository } from '../../core/auth/auth-repository';
       text-decoration: none;
       color: var(--ink);
     }
-    .provider:hover { border-color: var(--accent); color: var(--accent); }
-    .alt { margin-top: var(--space-6); font-size: var(--text-sm); color: var(--muted); }
+    .provider:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .alt {
+      margin-top: var(--space-6);
+      font-size: var(--text-sm);
+      color: var(--muted);
+    }
   `,
 })
 export class Login {

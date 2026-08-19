@@ -21,9 +21,7 @@ interface Point {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (points().length < 2) {
-      <p class="note">
-        Not enough history to chart yet — a line needs at least two valuations.
-      </p>
+      <p class="note">Not enough history to chart yet — a line needs at least two valuations.</p>
     } @else {
       <figure>
         <svg
@@ -50,14 +48,19 @@ interface Point {
     }
   `,
   styles: `
-    figure { margin: 0; }
+    figure {
+      margin: 0;
+    }
     svg {
       width: 100%;
       height: 7rem;
       display: block;
       overflow: visible;
     }
-    .area { fill: var(--accent-soft); stroke: none; }
+    .area {
+      fill: var(--accent-soft);
+      stroke: none;
+    }
     .line {
       fill: none;
       stroke: var(--accent);
@@ -67,7 +70,9 @@ interface Point {
       vector-effect: non-scaling-stroke;
       stroke-linejoin: round;
     }
-    .endpoint { fill: var(--accent); }
+    .endpoint {
+      fill: var(--accent);
+    }
     figcaption {
       display: flex;
       justify-content: space-between;
@@ -75,7 +80,10 @@ interface Point {
       color: var(--muted);
       margin-top: var(--space-2);
     }
-    .note { color: var(--muted); font-size: var(--text-sm); }
+    .note {
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
   `,
 })
 export class ValueChart {
@@ -109,7 +117,9 @@ export class ValueChart {
   protected readonly last = computed(() => this.points().at(-1));
 
   protected readonly linePath = computed(() =>
-    this.points().map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' '),
+    this.points()
+      .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`)
+      .join(' '),
   );
 
   protected readonly areaPath = computed(() => {

@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, resource, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  resource,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
@@ -58,7 +66,12 @@ const ROLES: { value: SpellRole; label: string }[] = [
         <form (ngSubmit)="save()" novalidate>
           <section class="grid">
             <app-field for="club" label="Club" [error]="fieldError('team_id')">
-              <app-club-select id="club" [(value)]="teamId" [allowNone]="true" noneLabel="— none —" />
+              <app-club-select
+                id="club"
+                [(value)]="teamId"
+                [allowNone]="true"
+                noneLabel="— none —"
+              />
             </app-field>
 
             <app-field for="role" label="Role">
@@ -70,7 +83,13 @@ const ROLES: { value: SpellRole; label: string }[] = [
             </app-field>
 
             <app-field for="start" label="From" [error]="fieldError('start_date')">
-              <input id="start" name="start" type="date" [max]="latestStart" [(ngModel)]="startDate" />
+              <input
+                id="start"
+                name="start"
+                type="date"
+                [max]="latestStart"
+                [(ngModel)]="startDate"
+              />
             </app-field>
 
             <app-field
@@ -106,16 +125,33 @@ const ROLES: { value: SpellRole; label: string }[] = [
     </main>
   `,
   styles: `
-    .form-page { max-width: 40rem; padding-block: var(--space-6) var(--space-8); }
-    .head { margin-bottom: var(--space-6); }
-    .eyebrow {
-      font-family: var(--font-mono); font-size: var(--text-xs);
-      letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: var(--space-2);
+    .form-page {
+      max-width: 40rem;
+      padding-block: var(--space-6) var(--space-8);
     }
-    h1 { font-size: var(--text-2xl); margin-bottom: var(--space-2); }
-    .origin { color: var(--ink-soft); }
-    form { display: flex; flex-direction: column; gap: var(--space-5); }
+    .head {
+      margin-bottom: var(--space-6);
+    }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: var(--space-2);
+    }
+    h1 {
+      font-size: var(--text-2xl);
+      margin-bottom: var(--space-2);
+    }
+    .origin {
+      color: var(--ink-soft);
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
@@ -128,7 +164,10 @@ const ROLES: { value: SpellRole; label: string }[] = [
       font-size: var(--text-sm);
       color: var(--ink-soft);
     }
-    .actions { display: flex; gap: var(--space-3); }
+    .actions {
+      display: flex;
+      gap: var(--space-3);
+    }
   `,
 })
 export class SpellForm {

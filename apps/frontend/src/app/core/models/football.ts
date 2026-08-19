@@ -25,13 +25,7 @@ export type IsoDate = string;
 export type CompetitionType = 'league' | 'domestic_cup' | 'international_cup' | 'super_cup';
 
 export type TransferType =
-  | 'permanent'
-  | 'loan'
-  | 'loan_return'
-  | 'free'
-  | 'youth_promotion'
-  | 'released'
-  | 'retired';
+  'permanent' | 'loan' | 'loan_return' | 'free' | 'youth_promotion' | 'released' | 'retired';
 
 export type Foot = 'left' | 'right' | 'both';
 
