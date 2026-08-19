@@ -1,10 +1,20 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, resource, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  resource,
+  signal,
+} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
 import { SEASON_READER, SEASON_WRITER } from '../../core/api/contracts';
 import { Permissions } from '../../core/auth/permissions';
+import { Seo } from '../../core/seo/seo';
 import { Season } from '../../core/models/football';
 import { Field } from '../../shared/forms/field';
 import { messageFor, requestIdFor } from '../../shared/forms/submit';
@@ -30,7 +40,9 @@ import { Empty, ErrorState, Loading } from '../../shared/ui/states';
       <header class="head">
         <div>
           <h1>Seasons</h1>
-          <p class="standfirst">The windows every transfer and competition entry is filed against.</p>
+          <p class="standfirst">
+            The windows every transfer and competition entry is filed against.
+          </p>
         </div>
         @if (permissions.canAdminister()) {
           <a class="btn primary" routerLink="/seasons/new">New season</a>
@@ -65,25 +77,57 @@ import { Empty, ErrorState, Loading } from '../../shared/ui/states';
   `,
   styles: `
     .head {
-      display: flex; justify-content: space-between; align-items: flex-end;
-      gap: var(--space-4); padding-block: var(--space-6) var(--space-5);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: var(--space-4);
+      padding-block: var(--space-6) var(--space-5);
       flex-wrap: wrap;
     }
-    h1 { margin-bottom: var(--space-2); }
-    .standfirst { color: var(--ink-soft); }
-    .list { list-style: none; margin: 0; padding: 0; }
-    .list li {
-      display: flex; gap: var(--space-4); align-items: baseline;
-      padding: var(--space-3) 0; border-bottom: 1px solid var(--line-soft);
+    h1 {
+      margin-bottom: var(--space-2);
     }
-    .label { font-weight: 600; min-width: 6rem; }
-    .dates { color: var(--muted); font-size: var(--text-sm); }
-    .edit { margin-left: auto; font-size: var(--text-sm); }
+    .standfirst {
+      color: var(--ink-soft);
+    }
+    .list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .list li {
+      display: flex;
+      gap: var(--space-4);
+      align-items: baseline;
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .label {
+      font-weight: 600;
+      min-width: 6rem;
+    }
+    .dates {
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
+    .edit {
+      margin-left: auto;
+      font-size: var(--text-sm);
+    }
   `,
 })
 export class SeasonList {
   private readonly reader = inject(SEASON_READER);
   protected readonly permissions = inject(Permissions);
+  private readonly seo = inject(Seo);
+
+  constructor() {
+    this.seo.describe({
+      title: 'Seasons',
+      description: 'The seasons every transfer and competition entry is filed against.',
+      path: '/seasons',
+    });
+  }
 
   protected readonly seasons = resource({
     loader: () => this.reader.list({ limit: 100 }),
@@ -154,21 +198,38 @@ export class SeasonList {
     </main>
   `,
   styles: `
-    .form-page { max-width: 38rem; padding-block: var(--space-6) var(--space-8); }
-    .head { margin-bottom: var(--space-6); }
-    .eyebrow {
-      font-family: var(--font-mono); font-size: var(--text-xs);
-      letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: var(--space-2);
+    .form-page {
+      max-width: 38rem;
+      padding-block: var(--space-6) var(--space-8);
     }
-    h1 { font-size: var(--text-2xl); }
-    form { display: flex; flex-direction: column; gap: var(--space-5); }
+    .head {
+      margin-bottom: var(--space-6);
+    }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: var(--space-2);
+    }
+    h1 {
+      font-size: var(--text-2xl);
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
       gap: var(--space-4);
     }
-    .actions { display: flex; gap: var(--space-3); }
+    .actions {
+      display: flex;
+      gap: var(--space-3);
+    }
   `,
 })
 export class SeasonForm {

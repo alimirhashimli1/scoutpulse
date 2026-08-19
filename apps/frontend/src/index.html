@@ -1,13 +1,53 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Frontend</title>
-  <base href="/">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
-</head>
-<body>
-  <app-root></app-root>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <!--
+    A real title and description, rather than the generated "Frontend".
+
+    Both are defaults: every page with an entity behind it replaces them from
+    its own data through `Seo`, during the server render. These are what a
+    crawler sees for a page that has not set its own — and what a visitor sees
+    in the tab before the first render completes.
+  -->
+    <title>ScoutPulse — football transfers, valuations and careers</title>
+    <meta
+      name="description"
+      content="A record of players, clubs and coaches over time: transfers, market values and careers."
+    />
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <!-- Matches the palette so the browser paints the right chrome and the
+       first frame is not a white flash on a dark page. -->
+    <meta name="color-scheme" content="light dark" />
+
+    <!--
+    Applies a saved theme before the first paint.
+
+    This has to be inline and synchronous, in the head, ahead of the
+    stylesheet. Doing it from Angular would run after the page had already
+    painted in the system theme, producing exactly the flash of the wrong
+    colours that setting a preference is meant to prevent — and it is most
+    jarring for the person who deliberately chose light on a dark machine.
+
+    Wrapped in try/catch because reading localStorage throws outright in some
+    privacy modes, and an exception here would block the parser.
+  -->
+    <script>
+      (function () {
+        try {
+          var choice = localStorage.getItem('scoutpulse.theme');
+          if (choice === 'light' || choice === 'dark') {
+            document.documentElement.setAttribute('data-theme', choice);
+          }
+        } catch (e) {
+          /* No stored preference available; the system theme applies. */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <app-root></app-root>
+  </body>
 </html>

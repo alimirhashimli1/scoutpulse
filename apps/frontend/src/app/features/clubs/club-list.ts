@@ -1,10 +1,18 @@
-import { ChangeDetectionStrategy, Component, computed, inject, resource, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  resource,
+  signal,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { TEAM_READER } from '../../core/api/contracts';
 import { LookupStore } from '../../core/api/lookup-store';
 import { PageQuery } from '../../core/api/page';
 import { Permissions } from '../../core/auth/permissions';
+import { Seo } from '../../core/seo/seo';
 import { Paginator } from '../../shared/pagination/paginator';
 import { Empty, ErrorState, Loading } from '../../shared/ui/states';
 
@@ -44,7 +52,9 @@ import { Empty, ErrorState, Loading } from '../../shared/ui/states';
                 <span class="name">{{ club.name }}</span>
                 <span class="meta">
                   {{ lookup.leagueName(club.league_id, '') }}
-                  @if (club.city) { <span class="muted">· {{ club.city }}</span> }
+                  @if (club.city) {
+                    <span class="muted">· {{ club.city }}</span>
+                  }
                 </span>
               </a>
             </li>
@@ -57,14 +67,27 @@ import { Empty, ErrorState, Loading } from '../../shared/ui/states';
   `,
   styles: `
     .masthead {
-      display: flex; justify-content: space-between; align-items: flex-end;
-      gap: var(--space-4); flex-wrap: wrap;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: var(--space-4);
+      flex-wrap: wrap;
       padding-block: var(--space-6) var(--space-5);
     }
-    h1 { margin-bottom: var(--space-2); }
-    .standfirst { color: var(--ink-soft); }
-    .clubs { list-style: none; margin: 0; padding: 0; }
-    .clubs li { border-bottom: 1px solid var(--line-soft); }
+    h1 {
+      margin-bottom: var(--space-2);
+    }
+    .standfirst {
+      color: var(--ink-soft);
+    }
+    .clubs {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .clubs li {
+      border-bottom: 1px solid var(--line-soft);
+    }
     .clubs a {
       display: flex;
       justify-content: space-between;
@@ -74,18 +97,36 @@ import { Empty, ErrorState, Loading } from '../../shared/ui/states';
       text-decoration: none;
       color: var(--ink);
     }
-    .clubs a:hover .name { color: var(--accent); }
-    .name { font-weight: 600; }
-    .meta { color: var(--ink-soft); font-size: var(--text-sm); }
-    .muted { color: var(--muted); }
+    .clubs a:hover .name {
+      color: var(--accent);
+    }
+    .name {
+      font-weight: 600;
+    }
+    .meta {
+      color: var(--ink-soft);
+      font-size: var(--text-sm);
+    }
+    .muted {
+      color: var(--muted);
+    }
   `,
 })
 export class ClubList {
   private readonly reader = inject(TEAM_READER);
   protected readonly lookup = inject(LookupStore);
   protected readonly permissions = inject(Permissions);
+  private readonly seo = inject(Seo);
 
   private readonly page = signal<PageQuery>({ limit: 25, offset: 0 });
+
+  constructor() {
+    this.seo.describe({
+      title: 'Clubs',
+      description: 'Every club on record, with squads, managerial history and transfers.',
+      path: '/clubs',
+    });
+  }
 
   protected readonly clubs = resource({
     params: () => ({ page: this.page() }),

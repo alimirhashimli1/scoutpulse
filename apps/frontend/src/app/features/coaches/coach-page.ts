@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, resource } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  resource,
+} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
@@ -6,6 +14,7 @@ import { ApiError } from '../../core/api/api-error';
 import { COACH_READER } from '../../core/api/contracts';
 import { LookupStore } from '../../core/api/lookup-store';
 import { Permissions } from '../../core/auth/permissions';
+import { Seo } from '../../core/seo/seo';
 import { Actions } from '../../shared/ui/actions';
 import { ErrorState, Loading } from '../../shared/ui/states';
 
@@ -41,9 +50,17 @@ import { ErrorState, Loading } from '../../shared/ui/states';
                 }
               </dd>
             </div>
-            @if (c.nationality) { <div><dt>Nationality</dt><dd>{{ c.nationality }}</dd></div> }
+            @if (c.nationality) {
+              <div>
+                <dt>Nationality</dt>
+                <dd>{{ c.nationality }}</dd>
+              </div>
+            }
             @if (c.date_of_birth) {
-              <div><dt>Born</dt><dd>{{ c.date_of_birth | date: 'd MMM y' }}</dd></div>
+              <div>
+                <dt>Born</dt>
+                <dd>{{ c.date_of_birth | date: 'd MMM y' }}</dd>
+              </div>
             }
           </dl>
 
@@ -92,32 +109,81 @@ import { ErrorState, Loading } from '../../shared/ui/states';
     }
   `,
   styles: `
-    .head { border-bottom: 1px solid var(--line); padding-block: var(--space-6) var(--space-5); margin-bottom: var(--space-6); }
+    .head {
+      border-bottom: 1px solid var(--line);
+      padding-block: var(--space-6) var(--space-5);
+      margin-bottom: var(--space-6);
+    }
     .eyebrow {
-      font-family: var(--font-mono); font-size: var(--text-xs);
-      letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: var(--space-2);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: var(--space-2);
     }
-    h1 { font-size: var(--text-3xl); margin-bottom: var(--space-5); }
-    .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--space-4); margin: 0; }
-    dt { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: var(--space-1); }
-    dd { margin: 0; font-weight: 600; }
-    h4 { margin-bottom: var(--space-3); }
-    .spells { list-style: none; margin: 0; padding: 0; }
+    h1 {
+      font-size: var(--text-3xl);
+      margin-bottom: var(--space-5);
+    }
+    .facts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+      gap: var(--space-4);
+      margin: 0;
+    }
+    dt {
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: var(--space-1);
+    }
+    dd {
+      margin: 0;
+      font-weight: 600;
+    }
+    h4 {
+      margin-bottom: var(--space-3);
+    }
+    .spells {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
     .spells li {
-      display: flex; gap: var(--space-4); align-items: baseline;
-      padding: var(--space-3) 0; border-bottom: 1px solid var(--line-soft);
+      display: flex;
+      gap: var(--space-4);
+      align-items: baseline;
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--line-soft);
     }
-    .club { font-weight: 600; }
-    .role { font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); }
-    .dates { color: var(--muted); font-size: var(--text-sm); margin-left: auto; }
-    .muted { color: var(--muted); }
-    app-actions { display: block; margin-top: var(--space-5); }
+    .club {
+      font-weight: 600;
+    }
+    .role {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-soft);
+    }
+    .dates {
+      color: var(--muted);
+      font-size: var(--text-sm);
+      margin-left: auto;
+    }
+    .muted {
+      color: var(--muted);
+    }
+    app-actions {
+      display: block;
+      margin-top: var(--space-5);
+    }
   `,
 })
 export class CoachPage {
   private readonly reader = inject(COACH_READER);
   private readonly lookup = inject(LookupStore);
+  private readonly seo = inject(Seo);
   protected readonly permissions = inject(Permissions);
 
   readonly id = input.required<string>();
@@ -134,6 +200,35 @@ export class CoachPage {
     params: () => ({ id: this.id() }),
     loader: ({ params }) => this.reader.spells(params.id, { limit: 50 }),
   });
+
+  constructor() {
+    effect(() => {
+      const c = this.coach.value();
+      if (!c) return;
+
+      const club = c.team_id ? this.lookup.teamName(c.team_id, 'a club') : 'unattached';
+      this.seo.describe({
+        title: c.name,
+        description: `${c.name} — coaching career and appointments. Currently ${club}.`,
+        path: `/coaches/${c.id}`,
+        type: 'profile',
+      });
+
+      this.seo.structuredData({
+        '@context': 'https://schema.org',
+        '@type': 'Person',
+        name: c.name,
+        givenName: c.first_name,
+        familyName: c.last_name,
+        birthDate: c.date_of_birth?.slice(0, 10),
+        nationality: c.nationality,
+        jobTitle: 'Football coach',
+        worksFor: c.team_id
+          ? { '@type': 'SportsTeam', name: this.lookup.teamName(c.team_id, 'Club') }
+          : undefined,
+      });
+    });
+  }
 
   protected readonly errorMessage = computed(() => {
     const error = this.coach.error();

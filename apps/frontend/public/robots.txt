@@ -1,0 +1,36 @@
+# ScoutPulse
+#
+# Everything a signed-out visitor can read is worth indexing: players, clubs,
+# competitions, coaches and the transfer feed. The rules below cover the three
+# kinds of URL that are not.
+
+User-agent: *
+
+# Private. These render as an empty client shell to anyone without a token, so
+# a crawler would only ever index a blank page — and they should not be tried.
+Disallow: /account
+Disallow: /admin/
+
+# Write forms. Same shell, and no content of their own.
+Disallow: /players/new
+Disallow: /clubs/new
+Disallow: /competitions/new
+Disallow: /seasons/new
+Disallow: /coaches/new
+Disallow: /*/edit
+Disallow: /*/transfer
+Disallow: /*/spells/new
+Disallow: /*/values/new
+Disallow: /*/seasons/new
+
+# Sign-in. Nothing to index, and no reason to crawl.
+Disallow: /login
+Disallow: /register
+Disallow: /auth/
+
+# Search results are an unbounded URL space — one page per possible query, each
+# a worse result than the record it links to. The pages themselves also carry
+# `noindex, follow`; this stops the crawl budget being spent getting there.
+Disallow: /search
+
+Sitemap: /sitemap.xml

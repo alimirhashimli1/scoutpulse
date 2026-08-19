@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, resource, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  resource,
+  signal,
+} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
@@ -7,6 +14,7 @@ import { TRANSFER_READER } from '../../core/api/contracts';
 import { LookupStore } from '../../core/api/lookup-store';
 import { PageQuery } from '../../core/api/page';
 import { Transfer, TransferType } from '../../core/models/football';
+import { Seo } from '../../core/seo/seo';
 import { MoneyPipe } from '../../shared/pipes/money-pipe';
 import { Paginator } from '../../shared/pagination/paginator';
 import { Empty, ErrorState, Loading } from '../../shared/ui/states';
@@ -45,7 +53,9 @@ const TYPES: { value: TransferType | ''; label: string }[] = [
             type="button"
             [class.active]="type() === option.value"
             (click)="setType(option.value)"
-          >{{ option.label }}</button>
+          >
+            {{ option.label }}
+          </button>
         }
       </nav>
 
@@ -56,18 +66,19 @@ const TYPES: { value: TransferType | ''; label: string }[] = [
       } @else if (!transfers.value()?.items?.length) {
         <app-empty
           message="No transfers recorded yet."
-          hint="A move appears here as soon as it is filed." />
+          hint="A move appears here as soon as it is filed."
+        />
       } @else {
         <div class="scroll-x">
           <table>
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Player</th>
-                <th>From</th>
-                <th>To</th>
-                <th>Type</th>
-                <th class="right">Fee</th>
+                <th scope="col">Date</th>
+                <th scope="col">Player</th>
+                <th scope="col">From</th>
+                <th scope="col">To</th>
+                <th scope="col">Type</th>
+                <th scope="col" class="right">Fee</th>
               </tr>
             </thead>
             <tbody>
@@ -79,7 +90,9 @@ const TYPES: { value: TransferType | ''; label: string }[] = [
                   </td>
                   <td>{{ clubName(transfer.from_team_id) }}</td>
                   <td>{{ clubName(transfer.to_team_id) }}</td>
-                  <td><span class="type">{{ label(transfer.transfer_type) }}</span></td>
+                  <td>
+                    <span class="type">{{ label(transfer.transfer_type) }}</span>
+                  </td>
                   <!--
                     A null fee is *undisclosed*, which is a different fact from
                     a free transfer. MoneyPipe renders it as a dash rather than
@@ -87,7 +100,10 @@ const TYPES: { value: TransferType | ''; label: string }[] = [
                     stated.
                   -->
                   <td class="right tabular">
-                    {{ transfer.fee_minor | money: { currency: transfer.currency, compact: true, emptyLabel: '—' } }}
+                    {{
+                      transfer.fee_minor
+                        | money: { currency: transfer.currency, compact: true, emptyLabel: '—' }
+                    }}
                   </td>
                 </tr>
               }
@@ -98,15 +114,24 @@ const TYPES: { value: TransferType | ''; label: string }[] = [
         <app-paginator
           [page]="transfers.value()!"
           label="transfer results"
-          (pageChange)="goTo($event)" />
+          (pageChange)="goTo($event)"
+        />
       }
     </main>
   `,
   styles: `
-    .feed { padding-block: var(--space-6); }
-    header { margin-bottom: var(--space-5); }
-    h1 { margin-bottom: var(--space-2); }
-    .standfirst { color: var(--ink-soft); }
+    .feed {
+      padding-block: var(--space-6);
+    }
+    header {
+      margin-bottom: var(--space-5);
+    }
+    h1 {
+      margin-bottom: var(--space-2);
+    }
+    .standfirst {
+      color: var(--ink-soft);
+    }
 
     .filters {
       display: flex;
@@ -129,7 +154,11 @@ const TYPES: { value: TransferType | ''; label: string }[] = [
       background: var(--accent-soft);
     }
 
-    table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--text-sm);
+    }
     th {
       text-align: left;
       font-size: var(--text-xs);
@@ -141,9 +170,17 @@ const TYPES: { value: TransferType | ''; label: string }[] = [
       background: var(--surface-2);
       white-space: nowrap;
     }
-    td { padding: var(--space-3); border-bottom: 1px solid var(--line-soft); }
-    .right { text-align: right; }
-    .muted { color: var(--muted); white-space: nowrap; }
+    td {
+      padding: var(--space-3);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .right {
+      text-align: right;
+    }
+    .muted {
+      color: var(--muted);
+      white-space: nowrap;
+    }
     .type {
       font-family: var(--font-mono);
       font-size: 11px;
@@ -154,6 +191,21 @@ const TYPES: { value: TransferType | ''; label: string }[] = [
 export class TransferFeed {
   private readonly reader = inject(TRANSFER_READER);
   private readonly lookup = inject(LookupStore);
+  private readonly seo = inject(Seo);
+
+  constructor() {
+    this.seo.describe({
+      title: 'Transfers',
+      description:
+        'Every recorded move between clubs — fees, loans, free transfers and retirements, newest first.',
+      // `/` and `/transfers` render this same component, so both must name one
+      // canonical URL or they compete as duplicates. The root is the stronger
+      // address and the one people link to, so `/transfers` points at it —
+      // not the other way round, which would tell crawlers to ignore the site
+      // root in favour of an alias.
+      path: '/',
+    });
+  }
 
   protected readonly types = TYPES;
   protected readonly type = signal<TransferType | ''>('');

@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, resource } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  resource,
+} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
@@ -6,6 +14,7 @@ import { ApiError } from '../../core/api/api-error';
 import { PLAYER_READER } from '../../core/api/contracts';
 import { LookupStore } from '../../core/api/lookup-store';
 import { Permissions } from '../../core/auth/permissions';
+import { Seo } from '../../core/seo/seo';
 import { MoneyPipe } from '../../shared/pipes/money-pipe';
 import { Actions } from '../../shared/ui/actions';
 import { ErrorState, Loading } from '../../shared/ui/states';
@@ -26,7 +35,9 @@ import { ValueChart } from './value-chart';
     @if (player.isLoading()) {
       <main class="page"><app-loading message="Loading player…" /></main>
     } @else if (player.error()) {
-      <main class="page"><app-error-state [message]="errorMessage()" [requestId]="errorRequestId()" /></main>
+      <main class="page">
+        <app-error-state [message]="errorMessage()" [requestId]="errorRequestId()" />
+      </main>
     } @else if (player.value(); as p) {
       <main class="page profile">
         <header class="head">
@@ -48,25 +59,45 @@ import { ValueChart } from './value-chart';
             </div>
             <div>
               <dt>Market value</dt>
-              <dd class="tabular">{{ p.market_value_minor | money: { currency: p.currency, compact: true } }}</dd>
+              <dd class="tabular">
+                {{ p.market_value_minor | money: { currency: p.currency, compact: true } }}
+              </dd>
             </div>
             @if (p.nationality) {
-              <div><dt>Nationality</dt><dd>{{ p.nationality }}</dd></div>
+              <div>
+                <dt>Nationality</dt>
+                <dd>{{ p.nationality }}</dd>
+              </div>
             }
             @if (p.date_of_birth) {
-              <div><dt>Born</dt><dd>{{ p.date_of_birth | date: 'd MMM y' }}</dd></div>
+              <div>
+                <dt>Born</dt>
+                <dd>{{ p.date_of_birth | date: 'd MMM y' }}</dd>
+              </div>
             }
             @if (p.squad_number) {
-              <div><dt>Squad number</dt><dd class="tabular">{{ p.squad_number }}</dd></div>
+              <div>
+                <dt>Squad number</dt>
+                <dd class="tabular">{{ p.squad_number }}</dd>
+              </div>
             }
             @if (p.preferred_foot) {
-              <div><dt>Foot</dt><dd>{{ p.preferred_foot }}</dd></div>
+              <div>
+                <dt>Foot</dt>
+                <dd>{{ p.preferred_foot }}</dd>
+              </div>
             }
             @if (p.height_cm) {
-              <div><dt>Height</dt><dd class="tabular">{{ p.height_cm }} cm</dd></div>
+              <div>
+                <dt>Height</dt>
+                <dd class="tabular">{{ p.height_cm }} cm</dd>
+              </div>
             }
             @if (p.contract_until) {
-              <div><dt>Contract until</dt><dd>{{ p.contract_until | date: 'MMM y' }}</dd></div>
+              <div>
+                <dt>Contract until</dt>
+                <dd>{{ p.contract_until | date: 'MMM y' }}</dd>
+              </div>
             }
           </dl>
 
@@ -102,8 +133,12 @@ import { ValueChart } from './value-chart';
               <table>
                 <thead>
                   <tr>
-                    <th>Date</th><th>From</th><th>To</th><th>Type</th><th class="right">Fee</th>
-                    <th><span class="visually-hidden">Actions</span></th>
+                    <th scope="col">Date</th>
+                    <th scope="col">From</th>
+                    <th scope="col">To</th>
+                    <th scope="col">Type</th>
+                    <th scope="col" class="right">Fee</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -140,8 +175,14 @@ import { ValueChart } from './value-chart';
     }
   `,
   styles: `
-    .profile { padding-block: var(--space-6); }
-    .head { border-bottom: 1px solid var(--line); padding-bottom: var(--space-5); margin-bottom: var(--space-6); }
+    .profile {
+      padding-block: var(--space-6);
+    }
+    .head {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: var(--space-5);
+      margin-bottom: var(--space-6);
+    }
     .eyebrow {
       font-family: var(--font-mono);
       font-size: var(--text-xs);
@@ -150,14 +191,19 @@ import { ValueChart } from './value-chart';
       color: var(--muted);
       margin-bottom: var(--space-2);
     }
-    h1 { font-size: var(--text-3xl); margin-bottom: var(--space-5); }
+    h1 {
+      font-size: var(--text-3xl);
+      margin-bottom: var(--space-5);
+    }
     .facts {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
       gap: var(--space-4);
       margin: 0;
     }
-    .facts div { margin: 0; }
+    .facts div {
+      margin: 0;
+    }
     dt {
       font-size: var(--text-xs);
       letter-spacing: 0.08em;
@@ -165,10 +211,21 @@ import { ValueChart } from './value-chart';
       color: var(--muted);
       margin-bottom: var(--space-1);
     }
-    dd { margin: 0; font-weight: 600; }
-    section { margin-bottom: var(--space-7); }
-    h4 { margin-bottom: var(--space-3); }
-    table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+    dd {
+      margin: 0;
+      font-weight: 600;
+    }
+    section {
+      margin-bottom: var(--space-7);
+    }
+    h4 {
+      margin-bottom: var(--space-3);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--text-sm);
+    }
     th {
       text-align: left;
       font-size: var(--text-xs);
@@ -180,17 +237,34 @@ import { ValueChart } from './value-chart';
       background: var(--surface-2);
       white-space: nowrap;
     }
-    td { padding: var(--space-3); border-bottom: 1px solid var(--line-soft); }
-    .right { text-align: right; }
-    .muted { color: var(--muted); }
-    .type { font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); }
-    .correct { font-size: var(--text-xs); }
-    app-actions { display: block; margin-top: var(--space-5); }
+    td {
+      padding: var(--space-3);
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .right {
+      text-align: right;
+    }
+    .muted {
+      color: var(--muted);
+    }
+    .type {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-soft);
+    }
+    .correct {
+      font-size: var(--text-xs);
+    }
+    app-actions {
+      display: block;
+      margin-top: var(--space-5);
+    }
   `,
 })
 export class PlayerPage {
   private readonly reader = inject(PLAYER_READER);
   private readonly lookup = inject(LookupStore);
+  private readonly seo = inject(Seo);
   protected readonly permissions = inject(Permissions);
 
   /** Bound from the route parameter. */
@@ -213,6 +287,42 @@ export class PlayerPage {
     params: () => ({ id: this.id() }),
     loader: ({ params }) => this.reader.marketValues(params.id, { limit: 100 }),
   });
+
+  constructor() {
+    // Runs during the server render too, so the title, description, canonical
+    // and JSON-LD are in the first response rather than appearing after
+    // hydration — which is the entire reason this page is server-rendered.
+    effect(() => {
+      const p = this.player.value();
+      if (!p) return;
+
+      const club = p.team_id ? this.lookup.teamName(p.team_id, 'a club') : 'a free agent';
+      this.seo.describe({
+        title: p.name,
+        description:
+          `${p.name} — ${p.position}${p.nationality ? `, ${p.nationality}` : ''}. ` +
+          `Career, transfers and market value history at ${club}.`,
+        path: `/players/${p.id}`,
+        type: 'profile',
+      });
+
+      // schema.org/Person. `athlete` is not a schema.org type, so the club is
+      // expressed as memberOf rather than invented as a property.
+      this.seo.structuredData({
+        '@context': 'https://schema.org',
+        '@type': 'Person',
+        name: p.name,
+        givenName: p.first_name,
+        familyName: p.last_name,
+        birthDate: p.date_of_birth?.slice(0, 10),
+        nationality: p.nationality,
+        jobTitle: p.position,
+        memberOf: p.team_id
+          ? { '@type': 'SportsTeam', name: this.lookup.teamName(p.team_id, 'Club') }
+          : undefined,
+      });
+    });
+  }
 
   protected readonly errorMessage = computed(() => {
     const error = this.player.error();

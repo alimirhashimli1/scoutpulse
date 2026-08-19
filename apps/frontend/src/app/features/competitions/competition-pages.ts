@@ -1,10 +1,20 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, resource, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  resource,
+  signal,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { ApiError } from '../../core/api/api-error';
 import { LEAGUE_READER, TEAM_READER } from '../../core/api/contracts';
 import { PageQuery } from '../../core/api/page';
 import { Permissions } from '../../core/auth/permissions';
+import { Seo } from '../../core/seo/seo';
 import { Paginator } from '../../shared/pagination/paginator';
 import { Empty, ErrorState, Loading } from '../../shared/ui/states';
 
@@ -46,41 +56,82 @@ const TYPE_LABELS: Record<string, string> = {
                 <span class="meta">
                   {{ league.country }}
                   <span class="muted">· {{ typeLabel(league.competition_type) }}</span>
-                  @if (league.tier) { <span class="muted">· tier {{ league.tier }}</span> }
+                  @if (league.tier) {
+                    <span class="muted">· tier {{ league.tier }}</span>
+                  }
                 </span>
               </a>
             </li>
           }
         </ul>
-        <app-paginator [page]="leagues.value()!" label="competition results" (pageChange)="goTo($event)" />
+        <app-paginator
+          [page]="leagues.value()!"
+          label="competition results"
+          (pageChange)="goTo($event)"
+        />
       }
     </main>
   `,
   styles: `
     .masthead {
-      display: flex; justify-content: space-between; align-items: flex-end;
-      gap: var(--space-4); flex-wrap: wrap;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: var(--space-4);
+      flex-wrap: wrap;
       padding-block: var(--space-6) var(--space-5);
     }
-    h1 { margin-bottom: var(--space-2); }
-    .standfirst { color: var(--ink-soft); }
-    .list { list-style: none; margin: 0; padding: 0; }
-    .list li { border-bottom: 1px solid var(--line-soft); }
-    .list a {
-      display: flex; justify-content: space-between; gap: var(--space-4);
-      align-items: baseline; padding: var(--space-3) 0;
-      text-decoration: none; color: var(--ink);
+    h1 {
+      margin-bottom: var(--space-2);
     }
-    .list a:hover .name { color: var(--accent); }
-    .name { font-weight: 600; }
-    .meta { color: var(--ink-soft); font-size: var(--text-sm); }
-    .muted { color: var(--muted); }
+    .standfirst {
+      color: var(--ink-soft);
+    }
+    .list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .list li {
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .list a {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-4);
+      align-items: baseline;
+      padding: var(--space-3) 0;
+      text-decoration: none;
+      color: var(--ink);
+    }
+    .list a:hover .name {
+      color: var(--accent);
+    }
+    .name {
+      font-weight: 600;
+    }
+    .meta {
+      color: var(--ink-soft);
+      font-size: var(--text-sm);
+    }
+    .muted {
+      color: var(--muted);
+    }
   `,
 })
 export class CompetitionList {
   private readonly reader = inject(LEAGUE_READER);
   protected readonly permissions = inject(Permissions);
+  private readonly seo = inject(Seo);
   private readonly page = signal<PageQuery>({ limit: 25, offset: 0 });
+
+  constructor() {
+    this.seo.describe({
+      title: 'Competitions',
+      description: 'Every league and cup on record, by country and tier.',
+      path: '/competitions',
+    });
+  }
 
   protected readonly leagues = resource({
     params: () => ({ page: this.page() }),
@@ -127,10 +178,15 @@ export class CompetitionList {
           <p class="eyebrow">{{ typeLabel(l.competition_type) }}</p>
           <h1>{{ l.name }}</h1>
           <p class="standfirst">
-            {{ l.country }}@if (l.tier) { <span> · tier {{ l.tier }}</span> }
+            {{ l.country }}
+            @if (l.tier) {
+              <span> · tier {{ l.tier }}</span>
+            }
           </p>
           @if (permissions.canAdminister()) {
-            <p class="edit"><a class="btn" [routerLink]="['/competitions', l.id, 'edit']">Edit</a></p>
+            <p class="edit">
+              <a class="btn" [routerLink]="['/competitions', l.id, 'edit']">Edit</a>
+            </p>
           }
         </header>
 
@@ -158,32 +214,66 @@ export class CompetitionList {
     }
   `,
   styles: `
-    .head { border-bottom: 1px solid var(--line); padding-block: var(--space-6) var(--space-5); margin-bottom: var(--space-6); }
+    .head {
+      border-bottom: 1px solid var(--line);
+      padding-block: var(--space-6) var(--space-5);
+      margin-bottom: var(--space-6);
+    }
     .eyebrow {
-      font-family: var(--font-mono); font-size: var(--text-xs);
-      letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: var(--space-2);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: var(--space-2);
     }
-    h1 { font-size: var(--text-3xl); margin-bottom: var(--space-2); }
-    .standfirst { color: var(--ink-soft); }
-    .edit { margin-top: var(--space-4); }
-    h4 { margin-bottom: var(--space-3); }
-    .list { list-style: none; margin: 0; padding: 0; }
-    .list li { border-bottom: 1px solid var(--line-soft); }
+    h1 {
+      font-size: var(--text-3xl);
+      margin-bottom: var(--space-2);
+    }
+    .standfirst {
+      color: var(--ink-soft);
+    }
+    .edit {
+      margin-top: var(--space-4);
+    }
+    h4 {
+      margin-bottom: var(--space-3);
+    }
+    .list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .list li {
+      border-bottom: 1px solid var(--line-soft);
+    }
     .list a {
-      display: flex; justify-content: space-between; gap: var(--space-4);
-      align-items: baseline; padding: var(--space-3) 0;
-      text-decoration: none; color: var(--ink);
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-4);
+      align-items: baseline;
+      padding: var(--space-3) 0;
+      text-decoration: none;
+      color: var(--ink);
     }
-    .list a:hover .name { color: var(--accent); }
-    .name { font-weight: 600; }
-    .meta { color: var(--muted); font-size: var(--text-sm); }
+    .list a:hover .name {
+      color: var(--accent);
+    }
+    .name {
+      font-weight: 600;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
   `,
 })
 export class CompetitionPage {
   private readonly leagueReader = inject(LEAGUE_READER);
   private readonly teamReader = inject(TEAM_READER);
   protected readonly permissions = inject(Permissions);
+  private readonly seo = inject(Seo);
 
   readonly id = input.required<string>();
   private readonly page = signal<PageQuery>({ limit: 25, offset: 0 });
@@ -197,6 +287,29 @@ export class CompetitionPage {
     params: () => ({ id: this.id(), page: this.page() }),
     loader: ({ params }) => this.teamReader.list({ ...params.page, league_id: params.id }),
   });
+
+  constructor() {
+    effect(() => {
+      const l = this.league.value();
+      if (!l) return;
+
+      this.seo.describe({
+        title: l.name,
+        description:
+          `${l.name} — ${TYPE_LABELS[l.competition_type] ?? l.competition_type} in ${l.country}` +
+          `${l.tier ? `, tier ${l.tier}` : ''}. The clubs competing in it.`,
+        path: `/competitions/${l.id}`,
+      });
+
+      this.seo.structuredData({
+        '@context': 'https://schema.org',
+        '@type': 'SportsOrganization',
+        name: l.name,
+        sport: 'Football',
+        location: l.country,
+      });
+    });
+  }
 
   protected readonly errorMessage = computed(() => {
     const error = this.league.error();
