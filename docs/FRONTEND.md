@@ -581,15 +581,69 @@ marked instead.
   `GET /users` and matches locally, which is fine for a small deployment and
   the same trade `LookupStore` makes for clubs.
 
-### Phase 6 — polish
+### Phase 6 — polish · **done**
 
-- [ ] 6.1 Dark mode
-- [ ] 6.2 Accessibility pass — focus, labels, contrast, keyboard
-- [ ] 6.3 Skeleton loaders
-- [ ] 6.4 Error page with `request_id`
-- [ ] 6.5 Bundle budget check
-- [ ] 6.6 Dockerfile — replace the placeholder nginx with a real build
-- [ ] 6.7 Frontend job in CI
+- [x] 6.1 Dark mode — three states, with the first paint handled before the stylesheet
+- [x] 6.2 Accessibility pass — `aria-describedby` wiring, `scope="col"`, labelled controls
+- [x] 6.3 Skeleton loaders
+- [x] 6.4 Real 404 page — and a real 404 *status*, which took more than a component
+- [x] 6.5 Bundle budgets tightened to 420kB warn / 550kB error (actual: 391kB raw, 108kB transfer)
+- [x] 6.6 Dockerfile — a Node SSR runtime, replacing a two-line nginx stub that served nothing
+- [x] 6.7 Frontend job in CI, including an assertion that SSR actually rendered
+- [x] 6.8 SEO metadata, JSON-LD, canonical URLs and `robots.txt` — see below
+
+**The SEO work was the point of choosing SSR, and none of it existed.** The
+page title was the generated `Frontend`, with no description, no Open Graph
+tags, no canonical and no structured data. `Seo` now sets all of them from
+entity data during the server render, so they are in the first response rather
+than appearing after hydration — which is too late for a link unfurler and
+unreliable for a crawler. Players and coaches emit `Person`, clubs
+`SportsTeam`, competitions `SportsOrganization`.
+
+`SITE_URL` is its own token, deliberately not `API_CONFIG`. One answers "where
+do I fetch data from" — inside Docker, an internal hostname no visitor can
+reach — and the other "what address is this page published at". The renderer
+cannot infer the second from the `Host` header without letting anyone point
+this site's canonical tags at theirs, so it is configuration. **Set it to the
+real domain in production**, or every canonical link says `localhost`.
+
+**The soft 404 took two attempts, and the first was wrong.** Replacing
+`{ path: '**', redirectTo: '' }` with a not-found component fixed the page but
+not the status: a wildcard route that resolves to a component is still a
+*match*, so the render succeeds and the server answers `200 OK`. The page said
+"not found" while the status said otherwise. The fix is `status: 404` on the
+catch-all in `app.routes.server.ts` — which only works because every real route
+is now enumerated above it, instead of a trailing `**` sweeping up everything.
+That has a useful side effect: forgetting to list a new public page makes it
+404 loudly rather than fail quietly. CI asserts both directions.
+
+**Both duplicate URLs now name one canonical.** `/` and `/transfers` render the
+same component, so they competed as duplicates. They both point at `/` — the
+root is the stronger address, and canonicalising it *away* to an alias would
+have been worse than leaving it alone.
+
+**Dark mode needs three states, not two.** A boolean cannot express "follow my
+system", so anyone who once tapped the toggle would be pinned forever,
+including when their OS switches at sunset. The first paint is handled by a
+small inline script in `index.html`, ahead of the stylesheet — doing it from
+Angular runs after the page has already painted in the system theme, which is
+exactly the flash the preference exists to prevent, and worst for the person
+who deliberately chose light on a dark machine.
+
+**`Field` was not keeping its own promise.** Its doc comment claimed it owned
+the accessibility wiring while rendering `<p id="name-hint">` that nothing
+referenced — a screen reader announced the label and then went silent about the
+constraint the field was failing. The control is projected so the attribute
+cannot be bound in the template; `afterRenderEffect` sets `aria-describedby`
+and `aria-invalid` on the element instead, and re-runs as the error appears and
+clears.
+
+**Prettier had never been run.** A `.prettierrc` existed and 39 files failed it,
+including the ones `ng new` generated. Rather than add a CI step that fails on
+arrival, the tree was formatted once. The check is now meaningful.
+
+**Not verified locally:** the container image. Docker is not on the PATH in this
+environment, so the CI job is the first thing that will actually build it.
 
 ---
 
@@ -715,7 +769,27 @@ process running the built server bundle, and the compose port changes from
 | 3 Read-only app | **Mostly done** — 2026-08-15 |
 | 4 Writes | **Done** — 2026-08-18 |
 | 5 Account and admin | **Done** — 2026-08-18 |
-| 6 Polish | Not started |
+| 6 Polish | **Done** — 2026-08-18 |
+
+### Carried forward
+
+Real gaps, listed so they are not rediscovered by surprise:
+
+- **Competition history is written but never displayed.** `/clubs/:id/seasons/new`
+  saves an entry and no page reads it back. `TeamReader.seasons()` and
+  `SeasonReader.teams()` both exist and are called by nothing. This belonged in
+  3.6, which was ticked as "squad and managerial history" — quietly dropping
+  the third section instead of flagging it. Closing it means a Competitions
+  section on the club page and a season picker on the competition page.
+- **A missing entity returns 200.** `/clubs/<unknown-id>` renders "No club with
+  that id" with an OK status. `ServerRoute.status` is static per route, so
+  fixing this needs the render to influence the response — a real limitation,
+  not an oversight.
+- **No `sitemap.xml`.** It has to be generated from the API at request time;
+  `robots.txt` already points at it.
+- Phase 3's `[~]` items: no type-ahead dropdown, transfer feed filters by type
+  only, partial responsive sweep.
+- Component tests for the forms, and the end-to-end path in §8.
 
 ### Running it
 
