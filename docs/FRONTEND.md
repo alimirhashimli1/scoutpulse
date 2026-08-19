@@ -775,12 +775,11 @@ process running the built server bundle, and the compose port changes from
 
 Real gaps, listed so they are not rediscovered by surprise:
 
-- **Competition history is written but never displayed.** `/clubs/:id/seasons/new`
-  saves an entry and no page reads it back. `TeamReader.seasons()` and
-  `SeasonReader.teams()` both exist and are called by nothing. This belonged in
-  3.6, which was ticked as "squad and managerial history" — quietly dropping
-  the third section instead of flagging it. Closing it means a Competitions
-  section on the club page and a season picker on the competition page.
+- ~~Competition history is written but never displayed.~~ **Closed** — 2026-08-19.
+  The club page has a Competitions section reading `TeamReader.seasons()`, and
+  the competition page has a season picker reading `SeasonReader.teams()`.
+  Administrators can withdraw an entry, which was a third method with no caller.
+  All three existed and were dead before this. See §12.
 - **A missing entity returns 200.** `/clubs/<unknown-id>` renders "No club with
   that id" with an OK status. `ServerRoute.status` is static per route, so
   fixing this needs the render to influence the response — a real limitation,
@@ -840,3 +839,73 @@ apps/frontend/src/
       search/  auth/  account/  admin/
     layout/shell.ts                 masthead, nav, search, account area
 ```
+
+---
+
+## 12. Competition history — the write with no read
+
+Found by using the app, not by reading it: entering a club in a competition
+saved successfully and then nothing anywhere displayed it.
+
+Three repository methods existed, were correct, and had **no caller in the
+application**:
+
+| Method | Endpoint | Now used by |
+|---|---|---|
+| `TeamReader.seasons()` | `GET /teams/{id}/seasons` | club page, Competitions section |
+| `SeasonReader.teams()` | `GET /seasons/{id}/teams` | competition page, season picker |
+| `TeamWriter.withdrawSeason()` | `DELETE /teams/{id}/seasons/{entryId}` | club page, admin-only remove |
+
+That is the shape of the mistake: the contracts and the HTTP layer were built
+from the API surface, the write form was built in phase 4, and the read was
+never built at all. A form that saves into a void is worse than no form,
+because it looks like it worked.
+
+### Why seasons attach to clubs rather than to competitions
+
+This part was not a bug, and it is worth writing down because it looks like
+one. The join is a **triple** — `team_seasons(team_id, season_id, league_id)` —
+and one row means *"this club played in this competition in that season."*
+
+A competition has no season list of its own because a competition is permanent:
+the Süper Lig is one row that exists across all years. What varies per season is
+**who contested it**, so the season-to-competition link is derived from the
+entries rather than stored twice. The alternative, a `league_seasons` table,
+would either duplicate the club list or contradict it.
+
+### The two views answer different questions
+
+The competition page now has a picker, and the distinction it draws is the
+whole point of the temporal model:
+
+- **Now** reads `teams.league_id` — a single pointer to a club's present
+  competition. Relegation overwrites it, so it says nothing about the past.
+- **A season** reads `team_seasons` — who actually contested the competition
+  that year. It survives relegation, because it is history.
+
+They can legitimately disagree, and neither is wrong. One list serving both
+would have to pick one and be silently wrong about the other.
+
+### Notes from building it
+
+`LookupStore` gained seasons, and its two near-identical paging loops became
+one generic `collect()`. A third copy was the point at which duplicating it
+stopped being cheaper than extracting it. The same scaling caveat applies:
+fine for tens of seasons and hundreds of clubs, wrong past a few thousand.
+
+Seasons are sorted for the picker by `start_date`, not by label. Labels are
+free text, and `2026/27` only sorts correctly beside `2025/26` by accident of
+notation — `Apertura 2026` would not.
+
+**A backtick inside an inline template comment broke the build twice.** Writing
+`` `teams.league_id` `` in an HTML comment inside a `template:` string
+terminates the TypeScript template literal, and the resulting errors point at
+"unclosed block" and a stray property name rather than at the quote. Component
+templates are template literals; markdown-style code quoting does not belong in
+them.
+
+**Verified:** build clean, 65 tests pass, formatting clean, and the changed
+pages render server-side without error. **Not verified:** the actual data path
+— the backend was down while this was written, so the sections have not been
+seen populated with real entries. That is the first thing to check when the
+stack is back up.

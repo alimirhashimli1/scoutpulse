@@ -6,23 +6,25 @@ import {
   inject,
   input,
   resource,
+  signal,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
 import { ApiError } from '../../core/api/api-error';
-import { TEAM_READER } from '../../core/api/contracts';
+import { TEAM_READER, TEAM_WRITER } from '../../core/api/contracts';
 import { LookupStore } from '../../core/api/lookup-store';
 import { Permissions } from '../../core/auth/permissions';
 import { Seo } from '../../core/seo/seo';
 import { MoneyPipe } from '../../shared/pipes/money-pipe';
 import { Actions } from '../../shared/ui/actions';
-import { ErrorState, Loading } from '../../shared/ui/states';
+import { messageFor } from '../../shared/forms/submit';
+import { Empty, ErrorState, Loading } from '../../shared/ui/states';
 
 @Component({
   selector: 'app-club-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DatePipe, MoneyPipe, Actions, Loading, ErrorState],
+  imports: [RouterLink, DatePipe, MoneyPipe, Actions, Loading, Empty, ErrorState],
   template: `
     @if (club.isLoading()) {
       <main class="page"><app-loading message="Loading club…" /></main>
@@ -141,6 +143,60 @@ import { ErrorState, Loading } from '../../shared/ui/states';
             <p class="muted">No managerial history recorded.</p>
           }
         </section>
+
+        <section>
+          <div class="section-head">
+            <h4>Competitions</h4>
+            @if (permissions.canEditTeam(c.id)) {
+              <a class="add" [routerLink]="['/clubs', c.id, 'seasons', 'new']"
+                >Enter a competition</a
+              >
+            }
+          </div>
+
+          <!--
+            This is the club's *history*, distinct from the competition in the
+            header — that one is teams.league_id, a single pointer to where
+            they are now, which relegation overwrites. These entries survive it.
+          -->
+          @if (entries.isLoading()) {
+            <app-loading [lines]="2" />
+          } @else if (entries.value()?.items?.length) {
+            <ul class="entries">
+              @for (entry of entries.value()!.items; track entry.id) {
+                <li>
+                  <span class="season tabular">{{ seasonLabel(entry.season_id) }}</span>
+                  <a class="comp" [routerLink]="['/competitions', entry.league_id]">
+                    {{ leagueName(entry.league_id) }}
+                  </a>
+                  @if (permissions.canAdminister()) {
+                    <!--
+                      Admin-only, matching the API: withdrawing an entry after a
+                      season is under way is rewriting history, not correcting a
+                      club's own record.
+                    -->
+                    <button
+                      type="button"
+                      class="withdraw"
+                      [disabled]="withdrawing() === entry.id"
+                      (click)="withdraw(entry.id)"
+                    >
+                      {{ withdrawing() === entry.id ? 'Removing…' : 'Remove' }}
+                    </button>
+                  }
+                </li>
+              }
+            </ul>
+            @if (withdrawError()) {
+              <app-error-state [message]="withdrawError()!" />
+            }
+          } @else {
+            <app-empty
+              message="No competition history recorded."
+              hint="Entries record which competitions this club contested, season by season."
+            />
+          }
+        </section>
       </main>
     }
   `,
@@ -232,6 +288,53 @@ import { ErrorState, Loading } from '../../shared/ui/states';
       font-size: var(--text-sm);
       margin-left: auto;
     }
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: var(--space-4);
+      margin-bottom: var(--space-3);
+    }
+    .section-head h4 {
+      margin-bottom: 0;
+    }
+    .add {
+      font-size: var(--text-sm);
+    }
+    .entries {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .entries li {
+      display: flex;
+      gap: var(--space-4);
+      align-items: baseline;
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .season {
+      min-width: 5.5rem;
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
+    .comp {
+      font-weight: 600;
+    }
+    .withdraw {
+      margin-left: auto;
+      background: none;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: var(--space-1) var(--space-3);
+      font-size: var(--text-xs);
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .withdraw:hover:not(:disabled) {
+      border-color: var(--critical);
+      color: var(--critical);
+    }
     app-actions {
       display: block;
       margin-top: var(--space-5);
@@ -240,6 +343,7 @@ import { ErrorState, Loading } from '../../shared/ui/states';
 })
 export class ClubPage {
   private readonly reader = inject(TEAM_READER);
+  private readonly writer = inject(TEAM_WRITER);
   private readonly lookup = inject(LookupStore);
   private readonly seo = inject(Seo);
   protected readonly permissions = inject(Permissions);
@@ -263,6 +367,24 @@ export class ClubPage {
     params: () => ({ id: this.id() }),
     loader: ({ params }) => this.reader.staff(params.id, { limit: 50 }),
   });
+
+  /**
+   * Which competitions this club has contested, newest season first.
+   *
+   * Season and competition names have to be resolved before the rows mean
+   * anything — the API returns three ids and no names — so both lookups are
+   * awaited here rather than leaving the list to render as dashes and fill in.
+   */
+  protected readonly entries = resource({
+    params: () => ({ id: this.id() }),
+    loader: async ({ params }) => {
+      await Promise.all([this.lookup.loadSeasons(), this.lookup.loadLeagues()]);
+      return this.reader.seasons(params.id, { limit: 100 });
+    },
+  });
+
+  protected readonly withdrawing = signal<string | null>(null);
+  protected readonly withdrawError = signal<string | null>(null);
 
   constructor() {
     effect(() => {
@@ -293,6 +415,29 @@ export class ClubPage {
           : undefined,
       });
     });
+  }
+
+  protected seasonLabel(id: string): string {
+    return this.lookup.seasonLabel(id, 'Unknown season');
+  }
+
+  protected async withdraw(entryId: string): Promise<void> {
+    if (this.withdrawing()) return;
+    if (!confirm('Remove this competition entry? It is part of the club’s recorded history.')) {
+      return;
+    }
+
+    this.withdrawing.set(entryId);
+    this.withdrawError.set(null);
+
+    try {
+      await this.writer.withdrawSeason(this.id(), entryId);
+      this.entries.reload();
+    } catch (error) {
+      this.withdrawError.set(messageFor(error, 'Could not remove the entry.'));
+    } finally {
+      this.withdrawing.set(null);
+    }
   }
 
   protected readonly errorMessage = computed(() => {
