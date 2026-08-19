@@ -5,6 +5,7 @@ services:
   # a container per service, which does not scale to a laptop running six.
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-postgres}
@@ -37,6 +38,7 @@ services:
   # publishes instead of football-svc being changed to call it.
   nats:
     image: nats:2.10-alpine
+    restart: unless-stopped
     command: ["--jetstream", "--http_port", "8222"]
     ports:
       # Loopback only: NATS runs without authentication, so an exposed client
@@ -86,6 +88,7 @@ services:
   # frontend has to learn.
   gateway:
     image: caddy:2.8-alpine
+    restart: unless-stopped
     # Waits for readiness, not just for the containers to start. A plain
     # depends_on list returns as soon as the process exists, so the gateway
     # would answer with 502s while the services were still connecting to the
@@ -105,7 +108,7 @@ services:
     build:
       context: .
       dockerfile: apps/identity-svc/Dockerfile
-    restart: on-failure
+    restart: unless-stopped
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -148,7 +151,7 @@ services:
     build:
       context: .
       dockerfile: apps/football-svc/Dockerfile
-    restart: on-failure
+    restart: unless-stopped
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
