@@ -29,8 +29,36 @@ const (
 	verifierCooki = "sp_oauth_verifier"
 	// cookiePath scopes both cookies to the flow that uses them, so they are
 	// not sent on every other request to this service.
+	//
+	// **This is the service's own path, and the browser does not use it.** The
+	// gateway publishes this service under /api/identity and strips the prefix
+	// before forwarding, so a cookie written with this path alone is scoped to
+	// a URL the browser never visits -- and is therefore never sent back. The
+	// callback then finds no state and fails as "expired", in well under a
+	// millisecond, without ever reaching the provider.
+	//
+	// cookiePathFor rebuilds the public path from X-Forwarded-Prefix, which the
+	// gateway sets for exactly this kind of problem.
 	cookiePath = "/api/v1/auth"
 )
+
+// cookiePathFor returns the path the *browser* will match against.
+//
+// Behind the gateway that is "/api/identity" + cookiePath; reached directly it
+// is cookiePath unchanged. The header is only trusted to widen the path within
+// this origin, never to redirect anything, so a forged value can at most
+// mis-scope a short-lived HttpOnly cookie for the client that forged it.
+func cookiePathFor(r *http.Request) string {
+	prefix := strings.TrimSpace(r.Header.Get("X-Forwarded-Prefix"))
+	if prefix == "" {
+		return cookiePath
+	}
+	// A prefix carrying anything but a path is not one we should build on.
+	if !strings.HasPrefix(prefix, "/") || strings.ContainsAny(prefix, "\r\n;,") {
+		return cookiePath
+	}
+	return strings.TrimRight(prefix, "/") + cookiePath
+}
 
 // OAuthDeps are the pieces the provider flow needs beyond the base Handler.
 type OAuthDeps struct {
@@ -85,8 +113,8 @@ func (h *Handler) StartOAuth(w http.ResponseWriter, r *http.Request) {
 	// authorization code.
 	verifier := oauth2.GenerateVerifier()
 
-	h.setFlowCookie(w, stateCookie, state)
-	h.setFlowCookie(w, verifierCooki, verifier)
+	h.setFlowCookie(w, r, stateCookie, state)
+	h.setFlowCookie(w, r, verifierCooki, verifier)
 
 	url := provider.Config.AuthCodeURL(state,
 		oauth2.AccessTypeOffline,
@@ -114,7 +142,7 @@ func (h *Handler) CompleteOAuth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	state, verifier, err := h.readFlowCookies(r)
-	h.clearFlowCookies(w)
+	h.clearFlowCookies(w, r)
 	if err != nil {
 		h.failFlow(w, r, "expired")
 		return
@@ -287,6 +315,12 @@ func (h *Handler) createFromProvider(r *http.Request, provider oauth.Name, profi
 		PasswordHash: "",
 		// A provider sign-in grants no more than self-registration does.
 		Role: model.UserRole,
+		// The provider has already proven the address, so there is nothing for
+		// our own confirmation email to add -- and sending one to somebody who
+		// signed in with Google would be a step they cannot make sense of.
+		// Facebook never reports verification, so those accounts stay unverified,
+		// which is correct: it is the same reason they are not auto-linked.
+		EmailVerified: profile.EmailVerified,
 	}
 
 	if err := h.UserRepo.Create(ctx, &user); err != nil {
@@ -433,7 +467,9 @@ func (h *Handler) provider(r *http.Request) (*oauth.Provider, error) {
 	return p, nil
 }
 
-func (h *Handler) setFlowCookie(w http.ResponseWriter, name, value string) {
+func (h *Handler) setFlowCookie(w http.ResponseWriter, r *http.Request, name, value string) {
+	path := cookiePathFor(r)
+
 	// gosec G124 wants Secure set to a literal true. It is set from
 	// configuration instead, and deliberately: a Secure cookie is silently
 	// dropped over plain http, so hardcoding it would break local development
@@ -445,7 +481,7 @@ func (h *Handler) setFlowCookie(w http.ResponseWriter, name, value string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     name,
 		Value:    value,
-		Path:     cookiePath,
+		Path:     path,
 		MaxAge:   int(oauthFlowTTL.Seconds()),
 		HttpOnly: true,
 		Secure:   h.OAuth.SecureCookies,
@@ -468,13 +504,15 @@ func (h *Handler) readFlowCookies(r *http.Request) (state, verifier string, err 
 	return s.Value, v.Value, nil
 }
 
-func (h *Handler) clearFlowCookies(w http.ResponseWriter) {
+func (h *Handler) clearFlowCookies(w http.ResponseWriter, r *http.Request) {
+	path := cookiePathFor(r)
+
 	for _, name := range []string{stateCookie, verifierCooki} {
 		//nolint:gosec // G124: same as setFlowCookie — Secure follows the scheme
 		http.SetCookie(w, &http.Cookie{
 			Name:     name,
 			Value:    "",
-			Path:     cookiePath,
+			Path:     path,
 			MaxAge:   -1,
 			HttpOnly: true,
 			Secure:   h.OAuth.SecureCookies,
@@ -486,8 +524,22 @@ func (h *Handler) clearFlowCookies(w http.ResponseWriter) {
 // failFlow returns the browser to the frontend with a reason it can render.
 // The reasons are deliberately coarse: a precise one would tell an attacker
 // which stage of a forged flow they reached.
+// failFlow ends the flow with a reason the frontend can act on.
+//
+// The reason is deliberately coarse in the redirect -- it reaches the user as a
+// URL parameter -- but it is logged in full here. Without that, every failure
+// looked identical from outside and identical in the log: a 302 with no error
+// line, which is what made a mis-scoped cookie take a code read to find.
 func (h *Handler) failFlow(w http.ResponseWriter, r *http.Request, reason string) {
-	h.clearFlowCookies(w)
+	if h.Log != nil {
+		h.Log.Warn("external sign-in failed",
+			"reason", reason,
+			"provider", r.PathValue("provider"),
+			"cookie_path", cookiePathFor(r),
+			"had_state_cookie", hasCookie(r, stateCookie),
+			"forwarded_prefix", r.Header.Get("X-Forwarded-Prefix"))
+	}
+	h.clearFlowCookies(w, r)
 	http.Redirect(w, r, h.frontendURL("/auth/callback", url.Values{
 		"error": {reason},
 	}), http.StatusFound)
@@ -496,4 +548,9 @@ func (h *Handler) failFlow(w http.ResponseWriter, r *http.Request, reason string
 func (h *Handler) frontendURL(path string, params url.Values) string {
 	base := strings.TrimRight(h.OAuth.FrontendURL, "/")
 	return base + path + "?" + params.Encode()
+}
+
+func hasCookie(r *http.Request, name string) bool {
+	_, err := r.Cookie(name)
+	return err == nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -253,4 +254,55 @@ func TestParseName(t *testing.T) {
 		_, ok := oauth.ParseName(invalid)
 		assert.False(t, ok, invalid)
 	}
+}
+
+// TestCookiePathMatchesTheBrowsersURL covers the bug that made external
+// sign-in fail every time it was attempted through the gateway.
+//
+// The service sees /api/v1/auth/... because the gateway strips its prefix, but
+// the browser's URL is /api/identity/api/v1/auth/... A cookie scoped to the
+// service's own path is never sent back, so the callback finds no state and
+// reports "expired" -- in under a millisecond, without ever reaching the
+// provider, and with nothing in the log to say why.
+func TestCookiePathMatchesTheBrowsersURL(t *testing.T) {
+	t.Run("behind the gateway, the public prefix is included", func(t *testing.T) {
+		r := httptest.NewRequest("GET", "/api/v1/auth/google", nil)
+		r.Header.Set("X-Forwarded-Prefix", "/api/identity")
+
+		path := cookiePathFor(r)
+
+		assert.Equal(t, "/api/identity/api/v1/auth", path)
+		// The property that actually matters: the browser only returns a
+		// cookie whose path is a prefix of the URL it is requesting.
+		assert.True(t, strings.HasPrefix("/api/identity/api/v1/auth/google/callback", path),
+			"the callback URL must sit under the cookie path, or the cookie is never sent")
+	})
+
+	t.Run("reached directly, the service path is used unchanged", func(t *testing.T) {
+		r := httptest.NewRequest("GET", "/api/v1/auth/google", nil)
+
+		path := cookiePathFor(r)
+
+		assert.Equal(t, "/api/v1/auth", path)
+		assert.True(t, strings.HasPrefix("/api/v1/auth/google/callback", path))
+	})
+
+	t.Run("a trailing slash does not double up", func(t *testing.T) {
+		r := httptest.NewRequest("GET", "/api/v1/auth/google", nil)
+		r.Header.Set("X-Forwarded-Prefix", "/api/identity/")
+
+		assert.Equal(t, "/api/identity/api/v1/auth", cookiePathFor(r))
+	})
+
+	t.Run("a malformed prefix is ignored rather than built on", func(t *testing.T) {
+		// The header is client-controllable when the gateway does not overwrite
+		// it. It can only ever mis-scope a short-lived HttpOnly cookie for the
+		// client that sent it, but a value carrying a newline has no business
+		// reaching a Set-Cookie header.
+		for _, bad := range []string{"api/identity", "https://evil.example", "/x\r\nSet-Cookie: a=b"} {
+			r := httptest.NewRequest("GET", "/api/v1/auth/google", nil)
+			r.Header.Set("X-Forwarded-Prefix", bad)
+			assert.Equal(t, cookiePath, cookiePathFor(r), "should have ignored %q", bad)
+		}
+	})
 }
