@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, inject, resource, signal } from '@angular/core';
-import { TitleCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
@@ -7,11 +6,12 @@ import { ApiError } from '../../core/api/api-error';
 import { AuthFacade } from '../../core/auth/auth-facade';
 import { AuthRepository } from '../../core/auth/auth-repository';
 import { Captcha } from '../../shared/forms/captcha';
+import { ProviderButtons } from '../../shared/forms/provider-buttons';
 
 @Component({
   selector: 'app-login',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, TitleCasePipe, Captcha],
+  imports: [FormsModule, RouterLink, Captcha, ProviderButtons],
   template: `
     <main class="page auth">
       <h1>Sign in</h1>
@@ -39,6 +39,14 @@ import { Captcha } from '../../shared/forms/captcha';
         @if (error()) {
           <p class="error" role="alert">{{ error() }}</p>
         }
+        @if (needsVerification()) {
+          <!--
+            A refusal for an unconfirmed address is the one login failure with
+            a specific remedy, and it is not on this page — so it links to the
+            page that can send a new link rather than leaving a dead end.
+          -->
+          <p class="alt"><a routerLink="/verify-email">Send me a new confirmation link</a></p>
+        }
 
         <app-captcha
           [provider]="config.value()?.captcha?.provider ?? ''"
@@ -56,16 +64,7 @@ import { Captcha } from '../../shared/forms/captcha';
         Google button that 404s because no credentials are set is worse than
         rendering none.
       -->
-      @if (providers.value()?.length) {
-        <div class="providers">
-          <span class="divider">or</span>
-          @for (provider of providers.value()!; track provider) {
-            <a class="provider" [href]="startUrl(provider)">
-              Continue with {{ provider | titlecase }}
-            </a>
-          }
-        </div>
-      }
+      <app-provider-buttons />
 
       <p class="alt">No account? <a routerLink="/register">Create one</a></p>
     </main>
@@ -119,29 +118,8 @@ import { Captcha } from '../../shared/forms/captcha';
       margin-top: var(--space-4);
       font-size: var(--text-sm);
     }
-    .providers {
-      margin-top: var(--space-6);
-      display: grid;
-      gap: var(--space-3);
-    }
-    .divider {
-      text-align: center;
-      color: var(--muted);
-      font-size: var(--text-sm);
-    }
-    .provider {
-      display: block;
-      text-align: center;
-      padding: var(--space-3);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      text-decoration: none;
-      color: var(--ink);
-    }
-    .provider:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
+    /* The provider button styles moved with the markup into
+       ProviderButtons; leaving them here would style nothing. */
     .alt {
       margin-top: var(--space-6);
       font-size: var(--text-sm);
@@ -162,10 +140,6 @@ export class Login {
   /** Set when the API refuses because the address is unconfirmed. */
   protected readonly needsVerification = signal(false);
 
-  protected readonly providers = resource({
-    loader: () => this.auth.providers(),
-  });
-
   /**
    * Whether a challenge is required, and which widget renders it.
    *
@@ -175,16 +149,6 @@ export class Login {
   protected readonly config = resource({
     loader: () => this.auth.authConfig(),
   });
-
-  /**
-   * A full-page navigation, deliberately — not an XHR.
-   *
-   * The provider responds with a redirect to its consent screen, which the
-   * user has to see and interact with. A fetch cannot follow that.
-   */
-  protected startUrl(provider: string): string {
-    return this.auth.providerStartUrl(provider);
-  }
 
   protected async submit(): Promise<void> {
     if (this.busy()) return;
@@ -196,6 +160,7 @@ export class Login {
       await this.facade.login({
         identifier: this.identifier(),
         password: this.password(),
+        captcha_token: this.captchaToken() || undefined,
       });
 
       const returnTo = new URLSearchParams(location.search).get('returnTo');

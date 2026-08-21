@@ -13,6 +13,7 @@ import { ApiError } from '../../core/api/api-error';
 import { AuthFacade } from '../../core/auth/auth-facade';
 import { AuthRepository } from '../../core/auth/auth-repository';
 import { Captcha } from '../../shared/forms/captcha';
+import { ProviderButtons } from '../../shared/forms/provider-buttons';
 
 /** Mirrors the server's minimum so the failure is immediate, not a round trip. */
 const MIN_PASSWORD_LENGTH = 8;
@@ -20,7 +21,7 @@ const MIN_PASSWORD_LENGTH = 8;
 @Component({
   selector: 'app-register',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, Captcha],
+  imports: [FormsModule, RouterLink, Captcha, ProviderButtons],
   template: `
     <main class="page auth">
       <h1>Create an account</h1>
@@ -95,6 +96,8 @@ const MIN_PASSWORD_LENGTH = 8;
             {{ busy() ? 'Creating…' : 'Create account' }}
           </button>
         </form>
+
+        <app-provider-buttons />
 
         <p class="alt">Already have one? <a routerLink="/login">Sign in</a></p>
       }
