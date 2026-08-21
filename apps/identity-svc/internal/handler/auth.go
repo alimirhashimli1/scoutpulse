@@ -2,17 +2,21 @@ package handler
 
 import (
 	"crypto/rand"
-	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/scoutpulse/identity-svc/internal/captcha"
+	"github.com/scoutpulse/identity-svc/internal/mailer"
 	"github.com/scoutpulse/identity-svc/internal/model"
 	"github.com/scoutpulse/identity-svc/internal/repository"
+	"github.com/scoutpulse/identity-svc/internal/validate"
 	"github.com/scoutpulse/libs/auth"
 	"github.com/scoutpulse/libs/platform/apperr"
 	"github.com/scoutpulse/libs/platform/events"
 	"github.com/scoutpulse/libs/platform/httpx"
+	"github.com/scoutpulse/libs/platform/server"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -52,6 +56,19 @@ type Handler struct {
 	// credentials configured, the password endpoints work exactly as before
 	// and the provider routes report that none is enabled.
 	OAuth OAuthDeps
+	// Verification issues and redeems the email-confirmation links. Optional:
+	// nil disables the whole flow and accounts are usable immediately.
+	Verification repository.EmailVerificationRepository
+	// Mailer delivers those links. Optional for the same reason.
+	Mailer mailer.Mailer
+	// Captcha guards the endpoints an automated client would abuse. Optional:
+	// an unconfigured verifier accepts everything.
+	Captcha captcha.Verifier
+	// CaptchaSite is the public site key, echoed to the frontend so it knows
+	// which widget to render. The secret never leaves this service.
+	CaptchaSite string
+	CaptchaKind string
+	Log         *slog.Logger
 }
 
 // publishUserDeleted tells the rest of the platform an account is gone.
@@ -95,11 +112,15 @@ type RegisterRequest struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	// Captcha is the widget token. Optional in the payload; whether it is
+	// required is decided by the server, never by the client.
+	Captcha string `json:"captcha_token"`
 }
 
 type LoginRequest struct {
 	Identifier string `json:"identifier"` // email or username
 	Password   string `json:"password"`
+	Captcha    string `json:"captcha_token"`
 }
 
 type RefreshRequest struct {
@@ -133,13 +154,28 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Username == "" || req.Email == "" {
-		httpx.WriteError(w, r, apperr.Invalid("username and email are required"))
+	// Before anything expensive: bcrypt is deliberately slow, so hashing a
+	// password for a request that a challenge would reject anyway is exactly
+	// the work an automated sign-up flood wants us to do.
+	if h.Captcha != nil {
+		if err := h.Captcha.Verify(r.Context(), req.Captcha, server.ClientIP(r)); err != nil {
+			httpx.WriteError(w, r, err)
+			return
+		}
+	}
+
+	username, err := validate.Username(req.Username)
+	if err != nil {
+		httpx.WriteError(w, r, err)
 		return
 	}
-	if len(req.Password) < minPasswordLength {
-		httpx.WriteError(w, r, apperr.Invalid(
-			fmt.Sprintf("password must be at least %d characters", minPasswordLength)))
+	email, err := validate.Email(req.Email)
+	if err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+	if err := validate.Password(req.Password); err != nil {
+		httpx.WriteError(w, r, err)
 		return
 	}
 
@@ -151,11 +187,15 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	user := model.User{
 		ID:           uuid.New().String(),
-		Username:     req.Username,
-		Email:        req.Email,
+		Username:     username,
+		Email:        email,
 		PasswordHash: string(hashedPassword),
 		// Self-registration never grants elevated privileges.
 		Role: model.UserRole,
+		// Unverified unless the flow is switched off entirely, in which case
+		// there is no way to ever become verified and gating login would lock
+		// everyone out.
+		EmailVerified: h.Verification == nil,
 	}
 
 	if err := h.UserRepo.Create(r.Context(), &user); err != nil {
@@ -163,7 +203,26 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpx.WriteJSON(w, http.StatusCreated, user)
+	// Delivery failure is not registration failure. The account exists by this
+	// point, and a resend can fix a mail server that was briefly unreachable —
+	// whereas returning an error here would leave the caller believing nothing
+	// was created while their username is taken.
+	if err := h.sendVerificationEmail(r, user.ID, user.Email); err != nil {
+		h.logVerificationFailure(user.ID, err)
+	}
+
+	httpx.WriteJSON(w, http.StatusCreated, map[string]any{
+		"user":                  user,
+		"verification_required": !user.EmailVerified,
+		"message":               registrationMessage(user.EmailVerified),
+	})
+}
+
+func registrationMessage(verified bool) string {
+	if verified {
+		return "Account created. You can sign in now."
+	}
+	return "Account created. Check your email for a link to confirm the address before signing in."
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
@@ -171,6 +230,14 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	if err := httpx.DecodeJSON(w, r, &req); err != nil {
 		httpx.WriteError(w, r, err)
 		return
+	}
+
+	// Ahead of the bcrypt work below, for the same reason as registration.
+	if h.Captcha != nil {
+		if err := h.Captcha.Verify(r.Context(), req.Captcha, server.ClientIP(r)); err != nil {
+			httpx.WriteError(w, r, err)
+			return
+		}
 	}
 
 	// An unknown identifier and a wrong password return the same response and
@@ -191,6 +258,19 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		httpx.WriteError(w, r, apperr.Unauthorized("invalid credentials"))
+		return
+	}
+
+	// Checked only after the password matches, and never before. Reporting
+	// "unverified" to someone who has not proved they own the account would
+	// disclose both that the address is registered and that it is unconfirmed
+	// — the enumeration channel the two branches above exist to close.
+	//
+	// Accounts with no password hash sign in through a provider and have
+	// nothing of ours to confirm, so they are exempt.
+	if !user.EmailVerified && user.PasswordHash != "" {
+		httpx.WriteError(w, r, apperr.Forbidden(
+			"confirm your email address before signing in. Check your inbox, or request a new link."))
 		return
 	}
 

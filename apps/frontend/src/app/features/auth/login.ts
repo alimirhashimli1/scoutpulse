@@ -6,11 +6,12 @@ import { Router, RouterLink } from '@angular/router';
 import { ApiError } from '../../core/api/api-error';
 import { AuthFacade } from '../../core/auth/auth-facade';
 import { AuthRepository } from '../../core/auth/auth-repository';
+import { Captcha } from '../../shared/forms/captcha';
 
 @Component({
   selector: 'app-login',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, TitleCasePipe],
+  imports: [FormsModule, RouterLink, TitleCasePipe, Captcha],
   template: `
     <main class="page auth">
       <h1>Sign in</h1>
@@ -38,6 +39,12 @@ import { AuthRepository } from '../../core/auth/auth-repository';
         @if (error()) {
           <p class="error" role="alert">{{ error() }}</p>
         }
+
+        <app-captcha
+          [provider]="config.value()?.captcha?.provider ?? ''"
+          [siteKey]="config.value()?.captcha?.site_key ?? ''"
+          [(token)]="captchaToken"
+        />
 
         <button type="submit" [disabled]="busy()">
           {{ busy() ? 'Signing in…' : 'Sign in' }}
@@ -149,11 +156,24 @@ export class Login {
 
   protected readonly identifier = signal('');
   protected readonly password = signal('');
+  protected readonly captchaToken = signal('');
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
+  /** Set when the API refuses because the address is unconfirmed. */
+  protected readonly needsVerification = signal(false);
 
   protected readonly providers = resource({
     loader: () => this.auth.providers(),
+  });
+
+  /**
+   * Whether a challenge is required, and which widget renders it.
+   *
+   * Asked of the server rather than decided here: a client that simply did not
+   * render the widget would otherwise opt itself out of the check.
+   */
+  protected readonly config = resource({
+    loader: () => this.auth.authConfig(),
   });
 
   /**
@@ -188,6 +208,11 @@ export class Login {
       this.error.set(
         error instanceof ApiError ? error.message : 'Could not sign in. Please try again.',
       );
+      // A forbidden response here means the address is unconfirmed, and the
+      // remedy is a link this page cannot send — so it points at the page that
+      // can rather than leaving the message as a dead end.
+      this.needsVerification.set(error instanceof ApiError && error.code === 'forbidden');
+      this.captchaToken.set('');
     } finally {
       this.busy.set(false);
     }

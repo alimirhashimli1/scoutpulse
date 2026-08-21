@@ -130,6 +130,20 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - FACEBOOK_CLIENT_ID=${FACEBOOK_CLIENT_ID:-}
       - FACEBOOK_CLIENT_SECRET=${FACEBOOK_CLIENT_SECRET:-}
+      # Verification email delivery. With no SMTP_HOST the link is written to
+      # this service's log instead of sent, which is what makes the flow
+      # testable without a mail account.
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-no-reply@scoutpulse.local}
+      # Human challenge. Absent secret means the check is skipped, the same
+      # way absent provider credentials mean no external sign-in.
+      - CAPTCHA_PROVIDER=${CAPTCHA_PROVIDER:-}
+      - CAPTCHA_SITE_KEY=${CAPTCHA_SITE_KEY:-}
+      - CAPTCHA_SECRET=${CAPTCHA_SECRET:-}
+      - CAPTCHA_MIN_SCORE=${CAPTCHA_MIN_SCORE:-}
     depends_on:
       postgres: {condition: service_healthy}
       migrate-identity: {condition: service_completed_successfully}

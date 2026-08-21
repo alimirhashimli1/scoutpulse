@@ -30,9 +30,21 @@ export class AuthFacade {
    * does not sign you in as a side effect of creating an account. Doing it
    * here keeps the two-step nature out of the page.
    */
-  async register(details: RegisterRequest): Promise<void> {
-    await this.auth.register(details);
+  /**
+   * Creates the account, and signs in only when it is usable immediately.
+   *
+   * With verification enabled the new account cannot log in yet — the API
+   * refuses it until the address is confirmed — so attempting it here would
+   * turn a successful registration into an error message.
+   *
+   * Returns whether a confirmation step is outstanding, so the page can say so.
+   */
+  async register(details: RegisterRequest): Promise<boolean> {
+    const result = await this.auth.register(details);
+    if (result.verification_required) return true;
+
     await this.login({ identifier: details.username, password: details.password });
+    return false;
   }
 
   /** Completes a provider sign-in from the one-time code in the callback URL. */

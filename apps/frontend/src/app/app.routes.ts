@@ -187,6 +187,11 @@ export const routes: Routes = [
     title: 'Create an account · ScoutPulse',
   },
   {
+    path: 'verify-email',
+    loadComponent: () => import('./features/auth/verify-email').then((m) => m.VerifyEmail),
+    title: 'Confirm your address · ScoutPulse',
+  },
+  {
     path: 'auth/callback',
     loadComponent: () => import('./features/auth/oauth-callback').then((m) => m.OAuthCallback),
     title: 'Signing in · ScoutPulse',

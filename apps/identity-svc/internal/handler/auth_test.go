@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -77,6 +78,10 @@ func (m *MockUserRepository) List(ctx context.Context, query string, limit, offs
 }
 
 func (m *MockUserRepository) Delete(ctx context.Context, userID string) error {
+	return m.Called(ctx, userID).Error(0)
+}
+
+func (m *MockUserRepository) MarkEmailVerified(ctx context.Context, userID string) error {
 	return m.Called(ctx, userID).Error(0)
 }
 
@@ -182,6 +187,10 @@ func testUser(t *testing.T, password string, role model.Role) *model.User {
 		Email:        "test@example.com",
 		PasswordHash: string(hash),
 		Role:         role,
+		// Verified by default. The unverified case is exercised deliberately
+		// in TestLoginRefusesUnverifiedAddress rather than by every other test
+		// failing at the login step.
+		EmailVerified: true,
 	}
 }
 
@@ -428,7 +437,7 @@ func TestUpdateRole(t *testing.T) {
 		// The handler reads the current role first, so the emitted event can
 		// carry the transition rather than only its destination.
 		repo.On("GetByID", mock.Anything, "user-2").
-			Return(&model.User{ID: "user-2", Username: "u2", Role: model.UserRole}, nil).Once()
+			Return(&model.User{ID: "user-2", Username: "u2", Role: model.UserRole, EmailVerified: true}, nil).Once()
 		repo.On("UpdateRole", mock.Anything, "user-2", model.EditorRole, "admin-1").Return(nil).Once()
 
 		body, _ := json.Marshal(UpdateRoleRequest{Role: model.EditorRole})
@@ -480,4 +489,83 @@ func TestUpdateRole(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
 		repo.AssertNotCalled(t, "UpdateRole", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
+}
+
+// TestLoginRefusesUnverifiedAddress covers the gate that makes email
+// verification mean anything. Without it the link is decorative: the account
+// works whether or not anyone ever opens it.
+func TestLoginRefusesUnverifiedAddress(t *testing.T) {
+	const password = "password123"
+
+	t.Run("an unverified password account cannot sign in", func(t *testing.T) {
+		user := testUser(t, password, model.UserRole)
+		user.EmailVerified = false
+
+		repo := new(MockUserRepository)
+		h := &Handler{UserRepo: repo, RefreshRepo: newFakeRefreshRepo()}
+		repo.On("GetByIdentifier", mock.Anything, user.Email).Return(user, nil)
+
+		rr := postJSON(t, h.Login, "/api/v1/auth/login",
+			LoginRequest{Identifier: user.Email, Password: password})
+
+		assert.Equal(t, http.StatusForbidden, rr.Code)
+		assert.Contains(t, rr.Body.String(), "confirm your email")
+	})
+
+	t.Run("the wrong password on an unverified account still says invalid credentials", func(t *testing.T) {
+		// The order matters. Reporting "unverified" before checking the
+		// password would tell anyone who asked that the address is registered
+		// and unconfirmed -- the enumeration channel the identical
+		// unknown-user and wrong-password responses exist to close.
+		user := testUser(t, password, model.UserRole)
+		user.EmailVerified = false
+
+		repo := new(MockUserRepository)
+		h := &Handler{UserRepo: repo, RefreshRepo: newFakeRefreshRepo()}
+		repo.On("GetByIdentifier", mock.Anything, user.Email).Return(user, nil)
+
+		rr := postJSON(t, h.Login, "/api/v1/auth/login",
+			LoginRequest{Identifier: user.Email, Password: "not-the-password"})
+
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		assert.NotContains(t, rr.Body.String(), "confirm your email")
+	})
+
+	t.Run("a verified account signs in normally", func(t *testing.T) {
+		user := testUser(t, password, model.UserRole)
+
+		repo := new(MockUserRepository)
+		h := &Handler{UserRepo: repo, RefreshRepo: newFakeRefreshRepo()}
+		repo.On("GetByIdentifier", mock.Anything, user.Email).Return(user, nil)
+
+		rr := postJSON(t, h.Login, "/api/v1/auth/login",
+			LoginRequest{Identifier: user.Email, Password: password})
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+}
+
+// TestRegisterValidatesInput pins the checks that replaced "is it empty".
+func TestRegisterValidatesInput(t *testing.T) {
+	cases := map[string]RegisterRequest{
+		"malformed email": {Username: "scout1", Email: "not-an-address", Password: "password123"},
+		"short password":  {Username: "scout1", Email: "a@example.com", Password: "short"},
+		"short username":  {Username: "ab", Email: "a@example.com", Password: "password123"},
+		"markup username": {Username: "<b>x</b>", Email: "a@example.com", Password: "password123"},
+		"overlong secret": {Username: "scout1", Email: "a@example.com", Password: strings.Repeat("a", 73)},
+	}
+
+	for name, req := range cases {
+		t.Run(name, func(t *testing.T) {
+			repo := new(MockUserRepository)
+			h := &Handler{UserRepo: repo, RefreshRepo: newFakeRefreshRepo()}
+
+			rr := postJSON(t, h.Register, "/api/v1/auth/register", req)
+
+			assert.Equal(t, http.StatusBadRequest, rr.Code)
+			// Nothing reached the database: rejecting after the write would
+			// leave a half-made account behind.
+			repo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+		})
+	}
 }

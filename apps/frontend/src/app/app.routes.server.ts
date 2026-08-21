@@ -72,6 +72,7 @@ export const serverRoutes: ServerRoute[] = [
   { path: 'login', renderMode: RenderMode.Client },
   { path: 'register', renderMode: RenderMode.Client },
   { path: 'auth/callback', renderMode: RenderMode.Client },
+  { path: 'verify-email', renderMode: RenderMode.Client },
   { path: 'account', renderMode: RenderMode.Client },
   { path: 'admin/users', renderMode: RenderMode.Client },
   { path: 'admin/clubs/:id/editors', renderMode: RenderMode.Client },

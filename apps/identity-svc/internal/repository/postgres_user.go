@@ -23,6 +23,9 @@ type UserRepository interface {
 	// username or email. Administrative: there is no way to see accounts
 	// otherwise.
 	List(ctx context.Context, query string, limit, offset int) ([]model.User, error)
+	// MarkEmailVerified records that the address was proven. Idempotent: a
+	// second click on a link that already worked is not an error.
+	MarkEmailVerified(ctx context.Context, userID string) error
 	// Delete removes an account. Its sessions go with it through
 	// ON DELETE CASCADE on refresh_tokens.
 	Delete(ctx context.Context, userID string) error
@@ -39,13 +42,13 @@ func NewPostgresUserRepository(db *sqlx.DB) *PostgresUserRepository {
 // password_hash is nullable since migration 000003: an account created through
 // a provider has none. COALESCE keeps the Go field a plain string, where empty
 // means "no password set" — which is what the password-change path checks for.
-const userColumns = `id, username, email, COALESCE(password_hash, '') AS password_hash, role, created_at`
+const userColumns = `id, username, email, COALESCE(password_hash, '') AS password_hash, role, email_verified, created_at`
 
 func (r *PostgresUserRepository) Create(ctx context.Context, user *model.User) error {
-	query := `INSERT INTO users (id, username, email, password_hash, role)
-	          VALUES ($1, $2, $3, $4, $5) RETURNING created_at`
+	query := `INSERT INTO users (id, username, email, password_hash, role, email_verified)
+	          VALUES ($1, $2, $3, $4, $5, $6) RETURNING created_at`
 	err := r.db.QueryRowContext(ctx, query,
-		user.ID, user.Username, user.Email, user.PasswordHash, user.Role).
+		user.ID, user.Username, user.Email, user.PasswordHash, user.Role, user.EmailVerified).
 		Scan(&user.CreatedAt)
 	return translateUserErr(err)
 }
@@ -171,4 +174,13 @@ func translateUserErr(err error) error {
 		}
 	}
 	return apperr.Internal(err)
+}
+
+func (r *PostgresUserRepository) MarkEmailVerified(ctx context.Context, userID string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET email_verified = TRUE, updated_at = NOW() WHERE id = $1`, userID)
+	if err != nil {
+		return apperr.Wrap(apperr.KindInternal, "could not record the verification", err)
+	}
+	return nil
 }

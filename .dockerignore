@@ -1,0 +1,50 @@
+# What NOT to send to the Docker daemon as build context.
+#
+# This file was missing, and its absence was not a tidiness problem. Docker
+# packages the entire directory tree before a Dockerfile runs its first
+# instruction, and with the repository on a Windows drive reached through WSL's
+# /mnt/c mount, that transfer runs at roughly 20 KB/s. With
+# apps/frontend/node_modules at ~282 MB, `docker compose build` needed hours
+# and appeared to hang -- the progress line reads "transferring context" and
+# gives no hint that it is copying a dependency tree the image never uses.
+#
+# Nothing here is needed by any image: the frontend Dockerfile runs its own
+# `npm ci`, and the Go images build from source.
+
+# Dependencies — reinstalled inside the image from the lockfile.
+node_modules/
+**/node_modules/
+
+# Build output — produced inside the image.
+dist/
+**/dist/
+.angular/
+**/.angular/
+
+# Version control and local scratch.
+.git/
+.gitignore
+.tmp/
+*.log
+
+# Editor and OS noise.
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Secrets. These arrive as environment variables at run time; baking them into
+# an image layer would publish them with the image.
+.env
+*.env.local
+
+# Test and coverage artefacts.
+coverage/
+**/coverage/
+*.out
+
+# Documentation and API scratch files change constantly and invalidate the
+# build cache for no reason.
+docs/
+*.md
+api.http
