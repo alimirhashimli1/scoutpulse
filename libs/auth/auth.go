@@ -60,6 +60,14 @@ var (
 type Claims struct {
 	UserID string `json:"user_id"`
 	Role   string `json:"role"`
+	// Username is carried so a consuming service can attribute something to a
+	// person without calling back to identity-svc on every write. It is display
+	// data, never an authorization input -- UserID and Role are the only fields
+	// any decision is made on.
+	//
+	// Tokens minted before this field existed simply omit it, so a consumer must
+	// tolerate it being empty rather than assuming every token carries one.
+	Username string `json:"username,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -68,7 +76,7 @@ type contextKey string
 const ClaimsContextKey contextKey = "claims"
 
 // GenerateToken mints a short-lived access token.
-func GenerateToken(userID, role string) (string, error) {
+func GenerateToken(userID, username, role string) (string, error) {
 	keysMu.RLock()
 	key, kid := signingKey, signingKeyID
 	keysMu.RUnlock()
@@ -84,8 +92,9 @@ func GenerateToken(userID, role string) (string, error) {
 	}
 
 	claims := &Claims{
-		UserID: userID,
-		Role:   role,
+		UserID:   userID,
+		Username: username,
+		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        jti,
 			Subject:   userID,

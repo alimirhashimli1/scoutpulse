@@ -341,7 +341,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	// The role is re-read from the database on every refresh, so a role
 	// change takes effect within one access-token lifetime rather than
 	// persisting until the user happens to log in again.
-	accessToken, err := auth.GenerateToken(user.ID, string(user.Role))
+	accessToken, err := auth.GenerateToken(user.ID, user.Username, string(user.Role))
 	if err != nil {
 		httpx.WriteError(w, r, apperr.Wrap(apperr.KindInternal, "failed to issue token", err))
 		return
@@ -446,7 +446,7 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 
 // issueTokens mints an access/refresh pair and records the session.
 func (h *Handler) issueTokens(r *http.Request, user *model.User) (TokenResponse, error) {
-	accessToken, err := auth.GenerateToken(user.ID, string(user.Role))
+	accessToken, err := auth.GenerateToken(user.ID, user.Username, string(user.Role))
 	if err != nil {
 		return TokenResponse{}, apperr.Wrap(apperr.KindInternal, "failed to issue token", err)
 	}

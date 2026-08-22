@@ -19,6 +19,7 @@ type Handlers struct {
 	Player      *PlayerHandler
 	Transfer    *TransferHandler
 	MarketValue *MarketValueHandler
+	PlayerNote  *PlayerNoteHandler
 	Season      *SeasonHandler
 	CoachSpell  *CoachSpellHandler
 	TeamEditor  *TeamEditorHandler
@@ -101,6 +102,16 @@ func RegisterRoutes(mux *http.ServeMux, h Handlers) {
 	protect(mux, "DELETE /api/v1/players/{id}", h.Player.DeletePlayer)
 	protect(mux, "POST /api/v1/players/{id}/market-values", h.MarketValue.RecordValue)
 	protect(mux, "DELETE /api/v1/players/{id}/market-values/{valueID}", h.MarketValue.DeleteValue)
+
+	// Member notes. Reading is public -- the commentary is the product. Writing
+	// needs only a signed-in account, unlike every other write in this service:
+	// the point is a range of opinions, and one-note-per-person is what keeps
+	// that from becoming a free-for-all.
+	mux.HandleFunc("GET /api/v1/players/{id}/notes", h.PlayerNote.ListNotes)
+	protect(mux, "GET /api/v1/players/{id}/notes/mine", h.PlayerNote.MyNote)
+	protect(mux, "POST /api/v1/players/{id}/notes", h.PlayerNote.WriteNote)
+	protect(mux, "PUT /api/v1/players/{id}/notes/{noteID}", h.PlayerNote.EditNote)
+	protect(mux, "DELETE /api/v1/players/{id}/notes/{noteID}", h.PlayerNote.DeleteNote)
 
 	// --- transfers ---
 	// The transfer feed: the central read of a Transfermarkt-style product.

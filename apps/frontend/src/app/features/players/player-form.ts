@@ -158,12 +158,19 @@ const POSITIONS = [
                 <input id="dob" name="dob" type="date" [max]="today" [(ngModel)]="dateOfBirth" />
               </app-field>
 
-              <app-field for="nationality" label="Nationality" [optional]="true">
-                <input id="nationality" name="nationality" [(ngModel)]="nationality" />
-              </app-field>
-
-              <app-field for="second" label="Second nationality" [optional]="true">
-                <input id="second" name="second" [(ngModel)]="secondNationality" />
+              <app-field
+                for="nationalities"
+                label="Nationality"
+                hint="Comma separated. The first is the primary one. Up to three."
+                [optional]="true"
+                [error]="fieldError('nationalities')"
+              >
+                <input
+                  id="nationalities"
+                  name="nationalities"
+                  autocomplete="off"
+                  [(ngModel)]="nationalities"
+                />
               </app-field>
 
               <app-field
@@ -227,6 +234,141 @@ const POSITIONS = [
                 [error]="fieldError('contract_until')"
               >
                 <input id="cuntil" name="cuntil" type="date" [(ngModel)]="contractUntil" />
+              </app-field>
+
+              <app-field
+                for="secondary"
+                label="Other positions"
+                hint="Comma separated. Do not repeat the main position."
+                [optional]="true"
+                [error]="fieldError('secondary_positions')"
+              >
+                <input
+                  id="secondary"
+                  name="secondary"
+                  autocomplete="off"
+                  [(ngModel)]="secondaryPositions"
+                />
+              </app-field>
+            </section>
+          </details>
+
+          <details>
+            <summary>Match percentages</summary>
+            <!--
+              Entered by hand. There is no match data in this system, so these
+              are a scout's recorded averages rather than anything computed —
+              and leaving one blank means "not recorded", which the profile
+              shows differently from 0.
+            -->
+            <section class="grid">
+              <app-field
+                for="duels"
+                label="Duels won %"
+                [optional]="true"
+                [error]="fieldError('duels_won_pct')"
+              >
+                <input
+                  id="duels"
+                  name="duels"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  [(ngModel)]="duelsWonPct"
+                />
+              </app-field>
+
+              <app-field
+                for="passes"
+                label="Passes completed %"
+                [optional]="true"
+                [error]="fieldError('pass_completion_pct')"
+              >
+                <input
+                  id="passes"
+                  name="passes"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  [(ngModel)]="passCompletionPct"
+                />
+              </app-field>
+
+              <app-field
+                for="shots"
+                label="Shots on target %"
+                [optional]="true"
+                [error]="fieldError('shots_on_target_pct')"
+              >
+                <input
+                  id="shots"
+                  name="shots"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  [(ngModel)]="shotsOnTargetPct"
+                />
+              </app-field>
+
+              <app-field
+                for="headers"
+                label="Headers won %"
+                [optional]="true"
+                [error]="fieldError('aerial_duels_won_pct')"
+              >
+                <input
+                  id="headers"
+                  name="headers"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  [(ngModel)]="aerialDuelsWonPct"
+                />
+              </app-field>
+            </section>
+          </details>
+
+          <details>
+            <summary>Assessment</summary>
+            <section class="stack">
+              <app-field
+                for="strengths"
+                label="Top strengths"
+                [hint]="
+                  'One per line. Up to ' +
+                  maxItems +
+                  ', each at most ' +
+                  maxItemLength +
+                  ' characters.'
+                "
+                [optional]="true"
+                [error]="fieldError('strengths')"
+              >
+                <textarea
+                  id="strengths"
+                  name="strengths"
+                  rows="5"
+                  [(ngModel)]="strengths"
+                ></textarea>
+              </app-field>
+
+              <app-field
+                for="weaknesses"
+                label="Top weaknesses"
+                hint="One per line."
+                [optional]="true"
+                [error]="fieldError('weaknesses')"
+              >
+                <textarea
+                  id="weaknesses"
+                  name="weaknesses"
+                  rows="5"
+                  [(ngModel)]="weaknesses"
+                ></textarea>
               </app-field>
             </section>
           </details>
@@ -312,6 +454,9 @@ export class PlayerForm {
 
   protected readonly positions = POSITIONS;
   protected readonly today = toDateInput(new Date().toISOString());
+  /** Mirrors the server's bounds, so the hint states the real limit. */
+  protected readonly maxItems = MAX_ASSESSMENT_ITEMS;
+  protected readonly maxItemLength = MAX_ASSESSMENT_ITEM_LENGTH;
 
   protected readonly name = signal('');
   protected readonly position = signal('');
@@ -320,8 +465,17 @@ export class PlayerForm {
   protected readonly firstName = signal('');
   protected readonly lastName = signal('');
   protected readonly dateOfBirth = signal('');
-  protected readonly nationality = signal('');
-  protected readonly secondNationality = signal('');
+  // Held as text and split on save: a comma-separated field is far less
+  // friction than a repeater with add and remove buttons for what is usually
+  // one value and occasionally two.
+  protected readonly nationalities = signal('');
+  protected readonly secondaryPositions = signal('');
+  protected readonly strengths = signal('');
+  protected readonly weaknesses = signal('');
+  protected readonly duelsWonPct = signal<number | null>(null);
+  protected readonly passCompletionPct = signal<number | null>(null);
+  protected readonly shotsOnTargetPct = signal<number | null>(null);
+  protected readonly aerialDuelsWonPct = signal<number | null>(null);
   protected readonly heightCm = signal<number | null>(null);
   protected readonly preferredFoot = signal('');
   protected readonly agent = signal('');
@@ -461,8 +615,14 @@ export class PlayerForm {
       first_name: blankToUndefined(this.firstName()),
       last_name: blankToUndefined(this.lastName()),
       date_of_birth: toApiDate(this.dateOfBirth()),
-      nationality: blankToUndefined(this.nationality()),
-      second_nationality: blankToUndefined(this.secondNationality()),
+      nationalities: splitList(this.nationalities()),
+      secondary_positions: splitList(this.secondaryPositions()),
+      strengths: splitLines(this.strengths()),
+      weaknesses: splitLines(this.weaknesses()),
+      duels_won_pct: this.duelsWonPct() ?? undefined,
+      pass_completion_pct: this.passCompletionPct() ?? undefined,
+      shots_on_target_pct: this.shotsOnTargetPct() ?? undefined,
+      aerial_duels_won_pct: this.aerialDuelsWonPct() ?? undefined,
       height_cm: this.heightCm() ?? undefined,
       preferred_foot: blankToUndefined(this.preferredFoot()) as Player['preferred_foot'],
       agent: blankToUndefined(this.agent()),
@@ -488,8 +648,14 @@ export class PlayerForm {
     this.firstName.set(player.first_name ?? '');
     this.lastName.set(player.last_name ?? '');
     this.dateOfBirth.set(toDateInput(player.date_of_birth));
-    this.nationality.set(player.nationality ?? '');
-    this.secondNationality.set(player.second_nationality ?? '');
+    this.nationalities.set(player.nationalities.join(', '));
+    this.secondaryPositions.set(player.secondary_positions.join(', '));
+    this.strengths.set(player.strengths.join('\n'));
+    this.weaknesses.set(player.weaknesses.join('\n'));
+    this.duelsWonPct.set(player.duels_won_pct ?? null);
+    this.passCompletionPct.set(player.pass_completion_pct ?? null);
+    this.shotsOnTargetPct.set(player.shots_on_target_pct ?? null);
+    this.aerialDuelsWonPct.set(player.aerial_duels_won_pct ?? null);
     this.heightCm.set(player.height_cm ?? null);
     this.preferredFoot.set(player.preferred_foot ?? '');
     this.agent.set(player.agent ?? '');
@@ -503,4 +669,31 @@ export class PlayerForm {
 function blankToUndefined(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed === '' ? undefined : trimmed;
+}
+
+/** Mirrors the server's caps so the form can say the limit before a round trip. */
+const MAX_ASSESSMENT_ITEMS = 12;
+const MAX_ASSESSMENT_ITEM_LENGTH = 200;
+const MAX_NATIONALITIES = 3;
+const MAX_SECONDARY_POSITIONS = 6;
+
+/**
+ * "Norway, Sweden" → ["Norway", "Sweden"].
+ *
+ * Empty entries are dropped rather than sent: a trailing comma is a typing
+ * artefact, and the API would only strip it anyway.
+ */
+function splitList(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item !== '');
+}
+
+/** One item per line, for the assessment boxes where entries are sentences. */
+function splitLines(raw: string): string[] {
+  return raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
 }

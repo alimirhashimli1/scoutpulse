@@ -109,7 +109,7 @@ import { Empty, ErrorState, Loading } from '../../shared/ui/states';
                         <a [routerLink]="['/players', p.id]">{{ p.name }}</a>
                       </td>
                       <td>{{ p.position }}</td>
-                      <td class="muted">{{ p.nationality ?? '—' }}</td>
+                      <td class="muted">{{ p.nationalities[0] ?? '—' }}</td>
                       <td class="right tabular">
                         {{ p.market_value_minor | money: { currency: p.currency, compact: true } }}
                       </td>

@@ -20,6 +20,13 @@ function player(id: string, name: string): Player {
     team_id: null,
     name,
     position: 'Centre-Forward',
+    // The list fields are non-optional and the API always sends them, so the
+    // stub does too — a test fixture that is not a valid Player would be
+    // testing something the app never sees.
+    nationalities: [],
+    secondary_positions: [],
+    strengths: [],
+    weaknesses: [],
     market_value_minor: 0,
     currency: 'EUR',
     created_at: '2026-01-01T00:00:00Z',

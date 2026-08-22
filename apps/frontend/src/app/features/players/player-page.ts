@@ -14,10 +14,12 @@ import { ApiError } from '../../core/api/api-error';
 import { PLAYER_READER } from '../../core/api/contracts';
 import { LookupStore } from '../../core/api/lookup-store';
 import { Permissions } from '../../core/auth/permissions';
+import { Player } from '../../core/models/football';
 import { Seo } from '../../core/seo/seo';
 import { MoneyPipe } from '../../shared/pipes/money-pipe';
 import { Actions } from '../../shared/ui/actions';
 import { ErrorState, Loading } from '../../shared/ui/states';
+import { PlayerNotes } from './player-notes';
 import { ValueChart } from './value-chart';
 
 /**
@@ -30,7 +32,7 @@ import { ValueChart } from './value-chart';
 @Component({
   selector: 'app-player-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DatePipe, MoneyPipe, ValueChart, Actions, Loading, ErrorState],
+  imports: [RouterLink, DatePipe, MoneyPipe, ValueChart, Actions, PlayerNotes, Loading, ErrorState],
   template: `
     @if (player.isLoading()) {
       <main class="page"><app-loading message="Loading player…" /></main>
@@ -63,10 +65,20 @@ import { ValueChart } from './value-chart';
                 {{ p.market_value_minor | money: { currency: p.currency, compact: true } }}
               </dd>
             </div>
-            @if (p.nationality) {
+            @if (p.nationalities.length) {
               <div>
-                <dt>Nationality</dt>
-                <dd>{{ p.nationality }}</dd>
+                <!--
+                  Plural only when it is: a dual national is a fact worth
+                  showing, and "Nationalities: Norway" reads as a mistake.
+                -->
+                <dt>{{ p.nationalities.length > 1 ? 'Nationalities' : 'Nationality' }}</dt>
+                <dd>{{ p.nationalities.join(' / ') }}</dd>
+              </div>
+            }
+            @if (p.secondary_positions.length) {
+              <div>
+                <dt>Also plays</dt>
+                <dd>{{ p.secondary_positions.join(', ') }}</dd>
               </div>
             }
             @if (p.date_of_birth) {
@@ -118,6 +130,57 @@ import { ValueChart } from './value-chart';
             </app-actions>
           }
         </header>
+
+        @if (percentages(p).length) {
+          <section>
+            <h4>Match percentages</h4>
+            <!--
+              Recorded by a scout, not computed: there is no match data behind
+              these. A metric that was never entered is absent rather than
+              shown as zero — "no data" and "won none of his duels" are very
+              different claims about a player.
+            -->
+            <ul class="metrics">
+              @for (metric of percentages(p); track metric.label) {
+                <li>
+                  <span class="metric-label">{{ metric.label }}</span>
+                  <span class="bar" aria-hidden="true">
+                    <span class="fill" [style.width.%]="metric.value"></span>
+                  </span>
+                  <span class="metric-value tabular">{{ metric.value }}%</span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+
+        @if (p.strengths.length || p.weaknesses.length) {
+          <section>
+            <h4>Assessment</h4>
+            <div class="assessment">
+              @if (p.strengths.length) {
+                <div class="column strengths">
+                  <h5>Strengths</h5>
+                  <ul>
+                    @for (item of p.strengths; track item) {
+                      <li>{{ item }}</li>
+                    }
+                  </ul>
+                </div>
+              }
+              @if (p.weaknesses.length) {
+                <div class="column weaknesses">
+                  <h5>Weaknesses</h5>
+                  <ul>
+                    @for (item of p.weaknesses; track item) {
+                      <li>{{ item }}</li>
+                    }
+                  </ul>
+                </div>
+              }
+            </div>
+          </section>
+        }
 
         <section>
           <h4>Market value</h4>
@@ -171,6 +234,8 @@ import { ValueChart } from './value-chart';
             <p class="muted">No moves recorded.</p>
           }
         </section>
+
+        <app-player-notes [playerId]="p.id" />
       </main>
     }
   `,
@@ -252,6 +317,72 @@ import { ValueChart } from './value-chart';
       font-size: 11px;
       color: var(--ink-soft);
     }
+    .metrics {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: var(--space-3);
+      max-width: 34rem;
+    }
+    .metrics li {
+      display: grid;
+      grid-template-columns: 10rem 1fr 3.5rem;
+      gap: var(--space-3);
+      align-items: center;
+    }
+    .metric-label {
+      font-size: var(--text-sm);
+      color: var(--ink-soft);
+    }
+    .bar {
+      height: 6px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      overflow: hidden;
+    }
+    .fill {
+      display: block;
+      height: 100%;
+      background: var(--accent);
+    }
+    .metric-value {
+      text-align: right;
+      font-size: var(--text-sm);
+    }
+    .assessment {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+      gap: var(--space-5);
+    }
+    .column h5 {
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: var(--space-2);
+    }
+    .column ul {
+      margin: 0;
+      padding-left: var(--space-5);
+    }
+    .column li {
+      margin-bottom: var(--space-2);
+    }
+    .strengths h5 {
+      color: var(--positive);
+    }
+    .weaknesses h5 {
+      color: var(--warning);
+    }
+    (max-width: 34rem) {
+      .metrics li {
+        grid-template-columns: 1fr 3.5rem;
+      }
+      .bar {
+        grid-column: 1 / -1;
+      }
+    }
     .correct {
       font-size: var(--text-xs);
     }
@@ -300,7 +431,7 @@ export class PlayerPage {
       this.seo.describe({
         title: p.name,
         description:
-          `${p.name} — ${p.position}${p.nationality ? `, ${p.nationality}` : ''}. ` +
+          `${p.name} — ${p.position}${p.nationalities.length ? `, ${p.nationalities[0]}` : ''}. ` +
           `Career, transfers and market value history at ${club}.`,
         path: `/players/${p.id}`,
         type: 'profile',
@@ -315,7 +446,8 @@ export class PlayerPage {
         givenName: p.first_name,
         familyName: p.last_name,
         birthDate: p.date_of_birth?.slice(0, 10),
-        nationality: p.nationality,
+        // schema.org takes one value here; the primary nationality is it.
+        nationality: p.nationalities[0],
         jobTitle: p.position,
         memberOf: p.team_id
           ? { '@type': 'SportsTeam', name: this.lookup.teamName(p.team_id, 'Club') }
@@ -336,6 +468,30 @@ export class PlayerPage {
     const error = this.player.error();
     return error instanceof ApiError ? (error.requestId ?? null) : null;
   });
+
+  /**
+   * The recorded percentages, in a fixed order, skipping any not entered.
+   *
+   * A list rather than four bound fields, so the template does not repeat the
+   * same block four times — and an unrecorded metric is simply absent: no
+   * empty row, and never a zero standing in for missing data.
+   */
+  protected percentages(p: Player): { label: string; value: number }[] {
+    const candidates: { label: string; value: number | undefined }[] = [
+      { label: 'Duels won', value: p.duels_won_pct },
+      { label: 'Passes completed', value: p.pass_completion_pct },
+      { label: 'Shots on target', value: p.shots_on_target_pct },
+      { label: 'Headers won', value: p.aerial_duels_won_pct },
+    ];
+
+    return (
+      candidates
+        .filter((m): m is { label: string; value: number } => typeof m.value === 'number')
+        // One decimal at most: 87.4% is a measurement, 87.42857% is arithmetic
+        // leaking into the page.
+        .map((m) => ({ label: m.label, value: Math.round(m.value * 10) / 10 }))
+    );
+  }
 
   protected clubName(id: string | null): string {
     return this.lookup.teamName(id, '—');

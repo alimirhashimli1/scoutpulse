@@ -46,8 +46,11 @@ func NewPostgresPlayerRepository(db *sqlx.DB) PlayerRepository {
 }
 
 const playerColumns = `id, team_id, name, first_name, last_name, date_of_birth,
-	nationality, second_nationality, height_cm, preferred_foot, agent, squad_number,
-	position, contract_start, contract_until, market_value_minor, currency, created_at`
+	nationalities, height_cm, preferred_foot, agent, squad_number,
+	position, secondary_positions, contract_start, contract_until,
+	market_value_minor, currency,
+	duels_won_pct, pass_completion_pct, shots_on_target_pct, aerial_duels_won_pct,
+	strengths, weaknesses, created_at`
 
 func (r *postgresPlayerRepository) GetByID(ctx context.Context, id string) (*domain.Player, error) {
 	var player domain.Player
@@ -88,7 +91,9 @@ func (r *postgresPlayerRepository) List(ctx context.Context, filter PlayerFilter
 		conditions = append(conditions, "team_id = "+placeholder(*filter.TeamID))
 	}
 	if filter.Nationality != nil && *filter.Nationality != "" {
-		conditions = append(conditions, "nationality = "+placeholder(*filter.Nationality))
+		// Containment, not equality: the column is a list now, and someone with
+		// dual nationality must appear under either of them.
+		conditions = append(conditions, "nationalities @> ARRAY["+placeholder(*filter.Nationality)+"]")
 	}
 	if filter.MinValue != nil {
 		conditions = append(conditions, "market_value_minor >= "+placeholder(int64(*filter.MinValue)))
@@ -131,15 +136,20 @@ func (r *postgresPlayerRepository) Create(ctx context.Context, p *domain.Player)
 	defer func() { _ = tx.Rollback() }()
 
 	query := `INSERT INTO players
-		(team_id, name, first_name, last_name, date_of_birth, nationality, second_nationality,
-		 height_cm, preferred_foot, agent, squad_number, position, contract_start, contract_until,
-		 market_value_minor, currency)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		(team_id, name, first_name, last_name, date_of_birth, nationalities,
+		 height_cm, preferred_foot, agent, squad_number, position, secondary_positions,
+		 contract_start, contract_until, market_value_minor, currency,
+		 duels_won_pct, pass_completion_pct, shots_on_target_pct, aerial_duels_won_pct,
+		 strengths, weaknesses)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+		        $17, $18, $19, $20, $21, $22)
 		RETURNING id, created_at`
 	if err := tx.QueryRowContext(ctx, query,
-		p.TeamID, p.Name, p.FirstName, p.LastName, p.DateOfBirth, p.Nationality, p.SecondNationality,
-		p.HeightCM, p.PreferredFoot, p.Agent, p.SquadNumber, p.Position, p.ContractStart, p.ContractUntil,
-		int64(p.MarketValue), p.Currency,
+		p.TeamID, p.Name, p.FirstName, p.LastName, p.DateOfBirth, p.Nationalities,
+		p.HeightCM, p.PreferredFoot, p.Agent, p.SquadNumber, p.Position, p.SecondaryPositions,
+		p.ContractStart, p.ContractUntil, int64(p.MarketValue), p.Currency,
+		p.DuelsWonPct, p.PassCompletionPct, p.ShotsOnTargetPct, p.AerialDuelsWonPct,
+		p.Strengths, p.Weaknesses,
 	).Scan(&p.ID, &p.CreatedAt); err != nil {
 		return translate("player", err)
 	}
@@ -185,13 +195,18 @@ func (r *postgresPlayerRepository) Create(ctx context.Context, p *domain.Player)
 // change them would let the current club drift away from the transfer history.
 func (r *postgresPlayerRepository) Update(ctx context.Context, p *domain.Player) error {
 	query := `UPDATE players SET
-		name = $1, first_name = $2, last_name = $3, date_of_birth = $4, nationality = $5,
-		second_nationality = $6, height_cm = $7, preferred_foot = $8, agent = $9,
-		squad_number = $10, position = $11, contract_start = $12, contract_until = $13
-		WHERE id = $14`
+		name = $1, first_name = $2, last_name = $3, date_of_birth = $4, nationalities = $5,
+		height_cm = $6, preferred_foot = $7, agent = $8, squad_number = $9,
+		position = $10, secondary_positions = $11, contract_start = $12, contract_until = $13,
+		duels_won_pct = $14, pass_completion_pct = $15, shots_on_target_pct = $16,
+		aerial_duels_won_pct = $17, strengths = $18, weaknesses = $19
+		WHERE id = $20`
 	res, err := r.db.ExecContext(ctx, query,
-		p.Name, p.FirstName, p.LastName, p.DateOfBirth, p.Nationality, p.SecondNationality,
-		p.HeightCM, p.PreferredFoot, p.Agent, p.SquadNumber, p.Position, p.ContractStart, p.ContractUntil,
+		p.Name, p.FirstName, p.LastName, p.DateOfBirth, p.Nationalities,
+		p.HeightCM, p.PreferredFoot, p.Agent, p.SquadNumber,
+		p.Position, p.SecondaryPositions, p.ContractStart, p.ContractUntil,
+		p.DuelsWonPct, p.PassCompletionPct, p.ShotsOnTargetPct,
+		p.AerialDuelsWonPct, p.Strengths, p.Weaknesses,
 		p.ID,
 	)
 	return affected("player", res, err)
