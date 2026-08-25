@@ -93,14 +93,24 @@ const ROLES: Role[] = ['user', 'editor', 'admin'];
                     <label class="visually-hidden" [attr.for]="'role-' + user.id">
                       Role for {{ user.username }}
                     </label>
+                    <!--
+                      The selected option is marked on the option, not with
+                      [value] on the select.
+
+                      Binding [value] here sets the property before @for has
+                      put any options in the DOM, so the assignment matches
+                      nothing and the browser falls back to the first option —
+                      which made every account read as "user" whatever role it
+                      actually held. Marking each option as it renders cannot
+                      race the list.
+                    -->
                     <select
                       [id]="'role-' + user.id"
-                      [value]="user.role"
                       [disabled]="busyWith() === user.id"
                       (change)="changeRole(user, $event)"
                     >
                       @for (role of roles; track role) {
-                        <option [value]="role">{{ role }}</option>
+                        <option [value]="role" [selected]="role === user.role">{{ role }}</option>
                       }
                     </select>
                   </td>
