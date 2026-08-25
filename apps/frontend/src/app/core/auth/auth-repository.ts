@@ -20,12 +20,26 @@ export interface RegisterRequest {
   username: string;
   email: string;
   password: string;
+  captcha_token?: string;
+}
+
+/** What the server says the auth pages need. See AuthRepository.authConfig. */
+export interface AuthConfig {
+  providers: string[];
+  captcha: { enabled: boolean; provider: string; site_key: string };
+  verification_required: boolean;
+}
+
+export interface RegisterResult {
+  verification_required: boolean;
+  message: string;
 }
 
 export interface LoginRequest {
   /** Username or email — the API accepts either. */
   identifier: string;
   password: string;
+  captcha_token?: string;
 }
 
 /**
@@ -44,8 +58,10 @@ export class AuthRepository {
     return `${this.api.identity}/api/v1/${path}`;
   }
 
-  register(body: RegisterRequest): Promise<User> {
-    return firstValueFrom(this.http.post<User>(this.url('auth/register'), body, skipAuth()));
+  register(body: RegisterRequest): Promise<RegisterResult> {
+    return firstValueFrom(
+      this.http.post<RegisterResult>(this.url('auth/register'), body, skipAuth()),
+    );
   }
 
   login(body: LoginRequest): Promise<TokenPair> {
@@ -62,7 +78,11 @@ export class AuthRepository {
    */
   refresh(refreshToken: string): Promise<TokenPair> {
     return firstValueFrom(
-      this.http.post<TokenPair>(this.url('auth/refresh'), { refresh_token: refreshToken }, skipAuth()),
+      this.http.post<TokenPair>(
+        this.url('auth/refresh'),
+        { refresh_token: refreshToken },
+        skipAuth(),
+      ),
     );
   }
 
@@ -127,5 +147,41 @@ export class AuthRepository {
 
   unlinkIdentity(provider: string): Promise<void> {
     return firstValueFrom(this.http.delete<void>(this.url(`users/me/identities/${provider}`)));
+  }
+
+  // --- sign-up hardening ------------------------------------------------
+
+  /**
+   * How the sign-in and sign-up pages should render themselves.
+   *
+   * One call rather than three, and the server decides: whether a challenge is
+   * required is not something the client can opt out of by not asking.
+   */
+  authConfig(): Promise<AuthConfig> {
+    return firstValueFrom(this.http.get<AuthConfig>(this.url('auth/config'), skipAuth()));
+  }
+
+  /** Redeems the token from a verification link. Single use. */
+  async verifyEmail(token: string): Promise<void> {
+    await firstValueFrom(
+      this.http.post<unknown>(this.url('auth/verify-email'), { token }, skipAuth()),
+    );
+  }
+
+  /**
+   * Asks for a fresh link.
+   *
+   * Always resolves, whatever the address. The API answers identically for a
+   * registered and an unregistered one, so that this cannot be used to test
+   * which addresses hold accounts.
+   */
+  async resendVerification(email: string, captchaToken?: string): Promise<void> {
+    await firstValueFrom(
+      this.http.post<unknown>(
+        this.url('auth/resend-verification'),
+        { email, captcha_token: captchaToken },
+        skipAuth(),
+      ),
+    );
   }
 }

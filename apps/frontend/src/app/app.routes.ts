@@ -187,6 +187,11 @@ export const routes: Routes = [
     title: 'Create an account · ScoutPulse',
   },
   {
+    path: 'verify-email',
+    loadComponent: () => import('./features/auth/verify-email').then((m) => m.VerifyEmail),
+    title: 'Confirm your address · ScoutPulse',
+  },
+  {
     path: 'auth/callback',
     loadComponent: () => import('./features/auth/oauth-callback').then((m) => m.OAuthCallback),
     title: 'Signing in · ScoutPulse',
@@ -211,5 +216,12 @@ export const routes: Routes = [
     canActivate: [adminGuard],
     title: 'Editor access · ScoutPulse',
   },
-  { path: '**', redirectTo: '' },
+  // A real 404, not a redirect to the home page. Redirecting answered 200 OK
+  // for every dead link, which loses the address a visitor followed and lets a
+  // crawler treat an unbounded set of non-existent URLs as valid pages.
+  {
+    path: '**',
+    loadComponent: () => import('./features/errors/not-found').then((m) => m.NotFound),
+    title: 'Page not found · ScoutPulse',
+  },
 ];

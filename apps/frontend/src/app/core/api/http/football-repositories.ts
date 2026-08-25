@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 
+import { ApiError } from '../api-error';
 import { Page, PageQuery } from '../page';
 import {
   Coach,
@@ -7,6 +8,7 @@ import {
   League,
   MarketValue,
   Player,
+  PlayerNote,
   SearchKind,
   SearchResult,
   Season,
@@ -21,6 +23,8 @@ import {
   LeagueReader,
   LeagueWriter,
   PlayerFilter,
+  PlayerNoteReader,
+  PlayerNoteWriter,
   PlayerReader,
   PlayerWriter,
   SearchReader,
@@ -47,7 +51,10 @@ import { HttpRepository } from './http-repository';
  */
 
 @Injectable()
-export class HttpPlayerRepository extends HttpRepository implements PlayerReader, PlayerWriter {
+export class HttpPlayerRepository
+  extends HttpRepository
+  implements PlayerReader, PlayerWriter, PlayerNoteReader, PlayerNoteWriter
+{
   protected readonly base = this.api.football;
 
   list(filter?: PlayerFilter): Promise<Page<Player>> {
@@ -84,6 +91,45 @@ export class HttpPlayerRepository extends HttpRepository implements PlayerReader
 
   removeValue(playerId: string, valueId: string): Promise<void> {
     return this.deleteAt(this.url('players', playerId, 'market-values', valueId));
+  }
+
+  // --- member notes ------------------------------------------------------
+
+  notes(playerId: string, query?: PageQuery): Promise<Page<PlayerNote>> {
+    return this.getPage<PlayerNote>(this.url('players', playerId, 'notes'), query);
+  }
+
+  /**
+   * The caller's own note, or null.
+   *
+   * A 404 here means "you have not written one", which is the ordinary state
+   * for most visitors — so it is translated to null rather than thrown. Every
+   * other failure still propagates, so a real problem is not swallowed with it.
+   */
+  async myNote(playerId: string): Promise<PlayerNote | null> {
+    try {
+      return await this.getOne<PlayerNote>(this.url('players', playerId, 'notes', 'mine'));
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'not_found') return null;
+      throw error;
+    }
+  }
+
+  write(playerId: string, body: string): Promise<PlayerNote> {
+    return this.post<PlayerNote>(this.url('players', playerId, 'notes'), { body });
+  }
+
+  edit(playerId: string, noteId: string, body: string): Promise<PlayerNote> {
+    return this.put<PlayerNote>(this.url('players', playerId, 'notes', noteId), { body });
+  }
+
+  /**
+   * Named `remove` on the contract but `removeNote` here, because the class
+   * already has a `remove(id)` for deleting a player. The token is what
+   * consumers see, so the collision stays inside this file.
+   */
+  removeNote(playerId: string, noteId: string): Promise<void> {
+    return this.deleteAt(this.url('players', playerId, 'notes', noteId));
   }
 }
 

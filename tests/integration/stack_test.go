@@ -218,7 +218,7 @@ func TestTeamDeletionNullsPlayerTeam(t *testing.T) {
 	// The stack is started with this key pair, so a token minted here
 	// verifies inside the services.
 	require.NoError(t, auth.SetSigningKey(testPrivateKeyPEM))
-	adminToken, err := auth.GenerateToken("00000000-0000-0000-0000-000000000001", "admin")
+	adminToken, err := auth.GenerateToken("00000000-0000-0000-0000-000000000001", "admin", "admin")
 	require.NoError(t, err)
 
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -324,7 +324,7 @@ func TestTransferHistoryIsRecorded(t *testing.T) {
 	baseURL := fmt.Sprintf("http://%s:%s/api/v1", svcHost, svcPort)
 
 	require.NoError(t, auth.SetSigningKey(testPrivateKeyPEM))
-	adminToken, err := auth.GenerateToken("00000000-0000-0000-0000-000000000001", "admin")
+	adminToken, err := auth.GenerateToken("00000000-0000-0000-0000-000000000001", "admin", "admin")
 	require.NoError(t, err)
 
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -420,7 +420,7 @@ func TestBackdatedTransferDoesNotRewriteCurrentClub(t *testing.T) {
 	baseURL := fmt.Sprintf("http://%s:%s/api/v1", svcHost, svcPort)
 
 	require.NoError(t, auth.SetSigningKey(testPrivateKeyPEM))
-	adminToken, err := auth.GenerateToken("00000000-0000-0000-0000-000000000001", "admin")
+	adminToken, err := auth.GenerateToken("00000000-0000-0000-0000-000000000001", "admin", "admin")
 	require.NoError(t, err)
 
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -497,7 +497,7 @@ func TestFootballServiceCannotMintTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, auth.SetSigningKey(otherPriv))
 
-	forged, err := auth.GenerateToken("00000000-0000-0000-0000-0000000000ff", "admin")
+	forged, err := auth.GenerateToken("00000000-0000-0000-0000-0000000000ff", "attacker", "admin")
 	require.NoError(t, err)
 
 	body, err := json.Marshal(league{Name: "Forged League", Country: "Nowhere"})

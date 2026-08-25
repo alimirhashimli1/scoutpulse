@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, resource, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  resource,
+  signal,
+} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -66,9 +74,7 @@ import { Empty, ErrorState, Loading } from '../../shared/ui/states';
             @for (grant of grants.value()!.items; track grant.user_id) {
               <li>
                 <span class="who">{{ nameFor(grant.user_id) }}</span>
-                <span class="since muted">
-                  granted {{ grant.granted_at | date: 'd MMM y' }}
-                </span>
+                <span class="since muted"> granted {{ grant.granted_at | date: 'd MMM y' }} </span>
                 <button
                   class="btn danger"
                   type="button"
@@ -87,7 +93,13 @@ import { Empty, ErrorState, Loading } from '../../shared/ui/states';
         <h4>Grant access</h4>
         <form class="search" role="search" (ngSubmit)="applySearch()">
           <label class="visually-hidden" for="q">Find an account</label>
-          <input id="q" name="q" type="search" placeholder="Username or email…" [(ngModel)]="query" />
+          <input
+            id="q"
+            name="q"
+            type="search"
+            placeholder="Username or email…"
+            [(ngModel)]="query"
+          />
           <button class="btn" type="submit">Find</button>
         </form>
 
@@ -129,27 +141,71 @@ import { Empty, ErrorState, Loading } from '../../shared/ui/states';
     </main>
   `,
   styles: `
-    .editors { max-width: 46rem; padding-block: var(--space-6) var(--space-8); }
-    .head { margin-bottom: var(--space-5); }
+    .editors {
+      max-width: 46rem;
+      padding-block: var(--space-6) var(--space-8);
+    }
+    .head {
+      margin-bottom: var(--space-5);
+    }
     .eyebrow {
-      font-family: var(--font-mono); font-size: var(--text-xs);
-      letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: var(--space-2);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: var(--space-2);
     }
-    h1 { font-size: var(--text-2xl); margin-bottom: var(--space-3); }
-    .standfirst { color: var(--ink-soft); margin-bottom: var(--space-3); }
-    section { padding-block: var(--space-5); border-top: 1px solid var(--line); }
-    h4 { margin-bottom: var(--space-4); }
-    .list { list-style: none; margin: 0; padding: 0; }
+    h1 {
+      font-size: var(--text-2xl);
+      margin-bottom: var(--space-3);
+    }
+    .standfirst {
+      color: var(--ink-soft);
+      margin-bottom: var(--space-3);
+    }
+    section {
+      padding-block: var(--space-5);
+      border-top: 1px solid var(--line);
+    }
+    h4 {
+      margin-bottom: var(--space-4);
+    }
+    .list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
     .list li {
-      display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;
-      padding: var(--space-3) 0; border-bottom: 1px solid var(--line-soft);
+      display: flex;
+      gap: var(--space-3);
+      align-items: center;
+      flex-wrap: wrap;
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--line-soft);
     }
-    .who { font-weight: 600; }
-    .role { font-family: var(--font-mono); font-size: 11px; }
-    .since { margin-left: auto; font-size: var(--text-sm); }
-    .granted { margin-left: auto; font-size: var(--text-sm); color: var(--muted); }
-    .search { display: flex; gap: var(--space-2); margin-bottom: var(--space-4); flex-wrap: wrap; }
+    .who {
+      font-weight: 600;
+    }
+    .role {
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+    .since {
+      margin-left: auto;
+      font-size: var(--text-sm);
+    }
+    .granted {
+      margin-left: auto;
+      font-size: var(--text-sm);
+      color: var(--muted);
+    }
+    .search {
+      display: flex;
+      gap: var(--space-2);
+      margin-bottom: var(--space-4);
+      flex-wrap: wrap;
+    }
     .search input {
       flex: 1 1 16rem;
       padding: var(--space-2) var(--space-3);
@@ -157,8 +213,14 @@ import { Empty, ErrorState, Loading } from '../../shared/ui/states';
       border-radius: var(--radius);
       background: var(--surface);
     }
-    .hint { font-size: var(--text-sm); color: var(--muted); margin-top: var(--space-3); }
-    .muted { color: var(--muted); }
+    .hint {
+      font-size: var(--text-sm);
+      color: var(--muted);
+      margin-top: var(--space-3);
+    }
+    .muted {
+      color: var(--muted);
+    }
   `,
 })
 export class ClubEditors {

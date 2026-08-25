@@ -35,7 +35,7 @@ func restoreSigner(t *testing.T) {
 }
 
 func TestGenerateAndValidateToken(t *testing.T) {
-	token, err := GenerateToken("user-123", "admin")
+	token, err := GenerateToken("user-123", "scout", "admin")
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
@@ -53,7 +53,7 @@ func TestGenerateAndValidateToken(t *testing.T) {
 // service holding only the public key can check tokens but not create them.
 // Under the previous shared HMAC secret, every verifier was also an issuer.
 func TestVerifierCannotMint(t *testing.T) {
-	issued, err := GenerateToken("user-1", "admin")
+	issued, err := GenerateToken("user-1", "scout", "admin")
 	require.NoError(t, err)
 
 	// Simulate a downstream service: public key only.
@@ -65,7 +65,7 @@ func TestVerifierCannotMint(t *testing.T) {
 	require.NoError(t, err, "a verifier must still be able to check tokens")
 	assert.Equal(t, "admin", claims.Role)
 
-	_, err = GenerateToken("attacker", "admin")
+	_, err = GenerateToken("attacker", "attacker", "admin")
 	assert.ErrorIs(t, err, ErrNoSigningKey, "a verifier must not be able to mint tokens")
 }
 
@@ -90,7 +90,7 @@ func TestValidateToken_Rejects(t *testing.T) {
 		t.Cleanup(func() { restoreSigner(t) })
 		require.NoError(t, SetSigningKey(otherPriv))
 
-		forged, err := GenerateToken("attacker", "admin")
+		forged, err := GenerateToken("attacker", "attacker", "admin")
 		require.NoError(t, err)
 
 		// Now trust only the original key.
@@ -102,7 +102,7 @@ func TestValidateToken_Rejects(t *testing.T) {
 	})
 
 	t.Run("no verification key configured", func(t *testing.T) {
-		token, err := GenerateToken("user-1", "user")
+		token, err := GenerateToken("user-1", "scout", "user")
 		require.NoError(t, err)
 
 		resetKeysForTest()
@@ -126,7 +126,7 @@ func TestSetSigningKey_Rejects(t *testing.T) {
 }
 
 func TestAuthMiddleware(t *testing.T) {
-	token, err := GenerateToken("user-456", "editor")
+	token, err := GenerateToken("user-456", "scout", "editor")
 	require.NoError(t, err)
 
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -174,7 +174,7 @@ func TestJWKSRoundTrip(t *testing.T) {
 	issuer := httptest.NewServer(JWKSHandler())
 	defer issuer.Close()
 
-	token, err := GenerateToken("user-789", "admin")
+	token, err := GenerateToken("user-789", "scout", "admin")
 	require.NoError(t, err)
 
 	resp, err := http.Get(issuer.URL)
@@ -210,14 +210,14 @@ func TestJWKSRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "user-789", claims.UserID)
 
-	_, err = GenerateToken("attacker", "admin")
+	_, err = GenerateToken("attacker", "attacker", "admin")
 	assert.ErrorIs(t, err, ErrNoSigningKey)
 }
 
 // TestKeyRotation covers staging a new key: both are trusted, so tokens signed
 // with the outgoing key keep working until they expire.
 func TestKeyRotation(t *testing.T) {
-	oldToken, err := GenerateToken("user-1", "user")
+	oldToken, err := GenerateToken("user-1", "scout", "user")
 	require.NoError(t, err)
 
 	newPriv, _, err := GenerateKeyPair(MinRSAKeyBits)
@@ -227,7 +227,7 @@ func TestKeyRotation(t *testing.T) {
 	require.NoError(t, SetSigningKey(newPriv)) // starts signing with the new key
 	require.NoError(t, AddVerificationKey(testPublicPEM))
 
-	newToken, err := GenerateToken("user-2", "user")
+	newToken, err := GenerateToken("user-2", "scout", "user")
 	require.NoError(t, err)
 
 	for name, token := range map[string]string{"old": oldToken, "new": newToken} {

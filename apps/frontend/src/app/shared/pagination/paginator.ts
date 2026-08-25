@@ -20,25 +20,13 @@ import { Page, PageQuery } from '../../core/api/page';
   template: `
     @if (hasAnyPaging()) {
       <nav class="paginator" [attr.aria-label]="label()">
-        <button
-          type="button"
-          [disabled]="!hasPrevious()"
-          (click)="goPrevious()"
-        >
-          ← Previous
-        </button>
+        <button type="button" [disabled]="!hasPrevious()" (click)="goPrevious()">← Previous</button>
 
         <span class="range tabular" aria-live="polite">
           {{ rangeLabel() }}
         </span>
 
-        <button
-          type="button"
-          [disabled]="!page().has_more"
-          (click)="goNext()"
-        >
-          Next →
-        </button>
+        <button type="button" [disabled]="!page().has_more" (click)="goNext()">Next →</button>
       </nav>
     }
   `,
@@ -84,9 +72,7 @@ export class Paginator<T> {
   protected readonly hasPrevious = computed(() => this.page().offset > 0);
 
   /** Hidden entirely when everything fits on one page. */
-  protected readonly hasAnyPaging = computed(
-    () => this.page().has_more || this.page().offset > 0,
-  );
+  protected readonly hasAnyPaging = computed(() => this.page().has_more || this.page().offset > 0);
 
   protected readonly rangeLabel = computed(() => {
     const { offset, items } = this.page();

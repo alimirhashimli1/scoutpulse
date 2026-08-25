@@ -1,9 +1,17 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, resource } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  resource,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { ApiError } from '../../core/api/api-error';
 import { SEARCH_READER } from '../../core/api/contracts';
 import { SearchKind, SearchResult } from '../../core/models/football';
+import { Seo } from '../../core/seo/seo';
 import { Empty, ErrorState, Loading } from '../../shared/ui/states';
 
 const KINDS: { value: SearchKind | ''; label: string }[] = [
@@ -22,7 +30,9 @@ const KINDS: { value: SearchKind | ''; label: string }[] = [
     <main class="page search">
       <h1>Search</h1>
       @if (q()) {
-        <p class="summary">Results for <strong>{{ q() }}</strong></p>
+        <p class="summary">
+          Results for <strong>{{ q() }}</strong>
+        </p>
       }
 
       <nav class="kinds">
@@ -31,14 +41,16 @@ const KINDS: { value: SearchKind | ''; label: string }[] = [
             [routerLink]="[]"
             [queryParams]="{ q: q(), kind: option.value || null }"
             [class.active]="(kind() ?? '') === option.value"
-          >{{ option.label }}</a>
+            >{{ option.label }}</a
+          >
         }
       </nav>
 
       @if (!q() || q().length < 2) {
         <app-empty
           message="Type at least two characters to search."
-          hint="Players, clubs, coaches and competitions are all searchable." />
+          hint="Players, clubs, coaches and competitions are all searchable."
+        />
       } @else if (results.isLoading()) {
         <app-loading message="Searching…" />
       } @else if (results.error()) {
@@ -46,7 +58,8 @@ const KINDS: { value: SearchKind | ''; label: string }[] = [
       } @else if (!results.value()?.items?.length) {
         <app-empty
           [message]="'Nothing matches “' + q() + '”.'"
-          hint="Partial words work — try fewer letters." />
+          hint="Partial words work — try fewer letters."
+        />
       } @else {
         <ul class="results">
           @for (hit of results.value()!.items; track hit.kind + hit.id) {
@@ -65,9 +78,16 @@ const KINDS: { value: SearchKind | ''; label: string }[] = [
     </main>
   `,
   styles: `
-    .search { padding-block: var(--space-6); }
-    h1 { margin-bottom: var(--space-2); }
-    .summary { color: var(--ink-soft); margin-bottom: var(--space-5); }
+    .search {
+      padding-block: var(--space-6);
+    }
+    h1 {
+      margin-bottom: var(--space-2);
+    }
+    .summary {
+      color: var(--ink-soft);
+      margin-bottom: var(--space-5);
+    }
     .kinds {
       display: flex;
       flex-wrap: wrap;
@@ -81,9 +101,18 @@ const KINDS: { value: SearchKind | ''; label: string }[] = [
       color: var(--muted);
       text-decoration: none;
     }
-    .kinds a.active { color: var(--accent); font-weight: 600; }
-    .results { list-style: none; margin: 0; padding: 0; }
-    .results li { border-bottom: 1px solid var(--line-soft); }
+    .kinds a.active {
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .results {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .results li {
+      border-bottom: 1px solid var(--line-soft);
+    }
     .results a {
       display: grid;
       grid-template-columns: 6rem 1fr auto;
@@ -93,7 +122,9 @@ const KINDS: { value: SearchKind | ''; label: string }[] = [
       text-decoration: none;
       color: var(--ink);
     }
-    .results a:hover .name { color: var(--accent); }
+    .results a:hover .name {
+      color: var(--accent);
+    }
     .kind {
       font-family: var(--font-mono);
       font-size: 10px;
@@ -101,16 +132,38 @@ const KINDS: { value: SearchKind | ''; label: string }[] = [
       letter-spacing: 0.1em;
       color: var(--muted);
     }
-    .name { font-weight: 600; }
-    .subtitle { color: var(--muted); font-size: var(--text-sm); }
+    .name {
+      font-weight: 600;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
 
     @media (max-width: 34rem) {
-      .results a { grid-template-columns: 1fr; gap: var(--space-1); }
+      .results a {
+        grid-template-columns: 1fr;
+        gap: var(--space-1);
+      }
     }
   `,
 })
 export class SearchPage {
   private readonly reader = inject(SEARCH_READER);
+  private readonly seo = inject(Seo);
+
+  constructor() {
+    // noindex, follow. The query string is unbounded, so indexing this would
+    // put an infinite set of near-duplicate pages in front of a crawler — and
+    // every one of them is a worse result than the player page it links to.
+    // `follow` keeps those links worth crawling.
+    this.seo.describe({
+      title: 'Search',
+      description: 'Search players, clubs, coaches and competitions.',
+      path: '/search',
+      noindex: true,
+    });
+  }
 
   /**
    * Bound from the query string by withComponentInputBinding(), so navigating
@@ -145,10 +198,14 @@ export class SearchPage {
 
   protected linkFor(hit: SearchResult): string[] {
     switch (hit.kind) {
-      case 'player': return ['/players', hit.id];
-      case 'team': return ['/clubs', hit.id];
-      case 'coach': return ['/coaches', hit.id];
-      case 'league': return ['/competitions', hit.id];
+      case 'player':
+        return ['/players', hit.id];
+      case 'team':
+        return ['/clubs', hit.id];
+      case 'coach':
+        return ['/coaches', hit.id];
+      case 'league':
+        return ['/competitions', hit.id];
     }
   }
 }

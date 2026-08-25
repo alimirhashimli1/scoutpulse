@@ -129,22 +129,67 @@ type Player struct {
 	TeamID *string `db:"team_id" json:"team_id"` // nil = free agent
 	Name   string  `db:"name" json:"name"`
 
-	FirstName         *string `db:"first_name" json:"first_name,omitempty"`
-	LastName          *string `db:"last_name" json:"last_name,omitempty"`
-	DateOfBirth       *Date   `db:"date_of_birth" json:"date_of_birth,omitempty"`
-	Nationality       *string `db:"nationality" json:"nationality,omitempty"`
-	SecondNationality *string `db:"second_nationality" json:"second_nationality,omitempty"`
-	HeightCM          *int    `db:"height_cm" json:"height_cm,omitempty"`
-	PreferredFoot     *Foot   `db:"preferred_foot" json:"preferred_foot,omitempty"`
-	Agent             *string `db:"agent" json:"agent,omitempty"`
-	SquadNumber       *int    `db:"squad_number" json:"squad_number,omitempty"`
+	FirstName   *string `db:"first_name" json:"first_name,omitempty"`
+	LastName    *string `db:"last_name" json:"last_name,omitempty"`
+	DateOfBirth *Date   `db:"date_of_birth" json:"date_of_birth,omitempty"`
 
-	Position      string    `db:"position" json:"position"`
-	ContractStart *Date     `db:"contract_start" json:"contract_start,omitempty"`
-	ContractUntil *Date     `db:"contract_until" json:"contract_until,omitempty"`
-	MarketValue   Minor     `db:"market_value_minor" json:"market_value_minor"`
-	Currency      string    `db:"currency" json:"currency"`
-	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	// Nationalities is ordered, and the first entry is the primary one.
+	//
+	// This replaced a nationality/second_nationality pair, which could only
+	// ever express two and left "second" undefined for someone holding three.
+	Nationalities StringList `db:"nationalities" json:"nationalities"`
+
+	HeightCM      *int    `db:"height_cm" json:"height_cm,omitempty"`
+	PreferredFoot *Foot   `db:"preferred_foot" json:"preferred_foot,omitempty"`
+	Agent         *string `db:"agent" json:"agent,omitempty"`
+	SquadNumber   *int    `db:"squad_number" json:"squad_number,omitempty"`
+
+	// Position is the one a player is listed as. SecondaryPositions are the
+	// others they can fill — a different fact, and deliberately separate so
+	// squad lists and filters keep a single answer for "what is he?".
+	Position           string     `db:"position" json:"position"`
+	SecondaryPositions StringList `db:"secondary_positions" json:"secondary_positions"`
+
+	ContractStart *Date  `db:"contract_start" json:"contract_start,omitempty"`
+	ContractUntil *Date  `db:"contract_until" json:"contract_until,omitempty"`
+	MarketValue   Minor  `db:"market_value_minor" json:"market_value_minor"`
+	Currency      string `db:"currency" json:"currency"`
+
+	// Scouting percentages, 0-100, entered by hand.
+	//
+	// **Not computed from matches.** There is no match data in this system, so
+	// these are a scout's recorded averages rather than anything derived. Nil
+	// means not recorded, which is a different fact from zero.
+	DuelsWonPct       *float64 `db:"duels_won_pct" json:"duels_won_pct,omitempty"`
+	PassCompletionPct *float64 `db:"pass_completion_pct" json:"pass_completion_pct,omitempty"`
+	ShotsOnTargetPct  *float64 `db:"shots_on_target_pct" json:"shots_on_target_pct,omitempty"`
+	AerialDuelsWonPct *float64 `db:"aerial_duels_won_pct" json:"aerial_duels_won_pct,omitempty"`
+
+	// The two halves of the scouting assessment. Lists rather than prose, so
+	// they render as bullets and stay comparable between players.
+	Strengths  StringList `db:"strengths" json:"strengths"`
+	Weaknesses StringList `db:"weaknesses" json:"weaknesses"`
+
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+// PlayerNote is one member's note on a player.
+//
+// At most one per person per player, enforced by a unique constraint rather
+// than by a check in the handler: two simultaneous posts would both pass a
+// "does one already exist?" test and both insert.
+type PlayerNote struct {
+	ID       string `db:"id" json:"id"`
+	PlayerID string `db:"player_id" json:"player_id"`
+	AuthorID string `db:"author_id" json:"author_id"`
+	// AuthorName is captured when the note is written, because this service
+	// cannot resolve a user id to a name -- accounts live in identity-svc. It
+	// also means the note keeps the name it was written under after the
+	// account is gone.
+	AuthorName string    `db:"author_name" json:"author_name"`
+	Body       string    `db:"body" json:"body"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // Age returns the player's age in completed years as of now, or nil when the

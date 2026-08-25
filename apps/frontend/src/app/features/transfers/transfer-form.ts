@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, resource, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  resource,
+  signal,
+} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -168,16 +177,33 @@ const ENDS_CAREER_AT_CLUB = new Set<TransferType>(['released', 'retired']);
     </main>
   `,
   styles: `
-    .form-page { max-width: 40rem; padding-block: var(--space-6) var(--space-8); }
-    .head { margin-bottom: var(--space-6); }
-    .eyebrow {
-      font-family: var(--font-mono); font-size: var(--text-xs);
-      letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: var(--space-2);
+    .form-page {
+      max-width: 40rem;
+      padding-block: var(--space-6) var(--space-8);
     }
-    h1 { font-size: var(--text-2xl); margin-bottom: var(--space-2); }
-    .origin { color: var(--ink-soft); }
-    form { display: flex; flex-direction: column; gap: var(--space-5); }
+    .head {
+      margin-bottom: var(--space-6);
+    }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: var(--space-2);
+    }
+    h1 {
+      font-size: var(--text-2xl);
+      margin-bottom: var(--space-2);
+    }
+    .origin {
+      color: var(--ink-soft);
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
@@ -190,10 +216,17 @@ const ENDS_CAREER_AT_CLUB = new Set<TransferType>(['released', 'retired']);
       font-size: var(--text-sm);
       color: var(--ink-soft);
     }
-    .actions { display: flex; gap: var(--space-3); }
+    .actions {
+      display: flex;
+      gap: var(--space-3);
+    }
     @media (max-width: 30rem) {
-      .actions { flex-direction: column; }
-      .actions .btn { justify-content: center; }
+      .actions {
+        flex-direction: column;
+      }
+      .actions .btn {
+        justify-content: center;
+      }
     }
   `,
 })
@@ -337,7 +370,8 @@ export class TransferForm {
       try {
         fee = parseMoney(this.fee());
       } catch (error) {
-        errors['fee_minor'] = error instanceof MoneyParseError ? error.message : 'Not a valid amount.';
+        errors['fee_minor'] =
+          error instanceof MoneyParseError ? error.message : 'Not a valid amount.';
       }
     }
 
@@ -411,8 +445,20 @@ export class TransferForm {
               </select>
             </app-field>
 
-            <app-field for="fee" label="Fee" [optional]="true" [hint]="feeHint()" [error]="feeError()">
-              <input id="fee" name="fee" inputmode="decimal" [disabled]="isFree()" [(ngModel)]="fee" />
+            <app-field
+              for="fee"
+              label="Fee"
+              [optional]="true"
+              [hint]="feeHint()"
+              [error]="feeError()"
+            >
+              <input
+                id="fee"
+                name="fee"
+                inputmode="decimal"
+                [disabled]="isFree()"
+                [(ngModel)]="fee"
+              />
             </app-field>
           </section>
 
@@ -431,30 +477,60 @@ export class TransferForm {
     </main>
   `,
   styles: `
-    .form-page { max-width: 40rem; padding-block: var(--space-6) var(--space-8); }
-    .head { margin-bottom: var(--space-6); }
-    .eyebrow {
-      font-family: var(--font-mono); font-size: var(--text-xs);
-      letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: var(--space-2);
+    .form-page {
+      max-width: 40rem;
+      padding-block: var(--space-6) var(--space-8);
     }
-    h1 { font-size: var(--text-xl); margin-bottom: var(--space-4); }
-    .fixed { display: flex; gap: var(--space-6); margin-bottom: var(--space-4); }
-    dt { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-    dd { margin: 0; font-weight: 600; }
+    .head {
+      margin-bottom: var(--space-6);
+    }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: var(--space-2);
+    }
+    h1 {
+      font-size: var(--text-xl);
+      margin-bottom: var(--space-4);
+    }
+    .fixed {
+      display: flex;
+      gap: var(--space-6);
+      margin-bottom: var(--space-4);
+    }
+    dt {
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    dd {
+      margin: 0;
+      font-weight: 600;
+    }
     .note {
       font-size: var(--text-sm);
       color: var(--muted);
       border-left: 2px solid var(--line);
       padding-left: var(--space-3);
     }
-    form { display: flex; flex-direction: column; gap: var(--space-5); }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
       gap: var(--space-4);
     }
-    .actions { display: flex; gap: var(--space-3); }
+    .actions {
+      display: flex;
+      gap: var(--space-3);
+    }
   `,
 })
 export class TransferEdit {

@@ -27,12 +27,16 @@ func ValidRole(r Role) bool {
 // them into every token, where a revocation could not take effect until the
 // token expired.
 type User struct {
-	ID           string    `json:"id" db:"id"`
-	Username     string    `json:"username" db:"username"`
-	Email        string    `json:"email" db:"email"`
-	PasswordHash string    `json:"-" db:"password_hash"`
-	Role         Role      `json:"role" db:"role"`
-	CreatedAt    time.Time `json:"created_at" db:"created_at"`
+	ID           string `json:"id" db:"id"`
+	Username     string `json:"username" db:"username"`
+	Email        string `json:"email" db:"email"`
+	PasswordHash string `json:"-" db:"password_hash"`
+	Role         Role   `json:"role" db:"role"`
+	// EmailVerified is false until the address is proven. Accounts created
+	// through an external provider are verified on arrival, because the
+	// provider has already done it.
+	EmailVerified bool      `json:"email_verified" db:"email_verified"`
+	CreatedAt     time.Time `json:"created_at" db:"created_at"`
 }
 
 // Identity links a local account to an account at an external provider.

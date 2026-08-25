@@ -5,6 +5,8 @@ import {
   COACH_WRITER,
   LEAGUE_READER,
   LEAGUE_WRITER,
+  PLAYER_NOTE_READER,
+  PLAYER_NOTE_WRITER,
   PLAYER_READER,
   PLAYER_WRITER,
   SEARCH_READER,
@@ -46,6 +48,8 @@ export function provideFootballApi(): Provider[] {
     HttpPlayerRepository,
     { provide: PLAYER_READER, useExisting: HttpPlayerRepository },
     { provide: PLAYER_WRITER, useExisting: HttpPlayerRepository },
+    { provide: PLAYER_NOTE_READER, useExisting: HttpPlayerRepository },
+    { provide: PLAYER_NOTE_WRITER, useExisting: HttpPlayerRepository },
 
     HttpTeamRepository,
     { provide: TEAM_READER, useExisting: HttpTeamRepository },

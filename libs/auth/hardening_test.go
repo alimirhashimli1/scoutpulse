@@ -172,7 +172,7 @@ func TestValidateToken_RefetchesOnUnknownKeyID(t *testing.T) {
 
 	resetKeysForTest()
 	require.NoError(t, SetSigningKey(rotatedPrivate))
-	token, err := GenerateToken("user-1", "editor")
+	token, err := GenerateToken("user-1", "scout", "editor")
 	require.NoError(t, err)
 
 	oldDoc := jwksContaining(t, testPublicPEM)
@@ -268,7 +268,7 @@ func TestAuthMiddleware_ErrorsAreJSON(t *testing.T) {
 // TestAuthMiddleware_SchemeIsCaseInsensitive: RFC 7235 defines the auth scheme
 // as case-insensitive, and some clients send "bearer".
 func TestAuthMiddleware_SchemeIsCaseInsensitive(t *testing.T) {
-	token, err := GenerateToken("user-1", "admin")
+	token, err := GenerateToken("user-1", "scout", "admin")
 	require.NoError(t, err)
 
 	var reached bool

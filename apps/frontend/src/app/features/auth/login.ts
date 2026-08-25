@@ -1,16 +1,17 @@
 import { ChangeDetectionStrategy, Component, inject, resource, signal } from '@angular/core';
-import { TitleCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
 import { ApiError } from '../../core/api/api-error';
 import { AuthFacade } from '../../core/auth/auth-facade';
 import { AuthRepository } from '../../core/auth/auth-repository';
+import { Captcha } from '../../shared/forms/captcha';
+import { ProviderButtons } from '../../shared/forms/provider-buttons';
 
 @Component({
   selector: 'app-login',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, TitleCasePipe],
+  imports: [FormsModule, RouterLink, Captcha, ProviderButtons],
   template: `
     <main class="page auth">
       <h1>Sign in</h1>
@@ -38,6 +39,20 @@ import { AuthRepository } from '../../core/auth/auth-repository';
         @if (error()) {
           <p class="error" role="alert">{{ error() }}</p>
         }
+        @if (needsVerification()) {
+          <!--
+            A refusal for an unconfirmed address is the one login failure with
+            a specific remedy, and it is not on this page — so it links to the
+            page that can send a new link rather than leaving a dead end.
+          -->
+          <p class="alt"><a routerLink="/verify-email">Send me a new confirmation link</a></p>
+        }
+
+        <app-captcha
+          [provider]="config.value()?.captcha?.provider ?? ''"
+          [siteKey]="config.value()?.captcha?.site_key ?? ''"
+          [(token)]="captchaToken"
+        />
 
         <button type="submit" [disabled]="busy()">
           {{ busy() ? 'Signing in…' : 'Sign in' }}
@@ -49,24 +64,24 @@ import { AuthRepository } from '../../core/auth/auth-repository';
         Google button that 404s because no credentials are set is worse than
         rendering none.
       -->
-      @if (providers.value()?.length) {
-        <div class="providers">
-          <span class="divider">or</span>
-          @for (provider of providers.value()!; track provider) {
-            <a class="provider" [href]="startUrl(provider)">
-              Continue with {{ provider | titlecase }}
-            </a>
-          }
-        </div>
-      }
+      <app-provider-buttons />
 
       <p class="alt">No account? <a routerLink="/register">Create one</a></p>
     </main>
   `,
   styles: `
-    .auth { max-width: 26rem; padding-block: var(--space-8); }
-    h1 { margin-bottom: var(--space-6); }
-    form { display: flex; flex-direction: column; gap: var(--space-2); }
+    .auth {
+      max-width: 26rem;
+      padding-block: var(--space-8);
+    }
+    h1 {
+      margin-bottom: var(--space-6);
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
     label {
       font-size: var(--text-xs);
       font-weight: 700;
@@ -91,7 +106,10 @@ import { AuthRepository } from '../../core/auth/auth-repository';
       cursor: pointer;
       font-weight: 600;
     }
-    button:disabled { opacity: 0.6; cursor: default; }
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
     .error {
       color: var(--critical);
       background: var(--critical-soft);
@@ -100,23 +118,13 @@ import { AuthRepository } from '../../core/auth/auth-repository';
       margin-top: var(--space-4);
       font-size: var(--text-sm);
     }
-    .providers { margin-top: var(--space-6); display: grid; gap: var(--space-3); }
-    .divider {
-      text-align: center;
-      color: var(--muted);
+    /* The provider button styles moved with the markup into
+       ProviderButtons; leaving them here would style nothing. */
+    .alt {
+      margin-top: var(--space-6);
       font-size: var(--text-sm);
+      color: var(--muted);
     }
-    .provider {
-      display: block;
-      text-align: center;
-      padding: var(--space-3);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      text-decoration: none;
-      color: var(--ink);
-    }
-    .provider:hover { border-color: var(--accent); color: var(--accent); }
-    .alt { margin-top: var(--space-6); font-size: var(--text-sm); color: var(--muted); }
   `,
 })
 export class Login {
@@ -126,22 +134,21 @@ export class Login {
 
   protected readonly identifier = signal('');
   protected readonly password = signal('');
+  protected readonly captchaToken = signal('');
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-
-  protected readonly providers = resource({
-    loader: () => this.auth.providers(),
-  });
+  /** Set when the API refuses because the address is unconfirmed. */
+  protected readonly needsVerification = signal(false);
 
   /**
-   * A full-page navigation, deliberately — not an XHR.
+   * Whether a challenge is required, and which widget renders it.
    *
-   * The provider responds with a redirect to its consent screen, which the
-   * user has to see and interact with. A fetch cannot follow that.
+   * Asked of the server rather than decided here: a client that simply did not
+   * render the widget would otherwise opt itself out of the check.
    */
-  protected startUrl(provider: string): string {
-    return this.auth.providerStartUrl(provider);
-  }
+  protected readonly config = resource({
+    loader: () => this.auth.authConfig(),
+  });
 
   protected async submit(): Promise<void> {
     if (this.busy()) return;
@@ -153,6 +160,7 @@ export class Login {
       await this.facade.login({
         identifier: this.identifier(),
         password: this.password(),
+        captcha_token: this.captchaToken() || undefined,
       });
 
       const returnTo = new URLSearchParams(location.search).get('returnTo');
@@ -165,6 +173,11 @@ export class Login {
       this.error.set(
         error instanceof ApiError ? error.message : 'Could not sign in. Please try again.',
       );
+      // A forbidden response here means the address is unconfirmed, and the
+      // remedy is a link this page cannot send — so it points at the page that
+      // can rather than leaving the message as a dead end.
+      this.needsVerification.set(error instanceof ApiError && error.code === 'forbidden');
+      this.captchaToken.set('');
     } finally {
       this.busy.set(false);
     }

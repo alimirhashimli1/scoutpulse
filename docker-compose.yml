@@ -5,6 +5,7 @@ services:
   # a container per service, which does not scale to a laptop running six.
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-postgres}
@@ -37,6 +38,7 @@ services:
   # publishes instead of football-svc being changed to call it.
   nats:
     image: nats:2.10-alpine
+    restart: unless-stopped
     command: ["--jetstream", "--http_port", "8222"]
     ports:
       # Loopback only: NATS runs without authentication, so an exposed client
@@ -86,6 +88,7 @@ services:
   # frontend has to learn.
   gateway:
     image: caddy:2.8-alpine
+    restart: unless-stopped
     # Waits for readiness, not just for the containers to start. A plain
     # depends_on list returns as soon as the process exists, so the gateway
     # would answer with 502s while the services were still connecting to the
@@ -105,7 +108,7 @@ services:
     build:
       context: .
       dockerfile: apps/identity-svc/Dockerfile
-    restart: on-failure
+    restart: unless-stopped
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -127,6 +130,20 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - FACEBOOK_CLIENT_ID=${FACEBOOK_CLIENT_ID:-}
       - FACEBOOK_CLIENT_SECRET=${FACEBOOK_CLIENT_SECRET:-}
+      # Verification email delivery. With no SMTP_HOST the link is written to
+      # this service's log instead of sent, which is what makes the flow
+      # testable without a mail account.
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-no-reply@scoutpulse.local}
+      # Human challenge. Absent secret means the check is skipped, the same
+      # way absent provider credentials mean no external sign-in.
+      - CAPTCHA_PROVIDER=${CAPTCHA_PROVIDER:-}
+      - CAPTCHA_SITE_KEY=${CAPTCHA_SITE_KEY:-}
+      - CAPTCHA_SECRET=${CAPTCHA_SECRET:-}
+      - CAPTCHA_MIN_SCORE=${CAPTCHA_MIN_SCORE:-}
     depends_on:
       postgres: {condition: service_healthy}
       migrate-identity: {condition: service_completed_successfully}
@@ -148,7 +165,7 @@ services:
     build:
       context: .
       dockerfile: apps/football-svc/Dockerfile
-    restart: on-failure
+    restart: unless-stopped
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -175,17 +192,41 @@ services:
       start_period: 5s
     networks: [scoutpulse-net]
 
-  # The Angular frontend is not built yet (Phase 4). Kept behind a profile so
-  # `docker compose up` does not build an empty nginx image; start it with
-  # `docker compose --profile frontend up`.
+  # The Angular frontend. Server-rendered, so this is a Node process on 4000 —
+  # not static files on 80, which is what the placeholder assumed.
+  #
+  # Still behind a profile: the image takes a few minutes to build and the
+  # backend stack is useful without it. Start with
+  # `docker compose --profile frontend up -d --build`.
   frontend:
     profiles: ["frontend"]
     build:
       context: .
       dockerfile: apps/frontend/Dockerfile
+    environment:
+      # The renderer's own network position. `localhost` in this container is
+      # this process, not the gateway.
+      GATEWAY_INTERNAL_URL: http://gateway:8000
+      # The address a visitor uses, for canonical links and og:url. Set this to
+      # the real domain in any deployment that has one.
+      SITE_URL: ${SITE_URL:-http://localhost:4000}
+      # Angular checks the Host header and silently degrades to client-side
+      # rendering when it does not match — a working build that renders
+      # nothing. Extend this when fronting the app with a real domain.
+      NG_ALLOWED_HOSTS: localhost,127.0.0.1,frontend
     ports:
-      - "4200:80"
-    depends_on: [gateway]
+      - "4000:4000"
+    # Readiness, not just "the container started": the renderer fetches from
+    # the gateway during the first request, so coming up before it is ready
+    # means the first page renders its error state.
+    depends_on:
+      gateway: {condition: service_started}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks: [scoutpulse-net]
 
   # Observability, behind a profile so the default stack stays small.

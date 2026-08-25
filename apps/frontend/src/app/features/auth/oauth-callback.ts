@@ -32,8 +32,15 @@ import { AuthFacade } from '../../core/auth/auth-facade';
     </main>
   `,
   styles: `
-    .callback { max-width: 30rem; padding-block: var(--space-8); text-align: center; }
-    .message { margin: var(--space-4) auto var(--space-5); color: var(--ink-soft); }
+    .callback {
+      max-width: 30rem;
+      padding-block: var(--space-8);
+      text-align: center;
+    }
+    .message {
+      margin: var(--space-4) auto var(--space-5);
+      color: var(--ink-soft);
+    }
   `,
 })
 export class OAuthCallback {

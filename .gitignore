@@ -12,6 +12,7 @@ vendor/
 # Environment variables
 .env
 *.env.local
+api.http
 
 # IDEs
 .vscode/

@@ -73,8 +73,15 @@ export class ApiError extends Error {
 function isApiErrorCode(value: unknown): value is ApiErrorCode {
   return (
     typeof value === 'string' &&
-    ['invalid', 'unauthorized', 'forbidden', 'not_found', 'conflict', 'rate_limited', 'internal']
-      .includes(value)
+    [
+      'invalid',
+      'unauthorized',
+      'forbidden',
+      'not_found',
+      'conflict',
+      'rate_limited',
+      'internal',
+    ].includes(value)
   );
 }
 
@@ -84,25 +91,40 @@ function isApiErrorCode(value: unknown): value is ApiErrorCode {
  */
 function codeForStatus(status: number): ApiErrorCode {
   switch (status) {
-    case 400: return 'invalid';
-    case 401: return 'unauthorized';
-    case 403: return 'forbidden';
-    case 404: return 'not_found';
-    case 409: return 'conflict';
-    case 429: return 'rate_limited';
-    default: return 'internal';
+    case 400:
+      return 'invalid';
+    case 401:
+      return 'unauthorized';
+    case 403:
+      return 'forbidden';
+    case 404:
+      return 'not_found';
+    case 409:
+      return 'conflict';
+    case 429:
+      return 'rate_limited';
+    default:
+      return 'internal';
   }
 }
 
 function defaultMessageFor(code: ApiErrorCode): string {
   switch (code) {
-    case 'invalid': return 'That request was not valid.';
-    case 'unauthorized': return 'Please sign in.';
-    case 'forbidden': return 'You do not have permission to do that.';
-    case 'not_found': return 'Not found.';
-    case 'conflict': return 'That conflicts with something that already exists.';
-    case 'rate_limited': return 'Too many attempts. Wait a moment and try again.';
-    case 'network': return 'Could not reach the server.';
-    default: return 'Something went wrong. Please try again.';
+    case 'invalid':
+      return 'That request was not valid.';
+    case 'unauthorized':
+      return 'Please sign in.';
+    case 'forbidden':
+      return 'You do not have permission to do that.';
+    case 'not_found':
+      return 'Not found.';
+    case 'conflict':
+      return 'That conflicts with something that already exists.';
+    case 'rate_limited':
+      return 'Too many attempts. Wait a moment and try again.';
+    case 'network':
+      return 'Could not reach the server.';
+    default:
+      return 'Something went wrong. Please try again.';
   }
 }

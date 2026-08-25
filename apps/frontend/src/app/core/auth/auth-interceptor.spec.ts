@@ -184,7 +184,11 @@ describe('authInterceptor', () => {
     // interceptor would see this 401, try to refresh, get another 401, and
     // recurse — which is the loop the flag exists to prevent.
     http
-      .post(REFRESH_URL, { refresh_token: 'x' }, { context: new HttpContext().set(SKIP_AUTH, true) })
+      .post(
+        REFRESH_URL,
+        { refresh_token: 'x' },
+        { context: new HttpContext().set(SKIP_AUTH, true) },
+      )
       .subscribe({ error: () => undefined });
 
     controller.expectOne(REFRESH_URL).flush(null, { status: 401, statusText: 'Unauthorized' });
@@ -196,10 +200,9 @@ describe('authInterceptor', () => {
     let captured: unknown;
     http.get(PROTECTED_URL).subscribe({ error: (e) => (captured = e) });
 
-    controller.expectOne(PROTECTED_URL).flush(
-      { error: 'nope', code: 'forbidden' },
-      { status: 403, statusText: 'Forbidden' },
-    );
+    controller
+      .expectOne(PROTECTED_URL)
+      .flush({ error: 'nope', code: 'forbidden' }, { status: 403, statusText: 'Forbidden' });
 
     expect(captured).toBeTruthy();
     expect(session.isAuthenticated()).toBe(true);

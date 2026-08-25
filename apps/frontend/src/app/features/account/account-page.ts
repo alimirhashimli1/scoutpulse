@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, resource, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  resource,
+  signal,
+} from '@angular/core';
 import { DatePipe, TitleCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -44,8 +51,14 @@ const MIN_PASSWORD = 8;
         <h4>Profile</h4>
         @if (session.user(); as user) {
           <dl class="facts">
-            <div><dt>Username</dt><dd>{{ user.username }}</dd></div>
-            <div><dt>Email</dt><dd>{{ user.email }}</dd></div>
+            <div>
+              <dt>Username</dt>
+              <dd>{{ user.username }}</dd>
+            </div>
+            <div>
+              <dt>Email</dt>
+              <dd>{{ user.email }}</dd>
+            </div>
             <div>
               <dt>Role</dt>
               <dd>
@@ -55,7 +68,10 @@ const MIN_PASSWORD = 8;
                 }
               </dd>
             </div>
-            <div><dt>Member since</dt><dd>{{ user.created_at | date: 'd MMM y' }}</dd></div>
+            <div>
+              <dt>Member since</dt>
+              <dd>{{ user.created_at | date: 'd MMM y' }}</dd>
+            </div>
           </dl>
         }
       </section>
@@ -150,34 +166,91 @@ const MIN_PASSWORD = 8;
     </main>
   `,
   styles: `
-    .account { max-width: 42rem; padding-block: var(--space-6) var(--space-8); }
-    .head { margin-bottom: var(--space-6); }
-    .eyebrow {
-      font-family: var(--font-mono); font-size: var(--text-xs);
-      letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: var(--space-2);
+    .account {
+      max-width: 42rem;
+      padding-block: var(--space-6) var(--space-8);
     }
-    h1 { font-size: var(--text-2xl); }
+    .head {
+      margin-bottom: var(--space-6);
+    }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: var(--space-2);
+    }
+    h1 {
+      font-size: var(--text-2xl);
+    }
     section {
       padding-block: var(--space-5);
       border-top: 1px solid var(--line);
     }
-    h4 { margin-bottom: var(--space-4); }
-    .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: var(--space-4); margin: 0; }
-    dt { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: var(--space-1); }
-    dd { margin: 0; font-weight: 600; }
-    .detail { display: block; font-weight: 400; font-size: var(--text-sm); color: var(--muted); }
-    .stack { display: flex; flex-direction: column; gap: var(--space-4); max-width: 22rem; }
-    .done { color: var(--positive); font-size: var(--text-sm); }
-    .identities { list-style: none; margin: 0 0 var(--space-4); padding: 0; }
-    .identities li {
-      display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;
-      padding: var(--space-3) 0; border-bottom: 1px solid var(--line-soft);
+    h4 {
+      margin-bottom: var(--space-4);
     }
-    .provider { font-weight: 600; }
-    .since { margin-left: auto; font-size: var(--text-sm); }
-    .muted { color: var(--muted); }
-    .hint { font-size: var(--text-sm); color: var(--muted); }
+    .facts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+      gap: var(--space-4);
+      margin: 0;
+    }
+    dt {
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: var(--space-1);
+    }
+    dd {
+      margin: 0;
+      font-weight: 600;
+    }
+    .detail {
+      display: block;
+      font-weight: 400;
+      font-size: var(--text-sm);
+      color: var(--muted);
+    }
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      max-width: 22rem;
+    }
+    .done {
+      color: var(--positive);
+      font-size: var(--text-sm);
+    }
+    .identities {
+      list-style: none;
+      margin: 0 0 var(--space-4);
+      padding: 0;
+    }
+    .identities li {
+      display: flex;
+      gap: var(--space-3);
+      align-items: center;
+      flex-wrap: wrap;
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .provider {
+      font-weight: 600;
+    }
+    .since {
+      margin-left: auto;
+      font-size: var(--text-sm);
+    }
+    .muted {
+      color: var(--muted);
+    }
+    .hint {
+      font-size: var(--text-sm);
+      color: var(--muted);
+    }
   `,
 })
 export class AccountPage {

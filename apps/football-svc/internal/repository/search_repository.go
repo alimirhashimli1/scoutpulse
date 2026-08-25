@@ -62,7 +62,7 @@ func ToTSQuery(input string) string {
 const (
 	searchPlayers = `
 		SELECT 'player' AS kind, p.id, p.name,
-		       trim(both ' · ' FROM concat_ws(' · ', p.position, p.nationality)) AS subtitle,
+		       trim(both ' · ' FROM concat_ws(' · ', p.position, p.nationalities[1])) AS subtitle,
 		       p.team_id,
 		       ts_rank(p.search_document, to_tsquery('simple', $1))
 		         + similarity(p.name, $2) AS rank

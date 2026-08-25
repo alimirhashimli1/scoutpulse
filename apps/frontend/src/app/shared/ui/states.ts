@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 /**
  * The three states every list and detail view has besides "loaded".
@@ -11,17 +11,78 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 @Component({
   selector: 'app-loading',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<p class="state" role="status">{{ message() }}</p>`,
+  template: `
+    <!--
+      The message is for screen readers, and the bars are for everyone else.
+
+      role="status" with aria-live announces the wait without stealing focus;
+      the skeleton is aria-hidden because "loading, loading, loading" read out
+      once per bar is noise. A plain text line was the previous behaviour and
+      made a loading list look like an empty one.
+    -->
+    <div class="loading">
+      <p class="visually-hidden" role="status" aria-live="polite">{{ message() }}</p>
+      <div class="skeleton" aria-hidden="true">
+        @for (bar of bars(); track $index) {
+          <div class="bar" [style.width.%]="bar"></div>
+        }
+      </div>
+    </div>
+  `,
   styles: `
-    .state {
-      color: var(--muted);
-      padding-block: var(--space-6);
-      font-size: var(--text-sm);
+    .loading {
+      padding-block: var(--space-5);
+    }
+    .skeleton {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .bar {
+      height: 1rem;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(
+        90deg,
+        var(--surface-2) 25%,
+        var(--line-soft) 37%,
+        var(--surface-2) 63%
+      );
+      background-size: 400% 100%;
+      animation: shimmer 1.4s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+      from {
+        background-position: 100% 0;
+      }
+      to {
+        background-position: 0 0;
+      }
+    }
+
+    /*
+      The global reduced-motion rule cuts the duration to near zero, which
+      would leave the gradient frozen mid-sweep at whatever position it
+      happened to stop. A flat fill is the honest still frame.
+    */
+    @media (prefers-reduced-motion: reduce) {
+      .bar {
+        animation: none;
+        background: var(--surface-2);
+      }
     }
   `,
 })
 export class Loading {
   readonly message = input('Loading…');
+
+  /** How many placeholder rows, and how wide. Uneven widths read as text. */
+  readonly lines = input(3);
+
+  protected readonly bars = computed(() => {
+    const widths = [100, 82, 91, 68, 95, 76];
+    return Array.from({ length: this.lines() }, (_, i) => widths[i % widths.length]);
+  });
 }
 
 @Component({
@@ -43,7 +104,10 @@ export class Loading {
       border-radius: var(--radius);
       background: var(--surface);
     }
-    .headline { color: var(--ink-soft); margin-inline: auto; }
+    .headline {
+      color: var(--ink-soft);
+      margin-inline: auto;
+    }
     .hint {
       color: var(--muted);
       font-size: var(--text-sm);
@@ -68,7 +132,9 @@ export class Empty {
           The same id appears in the service logs. Showing it means a user can
           quote something findable instead of describing what they were doing.
         -->
-        <p class="reference">Reference: <code>{{ requestId() }}</code></p>
+        <p class="reference">
+          Reference: <code>{{ requestId() }}</code>
+        </p>
       }
     </div>
   `,
@@ -79,7 +145,9 @@ export class Empty {
       background: var(--critical-soft);
       border-radius: var(--radius);
     }
-    .headline { color: var(--critical); }
+    .headline {
+      color: var(--critical);
+    }
     .reference {
       margin-top: var(--space-2);
       font-size: var(--text-xs);

@@ -6,10 +6,13 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/scoutpulse/identity-svc/internal/captcha"
 	"github.com/scoutpulse/identity-svc/internal/handler"
+	"github.com/scoutpulse/identity-svc/internal/mailer"
 	"github.com/scoutpulse/identity-svc/internal/oauth"
 	"github.com/scoutpulse/identity-svc/internal/repository"
 	"github.com/scoutpulse/libs/auth"
@@ -157,6 +160,7 @@ func main() {
 	refreshRepo := repository.NewPostgresRefreshTokenRepository(database)
 	identityRepo := repository.NewPostgresIdentityRepository(database)
 	loginCodeRepo := repository.NewPostgresLoginCodeRepository(database)
+	verificationRepo := repository.NewEmailVerificationRepository(database)
 
 	// External sign-in providers. A provider with no credentials in the
 	// environment is simply absent, so Google can be enabled without Facebook
@@ -164,6 +168,24 @@ func main() {
 	publicURL := getenv("PUBLIC_BASE_URL", "http://localhost:8080")
 	frontendURL := getenv("FRONTEND_URL", "http://localhost:4200")
 	providers := oauth.FromEnv(publicURL)
+
+	// Email verification and the human challenge are both optional in the same
+	// way external sign-in is: absent configuration degrades the feature rather
+	// than stopping the service. Without SMTP the link is written to the log,
+	// which is what makes the flow testable locally.
+	mail := mailer.New(mailer.Config{
+		Host:     os.Getenv("SMTP_HOST"),
+		Port:     os.Getenv("SMTP_PORT"),
+		Username: os.Getenv("SMTP_USERNAME"),
+		Password: os.Getenv("SMTP_PASSWORD"),
+		From:     getenv("SMTP_FROM", "no-reply.local"),
+	}, logger)
+
+	challenge := captcha.New(captcha.Config{
+		Provider: os.Getenv("CAPTCHA_PROVIDER"),
+		Secret:   os.Getenv("CAPTCHA_SECRET"),
+		MinScore: captchaMinScore(),
+	}, logger)
 	if names := providers.Configured(); len(names) > 0 {
 		logger.Info("external sign-in enabled", "providers", names)
 	} else {
@@ -185,6 +207,12 @@ func main() {
 			// looks like the state check failing.
 			SecureCookies: strings.HasPrefix(publicURL, "https://"),
 		},
+		Verification: verificationRepo,
+		Mailer:       mail,
+		Captcha:      challenge,
+		CaptchaKind:  os.Getenv("CAPTCHA_PROVIDER"),
+		CaptchaSite:  os.Getenv("CAPTCHA_SITE_KEY"),
+		Log:          logger,
 	}
 
 	// Expired and revoked sessions accumulate forever otherwise: rotation
@@ -196,6 +224,8 @@ func main() {
 	// Login codes live 60 seconds but the rows outlast them, so they need
 	// pruning for the same reason refresh tokens do.
 	startLoginCodeJanitor(ctx, loginCodeRepo, logger)
+	// Verification tokens outlive their 24 hours as rows, the same way.
+	startVerificationJanitor(ctx, verificationRepo, logger)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", h.Health)
@@ -225,9 +255,19 @@ func main() {
 	// sign-in is handed to the frontend as a one-time code, which it exchanges
 	// for the usual token pair. Tokens never travel in a redirect URL.
 	mux.HandleFunc("GET /api/v1/auth/providers", h.ListProviders)
+	// One call that tells the frontend how to render both auth pages: which
+	// providers exist, whether a challenge is required and with which public
+	// key, and whether a new account must confirm its address.
+	mux.HandleFunc("GET /api/v1/auth/config", h.AuthConfig)
 	mux.HandleFunc("GET /api/v1/auth/{provider}", h.StartOAuth)
 	mux.HandleFunc("GET /api/v1/auth/{provider}/callback", h.CompleteOAuth)
 	mux.Handle("POST /api/v1/auth/exchange", writeLimit.Middleware(http.HandlerFunc(h.ExchangeCode)))
+
+	// Email confirmation. Both are rate limited: the first is a token guess,
+	// the second sends mail to an address the caller chooses, and neither
+	// should be available at machine speed.
+	mux.Handle("POST /api/v1/auth/verify-email", writeLimit.Middleware(http.HandlerFunc(h.VerifyEmail)))
+	mux.Handle("POST /api/v1/auth/resend-verification", loginLimit.Middleware(http.HandlerFunc(h.ResendVerification)))
 
 	// Which providers the caller has linked, and unlinking one.
 	mux.Handle("GET /api/v1/users/me/identities",
@@ -267,4 +307,57 @@ func main() {
 	if err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
+}
+
+// captchaMinScore reads the reCAPTCHA v3 threshold.
+//
+// Only v3 scores; v2 and Turnstile return a plain pass or fail, and an unset
+// value leaves the score ignored rather than defaulting to a threshold nobody
+// chose.
+func captchaMinScore() float64 {
+	raw := os.Getenv("CAPTCHA_MIN_SCORE")
+	if raw == "" {
+		return 0
+	}
+	score, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0
+	}
+	return score
+}
+
+// startVerificationJanitor removes expired verification tokens.
+//
+// Same reasoning as the sign-in code janitor: the token stops working at its
+// expiry, but the row does not remove itself, and a table that only grows is a
+// slow leak rather than a bug anyone notices.
+func startVerificationJanitor(ctx context.Context, repo repository.EmailVerificationRepository, logger *slog.Logger) {
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+
+		prune := func() {
+			runCtx, cancel := context.WithTimeout(ctx, time.Minute)
+			defer cancel()
+
+			removed, err := repo.DeleteExpired(runCtx, time.Now())
+			if err != nil {
+				logger.Error("pruning verification tokens failed", "error", err)
+				return
+			}
+			if removed > 0 {
+				logger.Debug("pruned verification tokens", "count", removed)
+			}
+		}
+
+		prune()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				prune()
+			}
+		}
+	}()
 }

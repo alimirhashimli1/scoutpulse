@@ -25,13 +25,7 @@ export type IsoDate = string;
 export type CompetitionType = 'league' | 'domestic_cup' | 'international_cup' | 'super_cup';
 
 export type TransferType =
-  | 'permanent'
-  | 'loan'
-  | 'loan_return'
-  | 'free'
-  | 'youth_promotion'
-  | 'released'
-  | 'retired';
+  'permanent' | 'loan' | 'loan_return' | 'free' | 'youth_promotion' | 'released' | 'retired';
 
 export type Foot = 'left' | 'right' | 'both';
 
@@ -87,19 +81,69 @@ export interface Player {
   first_name?: string;
   last_name?: string;
   date_of_birth?: IsoDate;
-  nationality?: string;
-  second_nationality?: string;
+  /**
+   * Ordered, primary first. Replaced a nationality/second_nationality pair,
+   * which could only express two and left "second" undefined for someone
+   * holding three.
+   *
+   * Always an array — the API emits `[]` rather than null, so no consumer
+   * needs `?? []`.
+   */
+  nationalities: string[];
   height_cm?: number;
   preferred_foot?: Foot;
   agent?: string;
   squad_number?: number;
+  /** The position a player is listed as. */
   position: string;
+  /** Others they can fill. Never repeats `position`; the API refuses that. */
+  secondary_positions: string[];
   contract_start?: IsoDate;
   contract_until?: IsoDate;
   /** Derived: follows the latest recorded valuation. */
   market_value_minor: MinorUnits;
   currency: string;
+
+  /**
+   * Scouting percentages, 0–100.
+   *
+   * **Entered by hand, not computed.** There is no match data in this system,
+   * so these are a scout's recorded averages. `undefined` means not recorded,
+   * which the profile must render differently from 0 — "no data" and "won none
+   * of his duels" are very different claims.
+   */
+  duels_won_pct?: number;
+  pass_completion_pct?: number;
+  shots_on_target_pct?: number;
+  aerial_duels_won_pct?: number;
+
+  /** The two halves of the assessment. Lists, so they render as bullets. */
+  strengths: string[];
+  weaknesses: string[];
+
   created_at: IsoDate;
+}
+
+/**
+ * One member's note on a player.
+ *
+ * At most one per person per player — enforced by a unique constraint, not by
+ * a check the UI could race. Editing replaces the text; `created_at` does not
+ * move, so an edit cannot push a note back to the top of the list.
+ */
+export interface PlayerNote {
+  id: string;
+  player_id: string;
+  author_id: string;
+  /**
+   * Captured when the note was written. football-svc cannot resolve a user id
+   * to a name — accounts live in identity-svc — so the name travels with the
+   * note and survives the account being deleted.
+   */
+  author_name: string;
+  body: string;
+  created_at: IsoDate;
+  updated_at: IsoDate;
 }
 
 export interface Coach {

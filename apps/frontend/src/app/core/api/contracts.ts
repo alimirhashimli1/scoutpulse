@@ -7,6 +7,7 @@ import {
   League,
   MarketValue,
   Player,
+  PlayerNote,
   SearchKind,
   SearchResult,
   Season,
@@ -41,6 +42,13 @@ export interface PlayerFilter extends PageQuery {
   free_agent?: boolean;
   min_value_minor?: number;
   max_value_minor?: number;
+  /**
+   * Resolve a known set of players in one request.
+   *
+   * Serialised by `String(value)`, so an array becomes `a,b,c` — which is the
+   * form the API parses. Capped server-side at 100 ids.
+   */
+  ids?: string[];
 }
 
 export interface PlayerReader {
@@ -65,6 +73,35 @@ export interface PlayerWriter {
 
 export const PLAYER_READER = new InjectionToken<PlayerReader>('PlayerReader');
 export const PLAYER_WRITER = new InjectionToken<PlayerWriter>('PlayerWriter');
+
+// --- member notes on a player ------------------------------------------
+
+export interface PlayerNoteReader {
+  /** A player's notes, newest first. Public — the commentary is the product. */
+  notes(playerId: string, query?: PageQuery): Promise<Page<PlayerNote>>;
+  /**
+   * The signed-in member's own note, or null when they have not written one.
+   *
+   * Null rather than a rejected promise: "you have not commented yet" is the
+   * ordinary case, and the API says it with a 404 that is not an error here.
+   */
+  myNote(playerId: string): Promise<PlayerNote | null>;
+}
+
+export interface PlayerNoteWriter {
+  /** Refused with a conflict if this member already has a note on the player. */
+  write(playerId: string, body: string): Promise<PlayerNote>;
+  edit(playerId: string, noteId: string, body: string): Promise<PlayerNote>;
+  /**
+   * Named removeNote rather than remove: the HTTP class implements both this
+   * and PlayerWriter, whose remove(id) deletes a player. Two methods called
+   * remove with different meanings on one object is a trap.
+   */
+  removeNote(playerId: string, noteId: string): Promise<void>;
+}
+
+export const PLAYER_NOTE_READER = new InjectionToken<PlayerNoteReader>('PlayerNoteReader');
+export const PLAYER_NOTE_WRITER = new InjectionToken<PlayerNoteWriter>('PlayerNoteWriter');
 
 // --- clubs -------------------------------------------------------------
 

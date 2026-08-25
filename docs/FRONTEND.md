@@ -581,15 +581,69 @@ marked instead.
   `GET /users` and matches locally, which is fine for a small deployment and
   the same trade `LookupStore` makes for clubs.
 
-### Phase 6 — polish
+### Phase 6 — polish · **done**
 
-- [ ] 6.1 Dark mode
-- [ ] 6.2 Accessibility pass — focus, labels, contrast, keyboard
-- [ ] 6.3 Skeleton loaders
-- [ ] 6.4 Error page with `request_id`
-- [ ] 6.5 Bundle budget check
-- [ ] 6.6 Dockerfile — replace the placeholder nginx with a real build
-- [ ] 6.7 Frontend job in CI
+- [x] 6.1 Dark mode — three states, with the first paint handled before the stylesheet
+- [x] 6.2 Accessibility pass — `aria-describedby` wiring, `scope="col"`, labelled controls
+- [x] 6.3 Skeleton loaders
+- [x] 6.4 Real 404 page — and a real 404 *status*, which took more than a component
+- [x] 6.5 Bundle budgets tightened to 420kB warn / 550kB error (actual: 391kB raw, 108kB transfer)
+- [x] 6.6 Dockerfile — a Node SSR runtime, replacing a two-line nginx stub that served nothing
+- [x] 6.7 Frontend job in CI, including an assertion that SSR actually rendered
+- [x] 6.8 SEO metadata, JSON-LD, canonical URLs and `robots.txt` — see below
+
+**The SEO work was the point of choosing SSR, and none of it existed.** The
+page title was the generated `Frontend`, with no description, no Open Graph
+tags, no canonical and no structured data. `Seo` now sets all of them from
+entity data during the server render, so they are in the first response rather
+than appearing after hydration — which is too late for a link unfurler and
+unreliable for a crawler. Players and coaches emit `Person`, clubs
+`SportsTeam`, competitions `SportsOrganization`.
+
+`SITE_URL` is its own token, deliberately not `API_CONFIG`. One answers "where
+do I fetch data from" — inside Docker, an internal hostname no visitor can
+reach — and the other "what address is this page published at". The renderer
+cannot infer the second from the `Host` header without letting anyone point
+this site's canonical tags at theirs, so it is configuration. **Set it to the
+real domain in production**, or every canonical link says `localhost`.
+
+**The soft 404 took two attempts, and the first was wrong.** Replacing
+`{ path: '**', redirectTo: '' }` with a not-found component fixed the page but
+not the status: a wildcard route that resolves to a component is still a
+*match*, so the render succeeds and the server answers `200 OK`. The page said
+"not found" while the status said otherwise. The fix is `status: 404` on the
+catch-all in `app.routes.server.ts` — which only works because every real route
+is now enumerated above it, instead of a trailing `**` sweeping up everything.
+That has a useful side effect: forgetting to list a new public page makes it
+404 loudly rather than fail quietly. CI asserts both directions.
+
+**Both duplicate URLs now name one canonical.** `/` and `/transfers` render the
+same component, so they competed as duplicates. They both point at `/` — the
+root is the stronger address, and canonicalising it *away* to an alias would
+have been worse than leaving it alone.
+
+**Dark mode needs three states, not two.** A boolean cannot express "follow my
+system", so anyone who once tapped the toggle would be pinned forever,
+including when their OS switches at sunset. The first paint is handled by a
+small inline script in `index.html`, ahead of the stylesheet — doing it from
+Angular runs after the page has already painted in the system theme, which is
+exactly the flash the preference exists to prevent, and worst for the person
+who deliberately chose light on a dark machine.
+
+**`Field` was not keeping its own promise.** Its doc comment claimed it owned
+the accessibility wiring while rendering `<p id="name-hint">` that nothing
+referenced — a screen reader announced the label and then went silent about the
+constraint the field was failing. The control is projected so the attribute
+cannot be bound in the template; `afterRenderEffect` sets `aria-describedby`
+and `aria-invalid` on the element instead, and re-runs as the error appears and
+clears.
+
+**Prettier had never been run.** A `.prettierrc` existed and 39 files failed it,
+including the ones `ng new` generated. Rather than add a CI step that fails on
+arrival, the tree was formatted once. The check is now meaningful.
+
+**Not verified locally:** the container image. Docker is not on the PATH in this
+environment, so the CI job is the first thing that will actually build it.
 
 ---
 
@@ -715,7 +769,39 @@ process running the built server bundle, and the compose port changes from
 | 3 Read-only app | **Mostly done** — 2026-08-15 |
 | 4 Writes | **Done** — 2026-08-18 |
 | 5 Account and admin | **Done** — 2026-08-18 |
-| 6 Polish | Not started |
+| 6 Polish | **Done** — 2026-08-18 |
+
+### Carried forward
+
+Real gaps, listed so they are not rediscovered by surprise:
+
+- ~~Competition history is written but never displayed.~~ **Closed** — 2026-08-19.
+  The club page has a Competitions section reading `TeamReader.seasons()`, and
+  the competition page has a season picker reading `SeasonReader.teams()`.
+  Administrators can withdraw an entry, which was a third method with no caller.
+  All three existed and were dead before this. See §12.
+- ~~The transfer feed says "Player" on every row.~~ **Closed** — 2026-08-19.
+  The API gained the batch filter this needed: `GET /players?ids=a,b,c`, capped
+  at 100. `PlayerNames` resolves a whole feed page in **one** request and caches
+  what it has seen. See §13.
+- **A missing entity returns 200.** `/clubs/<unknown-id>` renders "No club with
+  that id" with an OK status. `ServerRoute.status` is static per route, so
+  fixing this needs the render to influence the response — a real limitation,
+  not an oversight.
+- **`ng serve` cannot reach the split-service dev mode.** `apiConfigFor` always
+  appends `/api/football` and `/api/identity`, which only exist behind the
+  gateway. `scripts\dev-run.ps1` runs the services on their own ports with no
+  gateway — the documented path on a machine without Docker — and every request
+  from the browser 404s. The SSR side now takes `FOOTBALL_API_URL` and
+  `IDENTITY_API_URL` overrides; the browser has no runtime environment to read,
+  so it needs either a `proxy.conf.json` for `ng serve` or a build-time config.
+  That those services set `CORS_ALLOWED_ORIGINS` to the frontend's origin shows
+  the mode was always meant to be usable from the app.
+- **No `sitemap.xml`.** It has to be generated from the API at request time;
+  `robots.txt` already points at it.
+- Phase 3's `[~]` items: no type-ahead dropdown, transfer feed filters by type
+  only, partial responsive sweep.
+- Component tests for the forms, and the end-to-end path in §8.
 
 ### Running it
 
@@ -766,3 +852,123 @@ apps/frontend/src/
       search/  auth/  account/  admin/
     layout/shell.ts                 masthead, nav, search, account area
 ```
+
+---
+
+## 12. Competition history — the write with no read
+
+Found by using the app, not by reading it: entering a club in a competition
+saved successfully and then nothing anywhere displayed it.
+
+Three repository methods existed, were correct, and had **no caller in the
+application**:
+
+| Method | Endpoint | Now used by |
+|---|---|---|
+| `TeamReader.seasons()` | `GET /teams/{id}/seasons` | club page, Competitions section |
+| `SeasonReader.teams()` | `GET /seasons/{id}/teams` | competition page, season picker |
+| `TeamWriter.withdrawSeason()` | `DELETE /teams/{id}/seasons/{entryId}` | club page, admin-only remove |
+
+That is the shape of the mistake: the contracts and the HTTP layer were built
+from the API surface, the write form was built in phase 4, and the read was
+never built at all. A form that saves into a void is worse than no form,
+because it looks like it worked.
+
+### Why seasons attach to clubs rather than to competitions
+
+This part was not a bug, and it is worth writing down because it looks like
+one. The join is a **triple** — `team_seasons(team_id, season_id, league_id)` —
+and one row means *"this club played in this competition in that season."*
+
+A competition has no season list of its own because a competition is permanent:
+the Süper Lig is one row that exists across all years. What varies per season is
+**who contested it**, so the season-to-competition link is derived from the
+entries rather than stored twice. The alternative, a `league_seasons` table,
+would either duplicate the club list or contradict it.
+
+### The two views answer different questions
+
+The competition page now has a picker, and the distinction it draws is the
+whole point of the temporal model:
+
+- **Now** reads `teams.league_id` — a single pointer to a club's present
+  competition. Relegation overwrites it, so it says nothing about the past.
+- **A season** reads `team_seasons` — who actually contested the competition
+  that year. It survives relegation, because it is history.
+
+They can legitimately disagree, and neither is wrong. One list serving both
+would have to pick one and be silently wrong about the other.
+
+### Notes from building it
+
+`LookupStore` gained seasons, and its two near-identical paging loops became
+one generic `collect()`. A third copy was the point at which duplicating it
+stopped being cheaper than extracting it. The same scaling caveat applies:
+fine for tens of seasons and hundreds of clubs, wrong past a few thousand.
+
+Seasons are sorted for the picker by `start_date`, not by label. Labels are
+free text, and `2026/27` only sorts correctly beside `2025/26` by accident of
+notation — `Apertura 2026` would not.
+
+**A backtick inside an inline template comment broke the build twice.** Writing
+`` `teams.league_id` `` in an HTML comment inside a `template:` string
+terminates the TypeScript template literal, and the resulting errors point at
+"unclosed block" and a stray property name rather than at the quote. Component
+templates are template literals; markdown-style code quoting does not belong in
+them.
+
+**Verified:** build clean, 65 tests pass, formatting clean, and the changed
+pages render server-side without error. **Not verified:** the actual data path
+— the backend was down while this was written, so the sections have not been
+seen populated with real entries. That is the first thing to check when the
+stack is back up.
+
+---
+
+## 13. The feed's player column, and why it needed the API
+
+The landing page linked to the right player and called every one of them
+`Player`. The column was a placeholder nobody filled in.
+
+It stayed a placeholder because the obvious fix is bad. A transfer row carries
+`player_id` and no name, so the names have to come from somewhere — and
+`LookupStore`'s approach does not transfer:
+
+| | Clubs and competitions | Players |
+|---|---|---|
+| How many | hundreds, dozens | potentially hundreds of thousands |
+| Strategy | load all once, cache | impossible |
+
+Fetching one player per row is twenty-five requests for a twenty-five row
+feed, and all of them run **during the server render of the landing page** —
+the slowest possible place to put an N+1.
+
+### The API grew a batch filter
+
+`GET /players?ids=a,b,c`, capped at 100 — matching `MaxPageSize`, since more
+ids than a page can return is a request that cannot be answered anyway. An
+unbounded list would be a denial-of-service shape: both the query text and the
+argument array grow with a caller-controlled input.
+
+Blank entries are dropped, so a trailing comma from joining ids in a client
+does not become a lookup for the empty string — which Postgres rejects as a
+malformed uuid, producing a 400 that blames the caller for a stray character.
+
+### `PlayerNames`, and what it guarantees
+
+One request per page, cached across pages, de-duplicated within a page (a
+player can appear twice — a loan out and the return), and single-flighted so
+two components rendering the same feed do not both fetch.
+
+A failed lookup is swallowed: the name falls back to "Unknown player" and the
+page still renders. A broken name is a worse row; a thrown error is a broken
+page.
+
+Eight tests pin this, and the one that matters asserts the **request count**
+rather than the output — the regression to guard against is not a wrong name,
+it is twenty-five requests where there should be one. The stub's `byId` rejects
+outright, so reaching for it fails loudly instead of quietly working.
+
+**Verified against the running stack:** the feed renders Folarin Balogun, Mike
+Maignan and Scott McTominay where it used to say "Player", and a malformed id
+returns 400 rather than 500.

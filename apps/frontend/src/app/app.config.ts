@@ -6,13 +6,14 @@ import {
   provideBrowserGlobalErrorListeners,
   provideZonelessChangeDetection,
 } from '@angular/core';
-import { isPlatformBrowser } from '@angular/common';
+import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { provideClientHydration, withEventReplay } from '@angular/platform-browser';
 
 import { routes } from './app.routes';
 import { API_CONFIG, apiConfigFor, BROWSER_GATEWAY } from './core/tokens/api-config';
+import { SITE_URL, normaliseOrigin } from './core/tokens/site-url';
 import { correlationIdInterceptor, errorInterceptor } from './core/api/interceptors';
 import { provideFootballApi } from './core/api/providers';
 import { authInterceptor } from './core/auth/auth-interceptor';
@@ -56,6 +57,17 @@ export const appConfig: ApplicationConfig = {
     // The browser talks to the gateway at its public address. The server
     // override lives in app.config.server.ts — see docs/FRONTEND.md §11.3.
     { provide: API_CONFIG, useValue: apiConfigFor(BROWSER_GATEWAY) },
+
+    // The address this page is published at, for canonical and og:url. In the
+    // browser it is simply where we are; the server cannot know without being
+    // told, so it reads SITE_URL from the environment.
+    {
+      provide: SITE_URL,
+      useFactory: () => {
+        const document = inject(DOCUMENT);
+        return normaliseOrigin(document.location?.origin ?? 'http://localhost:4000');
+      },
+    },
 
     // Every repository contract bound to its HTTP implementation.
     ...provideFootballApi(),

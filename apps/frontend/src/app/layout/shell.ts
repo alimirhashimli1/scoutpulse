@@ -4,6 +4,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 
 import { AuthFacade } from '../core/auth/auth-facade';
 import { SessionStore } from '../core/auth/session-store';
+import { ThemeStore } from '../core/theme/theme';
 
 /**
  * The frame every page renders inside: masthead, navigation, search, footer.
@@ -20,7 +21,15 @@ import { SessionStore } from '../core/auth/session-store';
 
     <header class="masthead">
       <div class="bar page">
-        <a class="wordmark" routerLink="/">ScoutPulse</a>
+        <!--
+          The badge sits outside the link on purpose, so the link's accessible
+          name stays "ScoutPulse" rather than becoming "ScoutPulse Beta" — the
+          destination has not changed, only the disclaimer beside it.
+        -->
+        <div class="brand">
+          <a class="wordmark" routerLink="/">ScoutPulse</a>
+          <span class="beta">Beta</span>
+        </div>
 
         <form class="search" role="search" (ngSubmit)="search()">
           <label class="visually-hidden" for="q">Search players, clubs and competitions</label>
@@ -40,6 +49,21 @@ import { SessionStore } from '../core/auth/session-store';
         </nav>
 
         <div class="account">
+          <!--
+            Cycles system → light → dark. aria-label carries the destination,
+            because the glyph alone tells a screen reader nothing, and the
+            label changing is what announces that the press did something.
+          -->
+          <button
+            type="button"
+            class="theme"
+            [attr.aria-label]="theme.nextLabel()"
+            [title]="theme.nextLabel()"
+            (click)="theme.cycle()"
+          >
+            <span aria-hidden="true">{{ theme.icon() }}</span>
+          </button>
+
           @if (session.isAuthenticated()) {
             @if (session.isAdmin()) {
               <a routerLink="/admin/users" routerLinkActive="active">Users</a>
@@ -75,6 +99,14 @@ import { SessionStore } from '../core/auth/session-store';
           ScoutPulse — transfers, valuations and careers over time.
           <span class="muted">No match data: this is a record of people and clubs.</span>
         </p>
+        <!--
+          The badge says "beta"; this says what beta means here. A label on its
+          own tells someone not to trust the site without telling them which
+          part to distrust.
+        -->
+        <p class="muted beta-note">
+          Beta — the data is still being filled in and things may change.
+        </p>
       </div>
     </footer>
   `,
@@ -107,6 +139,15 @@ import { SessionStore } from '../core/auth/session-store';
       padding-block: var(--space-3);
       flex-wrap: wrap;
     }
+    .brand {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      /* Tight: the badge is a caption on the wordmark, not a second line of
+         navigation, and the masthead is only so tall. */
+      gap: 1px;
+      line-height: 1.1;
+    }
     .wordmark {
       font-family: var(--font-display);
       font-size: var(--text-lg);
@@ -114,7 +155,21 @@ import { SessionStore } from '../core/auth/session-store';
       text-decoration: none;
       letter-spacing: -0.01em;
     }
-    .search { flex: 1 1 14rem; min-width: 0; }
+    .beta {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+    }
+    .beta-note {
+      margin-top: var(--space-2);
+      font-size: var(--text-xs);
+    }
+    .search {
+      flex: 1 1 14rem;
+      min-width: 0;
+    }
     .search input {
       width: 100%;
       padding: var(--space-2) var(--space-3);
@@ -122,22 +177,38 @@ import { SessionStore } from '../core/auth/session-store';
       border-radius: var(--radius);
       background: var(--ground);
     }
-    .links { display: flex; gap: var(--space-4); }
+    .links {
+      display: flex;
+      gap: var(--space-4);
+    }
     .links a {
       color: var(--ink-soft);
       text-decoration: none;
       font-size: var(--text-sm);
     }
-    .links a:hover, .links a.active { color: var(--accent); }
+    .links a:hover,
+    .links a.active {
+      color: var(--accent);
+    }
     .account {
       display: flex;
       align-items: center;
       gap: var(--space-3);
       font-size: var(--text-sm);
     }
-    .account a { color: var(--ink-soft); text-decoration: none; }
-    .account a:hover, .account a.active { color: var(--accent); }
-    .who { display: flex; align-items: center; gap: var(--space-2); }
+    .account a {
+      color: var(--ink-soft);
+      text-decoration: none;
+    }
+    .account a:hover,
+    .account a.active {
+      color: var(--accent);
+    }
+    .who {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
     .role {
       font-family: var(--font-mono);
       font-size: 10px;
@@ -156,7 +227,20 @@ import { SessionStore } from '../core/auth/session-store';
       cursor: pointer;
       color: var(--ink-soft);
     }
-    .account button:hover { border-color: var(--accent); color: var(--accent); }
+    .account button:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .theme {
+      /* Square, so the three glyphs do not resize the masthead as it cycles. */
+      width: 2rem;
+      height: 2rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      line-height: 1;
+    }
 
     .footer {
       border-top: 1px solid var(--line);
@@ -165,16 +249,24 @@ import { SessionStore } from '../core/auth/session-store';
       font-size: var(--text-sm);
       color: var(--ink-soft);
     }
-    .muted { color: var(--muted); }
+    .muted {
+      color: var(--muted);
+    }
 
     @media (max-width: 40rem) {
-      .bar { gap: var(--space-3); }
-      .search { order: 3; flex-basis: 100%; }
+      .bar {
+        gap: var(--space-3);
+      }
+      .search {
+        order: 3;
+        flex-basis: 100%;
+      }
     }
   `,
 })
 export class Shell {
   protected readonly session = inject(SessionStore);
+  protected readonly theme = inject(ThemeStore);
   private readonly auth = inject(AuthFacade);
   private readonly router = inject(Router);
 

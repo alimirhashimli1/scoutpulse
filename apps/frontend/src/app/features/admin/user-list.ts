@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, resource, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  resource,
+  signal,
+} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -65,8 +72,11 @@ const ROLES: Role[] = ['user', 'editor', 'admin'];
           <table>
             <thead>
               <tr>
-                <th>Username</th><th>Email</th><th>Role</th><th>Joined</th>
-                <th><span class="visually-hidden">Actions</span></th>
+                <th scope="col">Username</th>
+                <th scope="col">Email</th>
+                <th scope="col">Role</th>
+                <th scope="col">Joined</th>
+                <th scope="col"><span class="visually-hidden">Actions</span></th>
               </tr>
             </thead>
             <tbody>
@@ -74,21 +84,33 @@ const ROLES: Role[] = ['user', 'editor', 'admin'];
                 <tr [class.self]="isSelf(user)">
                   <td>
                     {{ user.username }}
-                    @if (isSelf(user)) { <span class="you">you</span> }
+                    @if (isSelf(user)) {
+                      <span class="you">you</span>
+                    }
                   </td>
                   <td class="muted">{{ user.email }}</td>
                   <td>
                     <label class="visually-hidden" [attr.for]="'role-' + user.id">
                       Role for {{ user.username }}
                     </label>
+                    <!--
+                      The selected option is marked on the option, not with
+                      [value] on the select.
+
+                      Binding [value] here sets the property before @for has
+                      put any options in the DOM, so the assignment matches
+                      nothing and the browser falls back to the first option —
+                      which made every account read as "user" whatever role it
+                      actually held. Marking each option as it renders cannot
+                      race the list.
+                    -->
                     <select
                       [id]="'role-' + user.id"
-                      [value]="user.role"
                       [disabled]="busyWith() === user.id"
                       (change)="changeRole(user, $event)"
                     >
                       @for (role of roles; track role) {
-                        <option [value]="role">{{ role }}</option>
+                        <option [value]="role" [selected]="role === user.role">{{ role }}</option>
                       }
                     </select>
                   </td>
@@ -120,10 +142,21 @@ const ROLES: Role[] = ['user', 'editor', 'admin'];
     </main>
   `,
   styles: `
-    .masthead { padding-block: var(--space-6) var(--space-4); }
-    h1 { margin-bottom: var(--space-2); }
-    .standfirst { color: var(--ink-soft); }
-    .search { display: flex; gap: var(--space-2); margin-bottom: var(--space-5); flex-wrap: wrap; }
+    .masthead {
+      padding-block: var(--space-6) var(--space-4);
+    }
+    h1 {
+      margin-bottom: var(--space-2);
+    }
+    .standfirst {
+      color: var(--ink-soft);
+    }
+    .search {
+      display: flex;
+      gap: var(--space-2);
+      margin-bottom: var(--space-5);
+      flex-wrap: wrap;
+    }
     .search input {
       flex: 1 1 16rem;
       padding: var(--space-2) var(--space-3);
@@ -131,28 +164,53 @@ const ROLES: Role[] = ['user', 'editor', 'admin'];
       border-radius: var(--radius);
       background: var(--surface);
     }
-    table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
-    th {
-      text-align: left; font-size: var(--text-xs); text-transform: uppercase;
-      letter-spacing: 0.08em; color: var(--muted); font-weight: 700;
-      padding: var(--space-3); background: var(--surface-2); white-space: nowrap;
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--text-sm);
     }
-    td { padding: var(--space-3); border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+    th {
+      text-align: left;
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+      padding: var(--space-3);
+      background: var(--surface-2);
+      white-space: nowrap;
+    }
+    td {
+      padding: var(--space-3);
+      border-bottom: 1px solid var(--line-soft);
+      vertical-align: middle;
+    }
     td select {
       padding: var(--space-1) var(--space-2);
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--surface);
     }
-    .self { background: var(--accent-soft); }
-    .you {
-      font-family: var(--font-mono); font-size: 10px; text-transform: uppercase;
-      letter-spacing: 0.08em; color: var(--accent);
-      border: 1px solid var(--accent); border-radius: var(--radius-sm);
-      padding: 1px 5px; margin-left: var(--space-2);
+    .self {
+      background: var(--accent-soft);
     }
-    .right { text-align: right; }
-    .muted { color: var(--muted); }
+    .you {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius-sm);
+      padding: 1px 5px;
+      margin-left: var(--space-2);
+    }
+    .right {
+      text-align: right;
+    }
+    .muted {
+      color: var(--muted);
+    }
   `,
 })
 export class UserList {
