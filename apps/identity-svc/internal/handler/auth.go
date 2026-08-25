@@ -117,6 +117,23 @@ type RegisterRequest struct {
 	Captcha string `json:"captcha_token"`
 }
 
+// RegisterResponse is what a successful registration returns.
+//
+// The account is **wrapped** rather than returned bare, because registration
+// now has an outcome beyond the record itself: whether the address has to be
+// confirmed before the account can be used at all. A client reading only the
+// user would send someone straight to a sign-in that is going to refuse them.
+//
+// It is a named type rather than the map literal it started as. The map made
+// the shape invisible to the compiler, so changing it broke a test that had to
+// be run against a real database to notice — the failure surfaced as four
+// empty fields rather than as anything about registration.
+type RegisterResponse struct {
+	User                 model.User `json:"user"`
+	VerificationRequired bool       `json:"verification_required"`
+	Message              string     `json:"message"`
+}
+
 type LoginRequest struct {
 	Identifier string `json:"identifier"` // email or username
 	Password   string `json:"password"`
@@ -211,10 +228,10 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		h.logVerificationFailure(user.ID, err)
 	}
 
-	httpx.WriteJSON(w, http.StatusCreated, map[string]any{
-		"user":                  user,
-		"verification_required": !user.EmailVerified,
-		"message":               registrationMessage(user.EmailVerified),
+	httpx.WriteJSON(w, http.StatusCreated, RegisterResponse{
+		User:                 user,
+		VerificationRequired: !user.EmailVerified,
+		Message:              registrationMessage(user.EmailVerified),
 	})
 }
 

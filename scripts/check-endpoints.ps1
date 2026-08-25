@@ -132,12 +132,15 @@ $reg = Invoke-Api -Method POST -Url "$IdentityUrl/api/v1/auth/register" -Body @{
     username = $username; email = "$username@example.test"; password = $password
 }
 if ($reg.Status -eq 201) { Pass "register creates an account" } else { Fail "register creates an account" "status $($reg.Status): $($reg.Raw)" }
-if ($reg.Body -and -not ($reg.Body.PSObject.Properties.Name -contains 'password_hash')) {
+# Checked against the raw response text, not a top-level property: registration
+# now nests the account under "user", so a property probe on the envelope would
+# pass without ever looking at the account it is meant to be inspecting.
+if ($reg.Raw -notmatch 'password_hash') {
     Pass "the password hash is never serialised"
 } else {
     Fail "the password hash is never serialised" "found password_hash in the response body"
 }
-if ($reg.Body.role -eq 'user') { Pass "self-registration assigns 'user', not a client-chosen role" } else { Fail "self-registration assigns 'user'" "got '$($reg.Body.role)'" }
+if ($reg.Body.user.role -eq 'user') { Pass "self-registration assigns 'user', not a client-chosen role" } else { Fail "self-registration assigns 'user'" "got '$($reg.Body.user.role)'" }
 
 # A smuggled role must be refused outright, not ignored.
 $smuggle = Invoke-Api -Method POST -Url "$IdentityUrl/api/v1/auth/register" -Body @{

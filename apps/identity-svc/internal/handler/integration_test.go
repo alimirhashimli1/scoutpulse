@@ -100,11 +100,19 @@ func TestAuthIntegration(t *testing.T) {
 	rr := postJSON(t, h.Register, "/api/v1/auth/register", regReq)
 	require.Equal(t, http.StatusCreated, rr.Code)
 
-	var userResp model.User
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &userResp))
+	var regResp RegisterResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &regResp))
+	userResp := regResp.User
 	assert.Equal(t, regReq.Username, userResp.Username)
 	// Self-registration must never produce a privileged account.
 	assert.Equal(t, model.UserRole, userResp.Role)
+
+	// This handler is built without a verification repository, which is how a
+	// deployment with no SMTP configured runs. The account must then be usable
+	// straight away — the sign-in below is what proves it, and would return 403
+	// rather than 200 if an unconfirmable confirmation had been demanded.
+	assert.False(t, regResp.VerificationRequired,
+		"with no verification configured, registration must not withhold the account")
 
 	// --- a duplicate is a conflict, not a 500 ---
 	rr = postJSON(t, h.Register, "/api/v1/auth/register", regReq)

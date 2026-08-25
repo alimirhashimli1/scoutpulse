@@ -227,6 +227,15 @@ func TestRegister(t *testing.T) {
 
 	// The response must not carry the hash.
 	assert.NotContains(t, rr.Body.String(), "password_hash")
+
+	// The response shape is asserted here, not only in the integration test,
+	// because that test needs a live database and is skipped in short mode.
+	// When registration started wrapping the account in a verification
+	// envelope, nothing failed until CI reached the one test with a container,
+	// and it reported four empty fields rather than a changed contract.
+	var body RegisterResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, "testuser", body.User.Username, "the account must be reachable at .user")
 	repo.AssertExpectations(t)
 }
 
