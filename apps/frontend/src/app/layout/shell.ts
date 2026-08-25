@@ -21,7 +21,15 @@ import { ThemeStore } from '../core/theme/theme';
 
     <header class="masthead">
       <div class="bar page">
-        <a class="wordmark" routerLink="/">ScoutPulse</a>
+        <!--
+          The badge sits outside the link on purpose, so the link's accessible
+          name stays "ScoutPulse" rather than becoming "ScoutPulse Beta" — the
+          destination has not changed, only the disclaimer beside it.
+        -->
+        <div class="brand">
+          <a class="wordmark" routerLink="/">ScoutPulse</a>
+          <span class="beta">Beta</span>
+        </div>
 
         <form class="search" role="search" (ngSubmit)="search()">
           <label class="visually-hidden" for="q">Search players, clubs and competitions</label>
@@ -91,6 +99,14 @@ import { ThemeStore } from '../core/theme/theme';
           ScoutPulse — transfers, valuations and careers over time.
           <span class="muted">No match data: this is a record of people and clubs.</span>
         </p>
+        <!--
+          The badge says "beta"; this says what beta means here. A label on its
+          own tells someone not to trust the site without telling them which
+          part to distrust.
+        -->
+        <p class="muted beta-note">
+          Beta — the data is still being filled in and things may change.
+        </p>
       </div>
     </footer>
   `,
@@ -123,12 +139,32 @@ import { ThemeStore } from '../core/theme/theme';
       padding-block: var(--space-3);
       flex-wrap: wrap;
     }
+    .brand {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      /* Tight: the badge is a caption on the wordmark, not a second line of
+         navigation, and the masthead is only so tall. */
+      gap: 1px;
+      line-height: 1.1;
+    }
     .wordmark {
       font-family: var(--font-display);
       font-size: var(--text-lg);
       color: var(--ink);
       text-decoration: none;
       letter-spacing: -0.01em;
+    }
+    .beta {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+    }
+    .beta-note {
+      margin-top: var(--space-2);
+      font-size: var(--text-xs);
     }
     .search {
       flex: 1 1 14rem;
