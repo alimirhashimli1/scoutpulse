@@ -726,11 +726,22 @@ anything personal.
 
 ### 11.3 The API base URL differs by platform
 
-In the browser the gateway is `http://localhost:8000`. From the Node renderer
-inside Docker it is `http://gateway:8000` — a different network entirely.
+In the browser the gateway is the page's own origin, so `BROWSER_GATEWAY` is
+empty and every request is root-relative (`/api/football`). From the Node
+renderer inside Docker it is `http://gateway:8000` — a different network
+entirely, and one that cannot use a relative path at all, because the renderer
+has no origin to resolve it against.
 
-One `API_BASE_URL` token, provided differently per platform. Hardcoding
-`localhost` makes SSR fail only in Docker, which is a miserable thing to debug.
+One `API_CONFIG` token, provided differently per platform. Hardcoding
+`localhost` makes SSR fail only in Docker, which is a miserable thing to debug
+— and hardcoding it for the *browser* is worse: the bundle is built once and
+served everywhere, so a deployed site asks the visitor's own machine for its
+data. That was a real outage, not a hypothetical.
+
+The requirement this places on a deployment: something at the page's origin has
+to route `/api/*` to the gateway. Caddy does it in compose and on Railway,
+`proxy.conf.json` does it under `ng serve`, and a `rewrites` entry does it on
+Vercel.
 
 ### 11.4 Rendering is hybrid, not all-or-nothing
 

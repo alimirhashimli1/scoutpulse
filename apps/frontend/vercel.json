@@ -1,4 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "angular"
+  "framework": "angular",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://scoutpulse-production.up.railway.app/api/:path*"
+    },
+    {
+      "source": "/.well-known/jwks.json",
+      "destination": "https://scoutpulse-production.up.railway.app/.well-known/jwks.json"
+    }
+  ]
 }

@@ -1,0 +1,13 @@
+{
+  "//": "The browser now asks its own origin for the API (see api-config.ts). On :4200 that origin is the dev server, so it has to forward /api and the JWKS document to the gateway on :8000 -- exactly what Caddy does in compose and on Railway, and what a rewrite does on Vercel. Without this, `ng serve` would ask itself for /api/football and get its own index.html back.",
+  "/api": {
+    "target": "http://localhost:8000",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/.well-known": {
+    "target": "http://localhost:8000",
+    "secure": false,
+    "changeOrigin": true
+  }
+}

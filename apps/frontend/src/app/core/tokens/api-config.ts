@@ -28,8 +28,35 @@ export interface ApiConfig {
  */
 export const API_CONFIG = new InjectionToken<ApiConfig>('API_CONFIG');
 
-/** Default gateway address for a browser in local development. */
-export const BROWSER_GATEWAY = 'http://localhost:8000';
+/**
+ * The gateway's address *from the browser*: the page's own origin.
+ *
+ * Empty on purpose. Every request becomes root-relative -- `/api/football`
+ * rather than `https://somewhere/api/football` -- so the browser talks only to
+ * the host it loaded the page from, whatever that host happens to be.
+ *
+ * This has to be empty rather than a real URL because the browser bundle is
+ * built once and served everywhere: a literal address here is frozen at build
+ * time and cannot be configured per deployment. It was `http://localhost:8000`,
+ * which meant a deployed site asked *the visitor's own machine* for its data
+ * and every request failed with ERR_CONNECTION_REFUSED.
+ *
+ * The requirement this places on a deployment is that something at the page's
+ * origin routes `/api/*` onward -- Caddy does it locally and on Railway; a
+ * `rewrites` entry does it on Vercel. That is the same-origin arrangement the
+ * gateway existed for, and it is also what keeps CORS and cross-site cookies
+ * out of the picture entirely.
+ */
+export const BROWSER_GATEWAY = '';
+
+/**
+ * Where the gateway is when nothing has said otherwise.
+ *
+ * Only for the Node renderer, which cannot use a relative URL -- it has no
+ * origin to resolve one against, so `fetch` rejects it outright. Deployments
+ * set `GATEWAY_INTERNAL_URL`; this is the local-development fallback.
+ */
+export const DEV_GATEWAY = 'http://localhost:8000';
 
 export function apiConfigFor(gateway: string): ApiConfig {
   const base = gateway.replace(/\/+$/, '');
