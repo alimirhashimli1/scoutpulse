@@ -375,7 +375,7 @@ import { ValueChart } from './value-chart';
     .weaknesses h5 {
       color: var(--warning);
     }
-    (max-width: 34rem) {
+    @media (max-width: 34rem) {
       .metrics li {
         grid-template-columns: 1fr 3.5rem;
       }
