@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -142,8 +143,42 @@ func KeyID(pub *rsa.PublicKey) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(sum[:]), nil
 }
 
+// normalisePEM makes a PEM block survive the trip through an environment
+// variable.
+//
+// A PEM block is multi-line, and the places these keys pass through disagree
+// about how to carry that. `cmd/genkeys` writes `KEY="...\n..."` because a
+// .env assignment is one line, and Docker Compose un-escapes it on the way in.
+// A hosting dashboard generally does not: the value arrives with the quotes
+// still attached, or with a literal backslash-n where a newline belongs, and
+// pem.Decode then reports "not valid PEM" -- which reads like a bad key rather
+// than a transport problem, and cost an evening to tell apart.
+//
+// So both encodings are accepted. This is only about how the bytes were
+// carried; a key that decodes to invalid material still fails below, exactly
+// as it did before.
+func normalisePEM(raw []byte) []byte {
+	s := strings.TrimSpace(string(raw))
+
+	// A quoted .env value pasted verbatim. Only a matched pair is stripped,
+	// so a stray quote still fails loudly rather than being silently chewed.
+	if len(s) >= 2 {
+		if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
+			s = s[1 : len(s)-1]
+		}
+	}
+
+	// Escaped newlines, but only when there are no real ones -- a key that
+	// already has line structure is left exactly as it is.
+	if !strings.Contains(s, "\n") {
+		s = strings.ReplaceAll(s, `\n`, "\n")
+	}
+
+	return []byte(strings.TrimSpace(s) + "\n")
+}
+
 func parseRSAPrivateKey(pemBytes []byte) (*rsa.PrivateKey, error) {
-	block, _ := pem.Decode(pemBytes)
+	block, _ := pem.Decode(normalisePEM(pemBytes))
 	if block == nil {
 		return nil, fmt.Errorf("auth: private key is not valid PEM")
 	}
@@ -167,7 +202,7 @@ func parseRSAPrivateKey(pemBytes []byte) (*rsa.PrivateKey, error) {
 }
 
 func parseRSAPublicKey(pemBytes []byte) (*rsa.PublicKey, error) {
-	block, _ := pem.Decode(pemBytes)
+	block, _ := pem.Decode(normalisePEM(pemBytes))
 	if block == nil {
 		return nil, fmt.Errorf("auth: public key is not valid PEM")
 	}
