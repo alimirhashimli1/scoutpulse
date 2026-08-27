@@ -22,6 +22,10 @@
       "destination": "https://scoutpulse-production.up.railway.app/.well-known/jwks.json"
     },
     {
+      "source": "/",
+      "destination": "/api/ssr"
+    },
+    {
       "source": "/:path*",
       "destination": "/api/ssr"
     }

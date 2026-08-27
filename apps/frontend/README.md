@@ -79,8 +79,11 @@ in `vercel.json`:
 | `api/ssr.mjs` | Loads that bundle and answers everything else |
 
 Rewrites are only consulted when nothing on the filesystem matched, so hashed
-bundles never reach the function; `/:path*` matches zero segments, which is
-what answers for `/`.
+bundles never reach the function. `/` is listed as a rule of its own because
+`/:path*` does not match the empty path — without it the home page falls
+through to Vercel's own 404. It is also why `scripts/vercel-postbuild.mjs`
+exists: `index.csr.html` would otherwise match `/` on the filesystem and be
+served instead of rendered.
 
 The two gateway prefixes are proxied to Railway one at a time rather than as a
 blanket `/api/:path*`, which would also capture `/api/ssr` and send this site's
