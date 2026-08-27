@@ -16,24 +16,32 @@
     admin off
 }
 
+# Upstreams differ by host only in their suffix. Compose resolves a bare
+# service name; Railway's private network wants `<service>.railway.internal`.
+# Hardcoding either one breaks the other -- and it breaks it as a 502 from a
+# gateway that looks perfectly healthy, which is a slow thing to diagnose.
+#
+# Empty by default, so `docker compose up` needs no extra configuration. Set
+# INTERNAL_SUFFIX=.railway.internal on Railway.
+
 :{$PORT:8000} {
     # Well-known JWKS routing
     handle /.well-known/jwks.json {
-        reverse_proxy identity-svc.railway.internal:8080
+        reverse_proxy identity-svc{$INTERNAL_SUFFIX}:8080
     }
 
     # Identity service API
     handle_path /api/identity/* {
-        reverse_proxy identity-svc.railway.internal:8080
+        reverse_proxy identity-svc{$INTERNAL_SUFFIX}:8080
     }
 
     # Football service API
     handle_path /api/football/* {
-        reverse_proxy football-svc.railway.internal:8081
+        reverse_proxy football-svc{$INTERNAL_SUFFIX}:8081
     }
 
     # Frontend SSR catch-all
     handle {
-        reverse_proxy frontend.railway.internal:4000
+        reverse_proxy frontend{$INTERNAL_SUFFIX}:4000
     }
 }
