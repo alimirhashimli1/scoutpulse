@@ -5,6 +5,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -206,6 +207,10 @@ func main() {
 			// on plain http, which would break local development in a way that
 			// looks like the state check failing.
 			SecureCookies: strings.HasPrefix(publicURL, "https://"),
+			// The path the browser sees this service under, taken from the
+			// same value that builds the callback URL so the two cannot
+			// disagree. Empty when it is served at a domain root.
+			PublicPathPrefix: publicPathPrefix(publicURL),
 		},
 		Verification: verificationRepo,
 		Mailer:       mail,
@@ -360,4 +365,20 @@ func startVerificationJanitor(ctx context.Context, repo repository.EmailVerifica
 			}
 		}
 	}()
+}
+
+// publicPathPrefix extracts the path a service is published under from its
+// public base URL: "https://example.com/api/identity" gives "/api/identity",
+// and "https://identity.example.com" gives "".
+//
+// The OAuth flow cookies have to be scoped to the path the *browser* visits,
+// which is only the service's own route when nothing is mounted in front of
+// it. Getting this wrong scopes them to a URL that is never requested, so they
+// are never sent back and the callback reports the flow as expired.
+func publicPathPrefix(publicURL string) string {
+	u, err := url.Parse(publicURL)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimRight(u.Path, "/")
 }

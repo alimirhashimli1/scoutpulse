@@ -48,6 +48,18 @@ const (
 // is cookiePath unchanged. The header is only trusted to widen the path within
 // this origin, never to redirect anything, so a forged value can at most
 // mis-scope a short-lived HttpOnly cookie for the client that forged it.
+// cookiePath returns the path to scope the flow cookies to, preferring what
+// the deployment was configured with over what the request claims.
+//
+// A configured prefix is known to be right; a header is a hint from whatever
+// is in front, and not every proxy sends one.
+func (h *Handler) cookiePath(r *http.Request) string {
+	if prefix := strings.TrimRight(h.OAuth.PublicPathPrefix, "/"); prefix != "" {
+		return prefix + cookiePath
+	}
+	return cookiePathFor(r)
+}
+
 func cookiePathFor(r *http.Request) string {
 	prefix := strings.TrimSpace(r.Header.Get("X-Forwarded-Prefix"))
 	if prefix == "" {
@@ -71,6 +83,16 @@ type OAuthDeps struct {
 	// SecureCookies marks the flow cookies Secure. Off for plain-http local
 	// development, on everywhere else.
 	SecureCookies bool
+	// PublicPathPrefix is the path this service is published under, as the
+	// browser sees it -- "/api/identity" behind a proxy that mounts it there,
+	// empty when it is reached at the root of its own domain.
+	//
+	// It exists because X-Forwarded-Prefix is not something every proxy sets.
+	// Caddy did; Vercel's rewrites do not, and the cookies were then scoped to
+	// a path the browser never visits, so every sign-in failed as "expired".
+	// Taken from PUBLIC_BASE_URL, which already has to be right for the
+	// callback URL to work, so there is no second thing to keep in step.
+	PublicPathPrefix string
 }
 
 type ExchangeRequest struct {
@@ -468,7 +490,7 @@ func (h *Handler) provider(r *http.Request) (*oauth.Provider, error) {
 }
 
 func (h *Handler) setFlowCookie(w http.ResponseWriter, r *http.Request, name, value string) {
-	path := cookiePathFor(r)
+	path := h.cookiePath(r)
 
 	// gosec G124 wants Secure set to a literal true. It is set from
 	// configuration instead, and deliberately: a Secure cookie is silently
@@ -505,7 +527,7 @@ func (h *Handler) readFlowCookies(r *http.Request) (state, verifier string, err 
 }
 
 func (h *Handler) clearFlowCookies(w http.ResponseWriter, r *http.Request) {
-	path := cookiePathFor(r)
+	path := h.cookiePath(r)
 
 	for _, name := range []string{stateCookie, verifierCooki} {
 		//nolint:gosec // G124: same as setFlowCookie — Secure follows the scheme
@@ -535,7 +557,7 @@ func (h *Handler) failFlow(w http.ResponseWriter, r *http.Request, reason string
 		h.Log.Warn("external sign-in failed",
 			"reason", reason,
 			"provider", r.PathValue("provider"),
-			"cookie_path", cookiePathFor(r),
+			"cookie_path", h.cookiePath(r),
 			"had_state_cookie", hasCookie(r, stateCookie),
 			"forwarded_prefix", r.Header.Get("X-Forwarded-Prefix"))
 	}
