@@ -56,21 +56,25 @@ function resolveServerEntry() {
 /**
  * Hosts this deployment answers for, and the address it is published at.
  *
- * Angular 21 validates the `Host` header and silently falls back to
- * client-side rendering when it fails, which presents as "SSR does nothing" on
- * a perfectly healthy build. Preview deployments get a fresh hostname every
- * time, so a hand-maintained list in the project settings would be wrong for
- * all of them -- Vercel already tells the process its own hostnames, so they
- * are read from there.
+ * Angular validates the request host and silently falls back to client-side
+ * rendering when it fails, which presents as "SSR does nothing" on a perfectly
+ * healthy build. Preview deployments get a fresh hostname every time, so a
+ * hand-maintained list in the project settings would be wrong for all of them
+ * -- Vercel already tells the process its own hostnames, so they are read from
+ * there.
  *
- * Both are read by the bundle at module scope, so they have to be set *before*
- * the import below, not after.
+ * All of these are read by the bundle at module scope, so they have to be set
+ * *before* the import below, not after.
  */
-function applyHostConfig() {
-  const hosts = [process.env.VERCEL_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL].filter(Boolean);
+function applyRuntimeConfig() {
+  const hosts = [
+    process.env.VERCEL_URL,
+    process.env.VERCEL_BRANCH_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+  ].filter(Boolean);
 
   if (!process.env.NG_ALLOWED_HOSTS && hosts.length > 0) {
-    process.env.NG_ALLOWED_HOSTS = hosts.join(',');
+    process.env.NG_ALLOWED_HOSTS = [...new Set(hosts)].join(',');
   }
 
   // Canonical links and og:url. The production hostname is preferred: a
@@ -79,6 +83,24 @@ function applyHostConfig() {
   if (!process.env.SITE_URL && siteHost) {
     process.env.SITE_URL = `https://${siteHost}`;
   }
+
+  // The real hostname arrives in `X-Forwarded-Host`; `Host` carries the edge's
+  // own. Without this Angular checks the wrong one against the list above,
+  // finds no match, and quietly serves an empty shell with a 200 -- including
+  // for the routes app.routes.server.ts declares a 404 for. There is always a
+  // proxy in front of a Vercel function, so this is unconditional here.
+  process.env.TRUST_PROXY_HEADERS ??= 'true';
+
+  // Cold starts are rare and this is one line of text, but it is the
+  // difference between reading the answer and redeploying to guess at it: if
+  // Vercel's system environment variables are not exposed to the runtime, the
+  // host list comes out empty and every page silently degrades to CSR.
+  console.log(
+    '[ssr] allowed hosts: %s | site url: %s | gateway: %s',
+    process.env.NG_ALLOWED_HOSTS || '(none - system env vars not exposed?)',
+    process.env.SITE_URL || '(unset)',
+    process.env.GATEWAY_INTERNAL_URL || '(unset - SSR will fetch localhost and render no data)',
+  );
 }
 
 /**
@@ -89,9 +111,9 @@ let renderer;
 
 export default async function handler(request, response) {
   renderer ??= (async () => {
-    applyHostConfig();
+    applyRuntimeConfig();
     const entry = resolveServerEntry();
-    const { reqHandler } = await import(/* @vite-ignore */ entry);
+    const { reqHandler } = await import(entry);
     return reqHandler;
   })();
 

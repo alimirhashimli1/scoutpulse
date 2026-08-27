@@ -94,10 +94,19 @@ Set in Project Settings → Environment Variables, for Production and Preview:
 | --- | --- | --- |
 | `GATEWAY_INTERNAL_URL` | `https://scoutpulse-production.up.railway.app` | Where the *renderer* reaches the gateway. It cannot use the relative path the browser uses — a Node process has no origin to resolve one against. Without this it falls back to `http://localhost:8000` and every server-rendered page comes back with no data. |
 
-`NG_ALLOWED_HOSTS` and `SITE_URL` are derived in `api/ssr.mjs` from the
+`NG_ALLOWED_HOSTS`, `SITE_URL` and `TRUST_PROXY_HEADERS` are set in
+`api/ssr.mjs`. The first two are derived from the
 hostnames Vercel already publishes to the process, so preview deployments —
 which get a fresh hostname every time — work without a hand-maintained list.
-Setting either explicitly overrides that.
+Setting any of them explicitly overrides that.
+
+`TRUST_PROXY_HEADERS` is the one that is easy to lose an afternoon to. A
+function always sits behind Vercel's edge, so the public hostname arrives in
+`X-Forwarded-Host` while `Host` carries the edge's own. Angular ignores the
+forwarded headers unless told to trust them, and when the check fails it does
+not error — it serves an empty client-side shell with a `200`, and the render
+modes in `app.routes.server.ts` stop applying, so a mistyped URL answers `200`
+instead of `404`. The build is green and the site looks like it works.
 
 `engines.node` in `package.json` pins the runtime, so it tracks the version in
 `.nvmrc` and the Dockerfile rather than whatever the project setting happens to
