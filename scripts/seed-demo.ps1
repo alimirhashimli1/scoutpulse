@@ -80,23 +80,23 @@ $data = @(
        @{ name = 'Manchester City'; short_name = 'Man City'; city = 'Manchester'; country = 'England'; stadium = 'Etihad Stadium'; founded_year = 1880
           coach = @{ name = 'Pep Guardiola'; nationality = 'Spain' }
           players = @(
-            @{ name = 'Erling Haaland'; position = 'Centre-Forward'; nationality = 'Norway'; squad_number = 9; preferred_foot = 'left'; date_of_birth = '2000-07-21T00:00:00Z'; market_value_minor = 18000000000 }
-            @{ name = 'Phil Foden'; position = 'Attacking Midfield'; nationality = 'England'; squad_number = 47; preferred_foot = 'left'; date_of_birth = '2000-05-28T00:00:00Z'; market_value_minor = 11000000000 }
-            @{ name = 'Rodri'; position = 'Defensive Midfield'; nationality = 'Spain'; squad_number = 16; preferred_foot = 'right'; date_of_birth = '1996-06-22T00:00:00Z'; market_value_minor = 11000000000 }
+            @{ name = 'Erling Haaland'; position = 'Centre-Forward'; nationalities = @('Norway'); squad_number = 9; preferred_foot = 'left'; date_of_birth = '2000-07-21T00:00:00Z'; market_value_minor = 18000000000 }
+            @{ name = 'Phil Foden'; position = 'Attacking Midfield'; nationalities = @('England'); squad_number = 47; preferred_foot = 'left'; date_of_birth = '2000-05-28T00:00:00Z'; market_value_minor = 11000000000 }
+            @{ name = 'Rodri'; position = 'Defensive Midfield'; nationalities = @('Spain'); squad_number = 16; preferred_foot = 'right'; date_of_birth = '1996-06-22T00:00:00Z'; market_value_minor = 11000000000 }
           ) }
        @{ name = 'Arsenal FC'; short_name = 'Arsenal'; city = 'London'; country = 'England'; stadium = 'Emirates Stadium'; founded_year = 1886
           coach = @{ name = 'Mikel Arteta'; nationality = 'Spain' }
           players = @(
-            @{ name = 'Bukayo Saka'; position = 'Right Winger'; nationality = 'England'; squad_number = 7; preferred_foot = 'left'; date_of_birth = '2001-09-05T00:00:00Z'; market_value_minor = 14000000000 }
-            @{ name = 'Martin Ødegaard'; position = 'Attacking Midfield'; nationality = 'Norway'; squad_number = 8; preferred_foot = 'left'; date_of_birth = '1998-12-17T00:00:00Z'; market_value_minor = 10000000000 }
-            @{ name = 'William Saliba'; position = 'Centre-Back'; nationality = 'France'; squad_number = 2; preferred_foot = 'right'; date_of_birth = '2001-03-24T00:00:00Z'; market_value_minor = 8000000000 }
+            @{ name = 'Bukayo Saka'; position = 'Right Winger'; nationalities = @('England'); squad_number = 7; preferred_foot = 'left'; date_of_birth = '2001-09-05T00:00:00Z'; market_value_minor = 14000000000 }
+            @{ name = 'Martin Ødegaard'; position = 'Attacking Midfield'; nationalities = @('Norway'); squad_number = 8; preferred_foot = 'left'; date_of_birth = '1998-12-17T00:00:00Z'; market_value_minor = 10000000000 }
+            @{ name = 'William Saliba'; position = 'Centre-Back'; nationalities = @('France'); squad_number = 2; preferred_foot = 'right'; date_of_birth = '2001-03-24T00:00:00Z'; market_value_minor = 8000000000 }
           ) }
        @{ name = 'Liverpool FC'; short_name = 'Liverpool'; city = 'Liverpool'; country = 'England'; stadium = 'Anfield'; founded_year = 1892
           coach = @{ name = 'Arne Slot'; nationality = 'Netherlands' }
           players = @(
-            @{ name = 'Mohamed Salah'; position = 'Right Winger'; nationality = 'Egypt'; squad_number = 11; preferred_foot = 'left'; date_of_birth = '1992-06-15T00:00:00Z'; market_value_minor = 5500000000 }
-            @{ name = 'Virgil van Dijk'; position = 'Centre-Back'; nationality = 'Netherlands'; squad_number = 4; preferred_foot = 'right'; date_of_birth = '1991-07-08T00:00:00Z'; market_value_minor = 2800000000 }
-            @{ name = 'Alexis Mac Allister'; position = 'Central Midfield'; nationality = 'Argentina'; squad_number = 10; preferred_foot = 'right'; date_of_birth = '1998-12-24T00:00:00Z'; market_value_minor = 7000000000 }
+            @{ name = 'Mohamed Salah'; position = 'Right Winger'; nationalities = @('Egypt'); squad_number = 11; preferred_foot = 'left'; date_of_birth = '1992-06-15T00:00:00Z'; market_value_minor = 5500000000 }
+            @{ name = 'Virgil van Dijk'; position = 'Centre-Back'; nationalities = @('Netherlands'); squad_number = 4; preferred_foot = 'right'; date_of_birth = '1991-07-08T00:00:00Z'; market_value_minor = 2800000000 }
+            @{ name = 'Alexis Mac Allister'; position = 'Central Midfield'; nationalities = @('Argentina'); squad_number = 10; preferred_foot = 'right'; date_of_birth = '1998-12-24T00:00:00Z'; market_value_minor = 7000000000 }
           ) }
      ) }
 
@@ -105,23 +105,23 @@ $data = @(
        @{ name = 'Real Madrid'; short_name = 'Real Madrid'; city = 'Madrid'; country = 'Spain'; stadium = 'Estadio Santiago Bernabéu'; founded_year = 1902
           coach = @{ name = 'Xabi Alonso'; nationality = 'Spain' }
           players = @(
-            @{ name = 'Kylian Mbappé'; position = 'Centre-Forward'; nationality = 'France'; squad_number = 9; preferred_foot = 'right'; date_of_birth = '1998-12-20T00:00:00Z'; market_value_minor = 18000000000 }
-            @{ name = 'Jude Bellingham'; position = 'Attacking Midfield'; nationality = 'England'; squad_number = 5; preferred_foot = 'right'; date_of_birth = '2003-06-29T00:00:00Z'; market_value_minor = 18000000000 }
-            @{ name = 'Vinícius Júnior'; position = 'Left Winger'; nationality = 'Brazil'; squad_number = 7; preferred_foot = 'right'; date_of_birth = '2000-07-12T00:00:00Z'; market_value_minor = 17000000000 }
+            @{ name = 'Kylian Mbappé'; position = 'Centre-Forward'; nationalities = @('France'); squad_number = 9; preferred_foot = 'right'; date_of_birth = '1998-12-20T00:00:00Z'; market_value_minor = 18000000000 }
+            @{ name = 'Jude Bellingham'; position = 'Attacking Midfield'; nationalities = @('England'); squad_number = 5; preferred_foot = 'right'; date_of_birth = '2003-06-29T00:00:00Z'; market_value_minor = 18000000000 }
+            @{ name = 'Vinícius Júnior'; position = 'Left Winger'; nationalities = @('Brazil'); squad_number = 7; preferred_foot = 'right'; date_of_birth = '2000-07-12T00:00:00Z'; market_value_minor = 17000000000 }
           ) }
        @{ name = 'FC Barcelona'; short_name = 'Barcelona'; city = 'Barcelona'; country = 'Spain'; stadium = 'Spotify Camp Nou'; founded_year = 1899
           coach = @{ name = 'Hansi Flick'; nationality = 'Germany' }
           players = @(
-            @{ name = 'Lamine Yamal'; position = 'Right Winger'; nationality = 'Spain'; squad_number = 10; preferred_foot = 'left'; date_of_birth = '2007-07-13T00:00:00Z'; market_value_minor = 20000000000 }
-            @{ name = 'Pedri'; position = 'Central Midfield'; nationality = 'Spain'; squad_number = 8; preferred_foot = 'right'; date_of_birth = '2002-11-25T00:00:00Z'; market_value_minor = 14000000000 }
-            @{ name = 'Robert Lewandowski'; position = 'Centre-Forward'; nationality = 'Poland'; squad_number = 9; preferred_foot = 'right'; date_of_birth = '1988-08-21T00:00:00Z'; market_value_minor = 1500000000 }
+            @{ name = 'Lamine Yamal'; position = 'Right Winger'; nationalities = @('Spain'); squad_number = 10; preferred_foot = 'left'; date_of_birth = '2007-07-13T00:00:00Z'; market_value_minor = 20000000000 }
+            @{ name = 'Pedri'; position = 'Central Midfield'; nationalities = @('Spain'); squad_number = 8; preferred_foot = 'right'; date_of_birth = '2002-11-25T00:00:00Z'; market_value_minor = 14000000000 }
+            @{ name = 'Robert Lewandowski'; position = 'Centre-Forward'; nationalities = @('Poland'); squad_number = 9; preferred_foot = 'right'; date_of_birth = '1988-08-21T00:00:00Z'; market_value_minor = 1500000000 }
           ) }
        @{ name = 'Atlético de Madrid'; short_name = 'Atlético'; city = 'Madrid'; country = 'Spain'; stadium = 'Riyadh Air Metropolitano'; founded_year = 1903
           coach = @{ name = 'Diego Simeone'; nationality = 'Argentina' }
           players = @(
-            @{ name = 'Julián Álvarez'; position = 'Centre-Forward'; nationality = 'Argentina'; squad_number = 19; preferred_foot = 'right'; date_of_birth = '2000-01-31T00:00:00Z'; market_value_minor = 9000000000 }
-            @{ name = 'Antoine Griezmann'; position = 'Second Striker'; nationality = 'France'; squad_number = 7; preferred_foot = 'left'; date_of_birth = '1991-03-21T00:00:00Z'; market_value_minor = 1500000000 }
-            @{ name = 'Jan Oblak'; position = 'Goalkeeper'; nationality = 'Slovenia'; squad_number = 13; preferred_foot = 'right'; date_of_birth = '1993-01-07T00:00:00Z'; market_value_minor = 2000000000 }
+            @{ name = 'Julián Álvarez'; position = 'Centre-Forward'; nationalities = @('Argentina'); squad_number = 19; preferred_foot = 'right'; date_of_birth = '2000-01-31T00:00:00Z'; market_value_minor = 9000000000 }
+            @{ name = 'Antoine Griezmann'; position = 'Second Striker'; nationalities = @('France'); squad_number = 7; preferred_foot = 'left'; date_of_birth = '1991-03-21T00:00:00Z'; market_value_minor = 1500000000 }
+            @{ name = 'Jan Oblak'; position = 'Goalkeeper'; nationalities = @('Slovenia'); squad_number = 13; preferred_foot = 'right'; date_of_birth = '1993-01-07T00:00:00Z'; market_value_minor = 2000000000 }
           ) }
      ) }
 
@@ -130,23 +130,23 @@ $data = @(
        @{ name = 'FC Bayern München'; short_name = 'Bayern'; city = 'Munich'; country = 'Germany'; stadium = 'Allianz Arena'; founded_year = 1900
           coach = @{ name = 'Vincent Kompany'; nationality = 'Belgium' }
           players = @(
-            @{ name = 'Harry Kane'; position = 'Centre-Forward'; nationality = 'England'; squad_number = 9; preferred_foot = 'right'; date_of_birth = '1993-07-28T00:00:00Z'; market_value_minor = 9000000000 }
-            @{ name = 'Jamal Musiala'; position = 'Attacking Midfield'; nationality = 'Germany'; squad_number = 42; preferred_foot = 'right'; date_of_birth = '2003-02-26T00:00:00Z'; market_value_minor = 14000000000 }
-            @{ name = 'Joshua Kimmich'; position = 'Defensive Midfield'; nationality = 'Germany'; squad_number = 6; preferred_foot = 'right'; date_of_birth = '1995-02-08T00:00:00Z'; market_value_minor = 5000000000 }
+            @{ name = 'Harry Kane'; position = 'Centre-Forward'; nationalities = @('England'); squad_number = 9; preferred_foot = 'right'; date_of_birth = '1993-07-28T00:00:00Z'; market_value_minor = 9000000000 }
+            @{ name = 'Jamal Musiala'; position = 'Attacking Midfield'; nationalities = @('Germany'); squad_number = 42; preferred_foot = 'right'; date_of_birth = '2003-02-26T00:00:00Z'; market_value_minor = 14000000000 }
+            @{ name = 'Joshua Kimmich'; position = 'Defensive Midfield'; nationalities = @('Germany'); squad_number = 6; preferred_foot = 'right'; date_of_birth = '1995-02-08T00:00:00Z'; market_value_minor = 5000000000 }
           ) }
        @{ name = 'Borussia Dortmund'; short_name = 'Dortmund'; city = 'Dortmund'; country = 'Germany'; stadium = 'Signal Iduna Park'; founded_year = 1909
           coach = @{ name = 'Niko Kovač'; nationality = 'Croatia' }
           players = @(
-            @{ name = 'Serhou Guirassy'; position = 'Centre-Forward'; nationality = 'Guinea'; squad_number = 9; preferred_foot = 'right'; date_of_birth = '1996-03-12T00:00:00Z'; market_value_minor = 4000000000 }
-            @{ name = 'Julian Brandt'; position = 'Attacking Midfield'; nationality = 'Germany'; squad_number = 19; preferred_foot = 'left'; date_of_birth = '1996-05-02T00:00:00Z'; market_value_minor = 2500000000 }
-            @{ name = 'Nico Schlotterbeck'; position = 'Centre-Back'; nationality = 'Germany'; squad_number = 4; preferred_foot = 'left'; date_of_birth = '1999-12-01T00:00:00Z'; market_value_minor = 4000000000 }
+            @{ name = 'Serhou Guirassy'; position = 'Centre-Forward'; nationalities = @('Guinea'); squad_number = 9; preferred_foot = 'right'; date_of_birth = '1996-03-12T00:00:00Z'; market_value_minor = 4000000000 }
+            @{ name = 'Julian Brandt'; position = 'Attacking Midfield'; nationalities = @('Germany'); squad_number = 19; preferred_foot = 'left'; date_of_birth = '1996-05-02T00:00:00Z'; market_value_minor = 2500000000 }
+            @{ name = 'Nico Schlotterbeck'; position = 'Centre-Back'; nationalities = @('Germany'); squad_number = 4; preferred_foot = 'left'; date_of_birth = '1999-12-01T00:00:00Z'; market_value_minor = 4000000000 }
           ) }
        @{ name = 'Bayer 04 Leverkusen'; short_name = 'Leverkusen'; city = 'Leverkusen'; country = 'Germany'; stadium = 'BayArena'; founded_year = 1904
           coach = @{ name = 'Kasper Hjulmand'; nationality = 'Denmark' }
           players = @(
-            @{ name = 'Patrik Schick'; position = 'Centre-Forward'; nationality = 'Czech Republic'; squad_number = 14; preferred_foot = 'left'; date_of_birth = '1996-01-24T00:00:00Z'; market_value_minor = 3000000000 }
-            @{ name = 'Alejandro Grimaldo'; position = 'Left-Back'; nationality = 'Spain'; squad_number = 20; preferred_foot = 'left'; date_of_birth = '1995-09-20T00:00:00Z'; market_value_minor = 3500000000 }
-            @{ name = 'Exequiel Palacios'; position = 'Central Midfield'; nationality = 'Argentina'; squad_number = 25; preferred_foot = 'right'; date_of_birth = '1998-10-05T00:00:00Z'; market_value_minor = 3000000000 }
+            @{ name = 'Patrik Schick'; position = 'Centre-Forward'; nationalities = @('Czech Republic'); squad_number = 14; preferred_foot = 'left'; date_of_birth = '1996-01-24T00:00:00Z'; market_value_minor = 3000000000 }
+            @{ name = 'Alejandro Grimaldo'; position = 'Left-Back'; nationalities = @('Spain'); squad_number = 20; preferred_foot = 'left'; date_of_birth = '1995-09-20T00:00:00Z'; market_value_minor = 3500000000 }
+            @{ name = 'Exequiel Palacios'; position = 'Central Midfield'; nationalities = @('Argentina'); squad_number = 25; preferred_foot = 'right'; date_of_birth = '1998-10-05T00:00:00Z'; market_value_minor = 3000000000 }
           ) }
      ) }
 
@@ -155,23 +155,23 @@ $data = @(
        @{ name = 'Inter Milan'; short_name = 'Inter'; city = 'Milan'; country = 'Italy'; stadium = 'Giuseppe Meazza'; founded_year = 1908
           coach = @{ name = 'Cristian Chivu'; nationality = 'Romania' }
           players = @(
-            @{ name = 'Lautaro Martínez'; position = 'Centre-Forward'; nationality = 'Argentina'; squad_number = 10; preferred_foot = 'right'; date_of_birth = '1997-08-22T00:00:00Z'; market_value_minor = 9000000000 }
-            @{ name = 'Nicolò Barella'; position = 'Central Midfield'; nationality = 'Italy'; squad_number = 23; preferred_foot = 'right'; date_of_birth = '1997-02-07T00:00:00Z'; market_value_minor = 7000000000 }
-            @{ name = 'Alessandro Bastoni'; position = 'Centre-Back'; nationality = 'Italy'; squad_number = 95; preferred_foot = 'left'; date_of_birth = '1999-04-13T00:00:00Z'; market_value_minor = 6500000000 }
+            @{ name = 'Lautaro Martínez'; position = 'Centre-Forward'; nationalities = @('Argentina'); squad_number = 10; preferred_foot = 'right'; date_of_birth = '1997-08-22T00:00:00Z'; market_value_minor = 9000000000 }
+            @{ name = 'Nicolò Barella'; position = 'Central Midfield'; nationalities = @('Italy'); squad_number = 23; preferred_foot = 'right'; date_of_birth = '1997-02-07T00:00:00Z'; market_value_minor = 7000000000 }
+            @{ name = 'Alessandro Bastoni'; position = 'Centre-Back'; nationalities = @('Italy'); squad_number = 95; preferred_foot = 'left'; date_of_birth = '1999-04-13T00:00:00Z'; market_value_minor = 6500000000 }
           ) }
        @{ name = 'AC Milan'; short_name = 'Milan'; city = 'Milan'; country = 'Italy'; stadium = 'Giuseppe Meazza'; founded_year = 1899
           coach = @{ name = 'Massimiliano Allegri'; nationality = 'Italy' }
           players = @(
-            @{ name = 'Rafael Leão'; position = 'Left Winger'; nationality = 'Portugal'; squad_number = 10; preferred_foot = 'right'; date_of_birth = '1999-06-10T00:00:00Z'; market_value_minor = 7500000000 }
-            @{ name = 'Christian Pulisic'; position = 'Right Winger'; nationality = 'United States'; squad_number = 11; preferred_foot = 'right'; date_of_birth = '1998-09-18T00:00:00Z'; market_value_minor = 4500000000 }
-            @{ name = 'Mike Maignan'; position = 'Goalkeeper'; nationality = 'France'; squad_number = 16; preferred_foot = 'right'; date_of_birth = '1995-07-03T00:00:00Z'; market_value_minor = 3000000000 }
+            @{ name = 'Rafael Leão'; position = 'Left Winger'; nationalities = @('Portugal'); squad_number = 10; preferred_foot = 'right'; date_of_birth = '1999-06-10T00:00:00Z'; market_value_minor = 7500000000 }
+            @{ name = 'Christian Pulisic'; position = 'Right Winger'; nationalities = @('United States'); squad_number = 11; preferred_foot = 'right'; date_of_birth = '1998-09-18T00:00:00Z'; market_value_minor = 4500000000 }
+            @{ name = 'Mike Maignan'; position = 'Goalkeeper'; nationalities = @('France'); squad_number = 16; preferred_foot = 'right'; date_of_birth = '1995-07-03T00:00:00Z'; market_value_minor = 3000000000 }
           ) }
        @{ name = 'SSC Napoli'; short_name = 'Napoli'; city = 'Naples'; country = 'Italy'; stadium = 'Stadio Diego Armando Maradona'; founded_year = 1926
           coach = @{ name = 'Antonio Conte'; nationality = 'Italy' }
           players = @(
-            @{ name = 'Kevin De Bruyne'; position = 'Attacking Midfield'; nationality = 'Belgium'; squad_number = 11; preferred_foot = 'right'; date_of_birth = '1991-06-28T00:00:00Z'; market_value_minor = 2000000000 }
-            @{ name = 'Scott McTominay'; position = 'Central Midfield'; nationality = 'Scotland'; squad_number = 8; preferred_foot = 'right'; date_of_birth = '1996-12-08T00:00:00Z'; market_value_minor = 4500000000 }
-            @{ name = 'Alex Meret'; position = 'Goalkeeper'; nationality = 'Italy'; squad_number = 1; preferred_foot = 'right'; date_of_birth = '1997-03-22T00:00:00Z'; market_value_minor = 1200000000 }
+            @{ name = 'Kevin De Bruyne'; position = 'Attacking Midfield'; nationalities = @('Belgium'); squad_number = 11; preferred_foot = 'right'; date_of_birth = '1991-06-28T00:00:00Z'; market_value_minor = 2000000000 }
+            @{ name = 'Scott McTominay'; position = 'Central Midfield'; nationalities = @('Scotland'); squad_number = 8; preferred_foot = 'right'; date_of_birth = '1996-12-08T00:00:00Z'; market_value_minor = 4500000000 }
+            @{ name = 'Alex Meret'; position = 'Goalkeeper'; nationalities = @('Italy'); squad_number = 1; preferred_foot = 'right'; date_of_birth = '1997-03-22T00:00:00Z'; market_value_minor = 1200000000 }
           ) }
      ) }
 
@@ -180,23 +180,23 @@ $data = @(
        @{ name = 'Paris Saint-Germain'; short_name = 'PSG'; city = 'Paris'; country = 'France'; stadium = 'Parc des Princes'; founded_year = 1970
           coach = @{ name = 'Luis Enrique'; nationality = 'Spain' }
           players = @(
-            @{ name = 'Ousmane Dembélé'; position = 'Right Winger'; nationality = 'France'; squad_number = 10; preferred_foot = 'both'; date_of_birth = '1997-05-15T00:00:00Z'; market_value_minor = 9000000000 }
-            @{ name = 'Vitinha'; position = 'Central Midfield'; nationality = 'Portugal'; squad_number = 17; preferred_foot = 'right'; date_of_birth = '2000-02-13T00:00:00Z'; market_value_minor = 9000000000 }
-            @{ name = 'Achraf Hakimi'; position = 'Right-Back'; nationality = 'Morocco'; squad_number = 2; preferred_foot = 'right'; date_of_birth = '1998-11-04T00:00:00Z'; market_value_minor = 6500000000 }
+            @{ name = 'Ousmane Dembélé'; position = 'Right Winger'; nationalities = @('France'); squad_number = 10; preferred_foot = 'both'; date_of_birth = '1997-05-15T00:00:00Z'; market_value_minor = 9000000000 }
+            @{ name = 'Vitinha'; position = 'Central Midfield'; nationalities = @('Portugal'); squad_number = 17; preferred_foot = 'right'; date_of_birth = '2000-02-13T00:00:00Z'; market_value_minor = 9000000000 }
+            @{ name = 'Achraf Hakimi'; position = 'Right-Back'; nationalities = @('Morocco'); squad_number = 2; preferred_foot = 'right'; date_of_birth = '1998-11-04T00:00:00Z'; market_value_minor = 6500000000 }
           ) }
        @{ name = 'Olympique de Marseille'; short_name = 'Marseille'; city = 'Marseille'; country = 'France'; stadium = 'Orange Vélodrome'; founded_year = 1899
           coach = @{ name = 'Roberto De Zerbi'; nationality = 'Italy' }
           players = @(
-            @{ name = 'Mason Greenwood'; position = 'Right Winger'; nationality = 'England'; squad_number = 10; preferred_foot = 'left'; date_of_birth = '2001-10-01T00:00:00Z'; market_value_minor = 4000000000 }
-            @{ name = 'Pierre-Emerick Aubameyang'; position = 'Centre-Forward'; nationality = 'Gabon'; squad_number = 9; preferred_foot = 'right'; date_of_birth = '1989-06-18T00:00:00Z'; market_value_minor = 500000000 }
-            @{ name = 'Leonardo Balerdi'; position = 'Centre-Back'; nationality = 'Argentina'; squad_number = 5; preferred_foot = 'right'; date_of_birth = '1999-01-26T00:00:00Z'; market_value_minor = 2500000000 }
+            @{ name = 'Mason Greenwood'; position = 'Right Winger'; nationalities = @('England'); squad_number = 10; preferred_foot = 'left'; date_of_birth = '2001-10-01T00:00:00Z'; market_value_minor = 4000000000 }
+            @{ name = 'Pierre-Emerick Aubameyang'; position = 'Centre-Forward'; nationalities = @('Gabon'); squad_number = 9; preferred_foot = 'right'; date_of_birth = '1989-06-18T00:00:00Z'; market_value_minor = 500000000 }
+            @{ name = 'Leonardo Balerdi'; position = 'Centre-Back'; nationalities = @('Argentina'); squad_number = 5; preferred_foot = 'right'; date_of_birth = '1999-01-26T00:00:00Z'; market_value_minor = 2500000000 }
           ) }
        @{ name = 'AS Monaco'; short_name = 'Monaco'; city = 'Monaco'; country = 'Monaco'; stadium = 'Stade Louis II'; founded_year = 1924
           coach = @{ name = 'Adi Hütter'; nationality = 'Austria' }
           players = @(
-            @{ name = 'Maghnes Akliouche'; position = 'Attacking Midfield'; nationality = 'France'; squad_number = 8; preferred_foot = 'right'; date_of_birth = '2002-02-25T00:00:00Z'; market_value_minor = 4000000000 }
-            @{ name = 'Denis Zakaria'; position = 'Defensive Midfield'; nationality = 'Switzerland'; squad_number = 20; preferred_foot = 'right'; date_of_birth = '1996-11-20T00:00:00Z'; market_value_minor = 3000000000 }
-            @{ name = 'Folarin Balogun'; position = 'Centre-Forward'; nationality = 'United States'; squad_number = 29; preferred_foot = 'right'; date_of_birth = '2001-07-03T00:00:00Z'; market_value_minor = 2500000000 }
+            @{ name = 'Maghnes Akliouche'; position = 'Attacking Midfield'; nationalities = @('France'); squad_number = 8; preferred_foot = 'right'; date_of_birth = '2002-02-25T00:00:00Z'; market_value_minor = 4000000000 }
+            @{ name = 'Denis Zakaria'; position = 'Defensive Midfield'; nationalities = @('Switzerland'); squad_number = 20; preferred_foot = 'right'; date_of_birth = '1996-11-20T00:00:00Z'; market_value_minor = 3000000000 }
+            @{ name = 'Folarin Balogun'; position = 'Centre-Forward'; nationalities = @('United States'); squad_number = 29; preferred_foot = 'right'; date_of_birth = '2001-07-03T00:00:00Z'; market_value_minor = 2500000000 }
           ) }
      ) }
 )
