@@ -13,6 +13,7 @@ import { SEARCH_READER } from '../../core/api/contracts';
 import { SearchKind, SearchResult } from '../../core/models/football';
 import { Seo } from '../../core/seo/seo';
 import { Empty, ErrorState, Loading } from '../../shared/ui/states';
+import { ssrResource } from '../../core/api/ssr-resource';
 
 const KINDS: { value: SearchKind | ''; label: string }[] = [
   { value: '', label: 'Everything' },
@@ -51,9 +52,9 @@ const KINDS: { value: SearchKind | ''; label: string }[] = [
           message="Type at least two characters to search."
           hint="Players, clubs, coaches and competitions are all searchable."
         />
-      } @else if (results.isLoading()) {
+      } @else if (results.isLoading() && !results.value()) {
         <app-loading message="Searching…" />
-      } @else if (results.error()) {
+      } @else if (results.error() && !results.value()) {
         <app-error-state [message]="errorMessage()" [requestId]="errorRequestId()" />
       } @else if (!results.value()?.items?.length) {
         <app-empty
@@ -175,7 +176,7 @@ export class SearchPage {
 
   protected readonly kinds = KINDS;
 
-  protected readonly results = resource({
+  protected readonly results = ssrResource('search-page.results', {
     // Re-runs whenever either changes.
     params: () => ({ q: this.q(), kind: this.kind() }),
     loader: ({ params }) => {

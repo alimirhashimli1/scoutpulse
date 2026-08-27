@@ -15,6 +15,7 @@ import { Permissions } from '../../core/auth/permissions';
 import { Seo } from '../../core/seo/seo';
 import { Paginator } from '../../shared/pagination/paginator';
 import { Empty, ErrorState, Loading } from '../../shared/ui/states';
+import { ssrResource } from '../../core/api/ssr-resource';
 
 /**
  * Every club.
@@ -38,9 +39,9 @@ import { Empty, ErrorState, Loading } from '../../shared/ui/states';
         }
       </header>
 
-      @if (clubs.isLoading()) {
+      @if (clubs.isLoading() && !clubs.value()) {
         <app-loading message="Loading clubs…" />
-      } @else if (clubs.error()) {
+      } @else if (clubs.error() && !clubs.value()) {
         <app-error-state [message]="errorMessage()" />
       } @else if (!clubs.value()?.items?.length) {
         <app-empty message="No clubs yet." hint="Create one and it will appear here." />
@@ -128,7 +129,7 @@ export class ClubList {
     });
   }
 
-  protected readonly clubs = resource({
+  protected readonly clubs = ssrResource('club-list.clubs', {
     params: () => ({ page: this.page() }),
     loader: async ({ params }) => {
       await this.lookup.loadLeagues();

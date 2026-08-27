@@ -14,6 +14,7 @@ import { TRANSFER_READER } from '../../core/api/contracts';
 import { LookupStore } from '../../core/api/lookup-store';
 import { PlayerNames } from '../../core/api/player-names';
 import { PageQuery } from '../../core/api/page';
+import { ssrResource } from '../../core/api/ssr-resource';
 import { Transfer, TransferType } from '../../core/models/football';
 import { Seo } from '../../core/seo/seo';
 import { MoneyPipe } from '../../shared/pipes/money-pipe';
@@ -60,9 +61,9 @@ const TYPES: { value: TransferType | ''; label: string }[] = [
         }
       </nav>
 
-      @if (transfers.isLoading()) {
+      @if (transfers.isLoading() && !transfers.value()) {
         <app-loading message="Loading transfers…" />
-      } @else if (transfers.error()) {
+      } @else if (transfers.error() && !transfers.value()) {
         <app-error-state [message]="errorMessage()" [requestId]="errorRequestId()" />
       } @else if (!transfers.value()?.items?.length) {
         <app-empty
@@ -215,7 +216,7 @@ export class TransferFeed {
   protected readonly type = signal<TransferType | ''>('');
   private readonly page = signal<PageQuery>({ limit: 25, offset: 0 });
 
-  protected readonly transfers = resource({
+  protected readonly transfers = ssrResource('transfers', {
     params: () => ({ type: this.type(), page: this.page() }),
     loader: async ({ params }) => {
       // Club names are needed to render a row, so both land before the table

@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 
 import { PLAYER_READER } from './contracts';
 import { MAX_PAGE_SIZE } from './page';
+import { transferredMap } from './transferred-map';
 
 /**
  * Resolves player ids to names, a page at a time.
@@ -25,7 +26,11 @@ import { MAX_PAGE_SIZE } from './page';
 export class PlayerNames {
   private readonly reader = inject(PLAYER_READER);
 
-  private readonly namesById = signal(new Map<string, string>());
+  // Seeded from the server render, so a page hydrating with names already on
+  // screen renders the same names rather than a grid of fallbacks.
+  private readonly namesTransfer = transferredMap<string>('player.names');
+
+  private readonly namesById = signal(this.namesTransfer.initial());
 
   /** In-flight batches, so two components asking at once do not both fetch. */
   private inFlight = new Map<string, Promise<void>>();
@@ -61,6 +66,7 @@ export class PlayerNames {
     }
 
     await Promise.all(batches.map((batch) => this.fetch(batch)));
+    this.namesTransfer.publish(this.namesById());
   }
 
   private fetch(batch: string[]): Promise<void> {

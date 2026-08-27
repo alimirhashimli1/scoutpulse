@@ -17,6 +17,7 @@ import { Permissions } from '../../core/auth/permissions';
 import { Seo } from '../../core/seo/seo';
 import { Actions } from '../../shared/ui/actions';
 import { ErrorState, Loading } from '../../shared/ui/states';
+import { ssrResource } from '../../core/api/ssr-resource';
 
 /**
  * A coach and their career.
@@ -29,9 +30,9 @@ import { ErrorState, Loading } from '../../shared/ui/states';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, DatePipe, Actions, Loading, ErrorState],
   template: `
-    @if (coach.isLoading()) {
+    @if (coach.isLoading() && !coach.value()) {
       <main class="page"><app-loading message="Loading coach…" /></main>
-    } @else if (coach.error()) {
+    } @else if (coach.error() && !coach.value()) {
       <main class="page"><app-error-state [message]="errorMessage()" /></main>
     } @else if (coach.value(); as c) {
       <main class="page">
@@ -188,7 +189,7 @@ export class CoachPage {
 
   readonly id = input.required<string>();
 
-  protected readonly coach = resource({
+  protected readonly coach = ssrResource('coach-page.coach', {
     params: () => ({ id: this.id() }),
     loader: async ({ params }) => {
       await this.lookup.loadTeams();
@@ -196,7 +197,7 @@ export class CoachPage {
     },
   });
 
-  protected readonly spells = resource({
+  protected readonly spells = ssrResource('coach-page.spells', {
     params: () => ({ id: this.id() }),
     loader: ({ params }) => this.reader.spells(params.id, { limit: 50 }),
   });

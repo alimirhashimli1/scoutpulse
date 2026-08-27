@@ -195,6 +195,17 @@ import { ThemeStore } from '../core/theme/theme';
       align-items: center;
       gap: var(--space-3);
       font-size: var(--text-sm);
+      /*
+        Holds its height while the session is still unknown.
+
+        The block deliberately renders nothing until the restore finishes, to
+        avoid flashing "Sign in" at someone who is signed in. Without a floor
+        the masthead is shorter for those first frames and everything below it
+        moves when the account links arrive — a layout shift caused by the fix
+        for a different flicker. The value is the theme button's height, which
+        is the tallest thing here and is present from the first paint.
+      */
+      min-height: 2rem;
     }
     .account a {
       color: var(--ink-soft);

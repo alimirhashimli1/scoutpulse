@@ -19,6 +19,7 @@ import { Seo } from '../../core/seo/seo';
 import { messageFor } from '../../shared/forms/submit';
 import { Paginator } from '../../shared/pagination/paginator';
 import { Empty, ErrorState, Loading } from '../../shared/ui/states';
+import { ssrResource } from '../../core/api/ssr-resource';
 
 const TYPE_LABELS: Record<string, string> = {
   league: 'League',
@@ -43,9 +44,9 @@ const TYPE_LABELS: Record<string, string> = {
         }
       </header>
 
-      @if (leagues.isLoading()) {
+      @if (leagues.isLoading() && !leagues.value()) {
         <app-loading message="Loading competitions…" />
-      } @else if (leagues.error()) {
+      } @else if (leagues.error() && !leagues.value()) {
         <app-error-state [message]="errorMessage()" />
       } @else if (!leagues.value()?.items?.length) {
         <app-empty message="No competitions yet." />
@@ -135,7 +136,7 @@ export class CompetitionList {
     });
   }
 
-  protected readonly leagues = resource({
+  protected readonly leagues = ssrResource('competition-pages.leagues', {
     params: () => ({ page: this.page() }),
     loader: ({ params }) => this.reader.list(params.page),
   });
@@ -179,9 +180,9 @@ export class CompetitionList {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, Paginator, Loading, Empty, ErrorState],
   template: `
-    @if (league.isLoading()) {
+    @if (league.isLoading() && !league.value()) {
       <main class="page"><app-loading message="Loading competition…" /></main>
-    } @else if (league.error()) {
+    } @else if (league.error() && !league.value()) {
       <main class="page"><app-error-state [message]="errorMessage()" /></main>
     } @else if (league.value(); as l) {
       <main class="page">
@@ -226,9 +227,9 @@ export class CompetitionList {
           </div>
 
           @if (seasonId()) {
-            @if (entrants.isLoading()) {
+            @if (entrants.isLoading() && !entrants.value()) {
               <app-loading [lines]="3" />
-            } @else if (entrants.error()) {
+            } @else if (entrants.error() && !entrants.value()) {
               <app-error-state [message]="entrantsErrorMessage()" />
             } @else if (!entrants.value()?.items?.length) {
               <app-empty
@@ -247,7 +248,7 @@ export class CompetitionList {
                 }
               </ul>
             }
-          } @else if (clubs.isLoading()) {
+          } @else if (clubs.isLoading() && !clubs.value()) {
             <app-loading />
           } @else if (!clubs.value()?.items?.length) {
             <app-empty message="No clubs in this competition yet." />
@@ -357,12 +358,12 @@ export class CompetitionPage {
   readonly id = input.required<string>();
   private readonly page = signal<PageQuery>({ limit: 25, offset: 0 });
 
-  protected readonly league = resource({
+  protected readonly league = ssrResource('competition-pages.league', {
     params: () => ({ id: this.id() }),
     loader: ({ params }) => this.leagueReader.byId(params.id),
   });
 
-  protected readonly clubs = resource({
+  protected readonly clubs = ssrResource('competition-pages.clubs', {
     params: () => ({ id: this.id(), page: this.page() }),
     loader: ({ params }) => this.teamReader.list({ ...params.page, league_id: params.id }),
   });
@@ -373,7 +374,7 @@ export class CompetitionPage {
    * Idle until a season is picked — `params` returning undefined skips the
    * loader entirely, so the default view costs no extra request.
    */
-  protected readonly entrants = resource({
+  protected readonly entrants = ssrResource('competition-pages.entrants', {
     params: () => {
       const season = this.seasonId();
       return season ? { season, league: this.id() } : undefined;

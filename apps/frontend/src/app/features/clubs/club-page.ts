@@ -20,15 +20,16 @@ import { MoneyPipe } from '../../shared/pipes/money-pipe';
 import { Actions } from '../../shared/ui/actions';
 import { messageFor } from '../../shared/forms/submit';
 import { Empty, ErrorState, Loading } from '../../shared/ui/states';
+import { ssrResource } from '../../core/api/ssr-resource';
 
 @Component({
   selector: 'app-club-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, DatePipe, MoneyPipe, Actions, Loading, Empty, ErrorState],
   template: `
-    @if (club.isLoading()) {
+    @if (club.isLoading() && !club.value()) {
       <main class="page"><app-loading message="Loading club…" /></main>
-    } @else if (club.error()) {
+    } @else if (club.error() && !club.value()) {
       <main class="page"><app-error-state [message]="errorMessage()" /></main>
     } @else if (club.value(); as c) {
       <main class="page club">
@@ -159,7 +160,7 @@ import { Empty, ErrorState, Loading } from '../../shared/ui/states';
             header — that one is teams.league_id, a single pointer to where
             they are now, which relegation overwrites. These entries survive it.
           -->
-          @if (entries.isLoading()) {
+          @if (entries.isLoading() && !entries.value()) {
             <app-loading [lines]="2" />
           } @else if (entries.value()?.items?.length) {
             <ul class="entries">
@@ -350,7 +351,7 @@ export class ClubPage {
 
   readonly id = input.required<string>();
 
-  protected readonly club = resource({
+  protected readonly club = ssrResource('club-page.club', {
     params: () => ({ id: this.id() }),
     loader: async ({ params }) => {
       await this.lookup.loadLeagues();
@@ -358,12 +359,12 @@ export class ClubPage {
     },
   });
 
-  protected readonly squad = resource({
+  protected readonly squad = ssrResource('club-page.squad', {
     params: () => ({ id: this.id() }),
     loader: ({ params }) => this.reader.squad(params.id, { limit: 100 }),
   });
 
-  protected readonly staff = resource({
+  protected readonly staff = ssrResource('club-page.staff', {
     params: () => ({ id: this.id() }),
     loader: ({ params }) => this.reader.staff(params.id, { limit: 50 }),
   });
@@ -375,7 +376,7 @@ export class ClubPage {
    * anything — the API returns three ids and no names — so both lookups are
    * awaited here rather than leaving the list to render as dashes and fill in.
    */
-  protected readonly entries = resource({
+  protected readonly entries = ssrResource('club-page.entries', {
     params: () => ({ id: this.id() }),
     loader: async ({ params }) => {
       await Promise.all([this.lookup.loadSeasons(), this.lookup.loadLeagues()]);

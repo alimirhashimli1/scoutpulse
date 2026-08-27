@@ -19,6 +19,7 @@ import { Seo } from '../../core/seo/seo';
 import { MoneyPipe } from '../../shared/pipes/money-pipe';
 import { Actions } from '../../shared/ui/actions';
 import { ErrorState, Loading } from '../../shared/ui/states';
+import { ssrResource } from '../../core/api/ssr-resource';
 import { PlayerNotes } from './player-notes';
 import { ValueChart } from './value-chart';
 
@@ -34,9 +35,9 @@ import { ValueChart } from './value-chart';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, DatePipe, MoneyPipe, ValueChart, Actions, PlayerNotes, Loading, ErrorState],
   template: `
-    @if (player.isLoading()) {
+    @if (player.isLoading() && !player.value()) {
       <main class="page"><app-loading message="Loading player…" /></main>
-    } @else if (player.error()) {
+    } @else if (player.error() && !player.value()) {
       <main class="page">
         <app-error-state [message]="errorMessage()" [requestId]="errorRequestId()" />
       </main>
@@ -401,7 +402,7 @@ export class PlayerPage {
   /** Bound from the route parameter. */
   readonly id = input.required<string>();
 
-  protected readonly player = resource({
+  protected readonly player = ssrResource('player-page.player', {
     params: () => ({ id: this.id() }),
     loader: async ({ params }) => {
       await this.lookup.loadTeams();
@@ -409,12 +410,12 @@ export class PlayerPage {
     },
   });
 
-  protected readonly transfers = resource({
+  protected readonly transfers = ssrResource('player-page.transfers', {
     params: () => ({ id: this.id() }),
     loader: ({ params }) => this.reader.transfers(params.id, { limit: 50 }),
   });
 
-  protected readonly values = resource({
+  protected readonly values = ssrResource('player-page.values', {
     params: () => ({ id: this.id() }),
     loader: ({ params }) => this.reader.marketValues(params.id, { limit: 100 }),
   });

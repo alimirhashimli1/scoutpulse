@@ -18,6 +18,7 @@ import { PlayerNote } from '../../core/models/football';
 import { messageFor } from '../../shared/forms/submit';
 import { ConfirmDialog } from '../../shared/ui/confirm-dialog';
 import { Empty, ErrorState, Loading } from '../../shared/ui/states';
+import { ssrResource } from '../../core/api/ssr-resource';
 
 /** Mirrors the server's cap, so the counter states the real limit. */
 const MAX_NOTE_LENGTH = 4000;
@@ -91,9 +92,9 @@ const MAX_NOTE_LENGTH = 4000;
         </p>
       }
 
-      @if (notes.isLoading()) {
+      @if (notes.isLoading() && !notes.value()) {
         <app-loading [lines]="3" />
-      } @else if (notes.error()) {
+      } @else if (notes.error() && !notes.value()) {
         <app-error-state [message]="listErrorMessage()" />
       } @else if (!ordered().length) {
         <app-empty message="No notes yet." hint="Be the first to write one." />
@@ -321,7 +322,7 @@ export class PlayerNotes {
   protected readonly confirmingDelete = signal(false);
   private readonly pendingDelete = signal<PlayerNote | null>(null);
 
-  protected readonly notes = resource({
+  protected readonly notes = ssrResource('player-notes.notes', {
     params: () => ({ id: this.playerId() }),
     loader: ({ params }) => this.reader.notes(params.id, { limit: 100 }),
   });

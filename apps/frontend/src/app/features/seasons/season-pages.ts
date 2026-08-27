@@ -20,6 +20,7 @@ import { Field } from '../../shared/forms/field';
 import { messageFor, requestIdFor } from '../../shared/forms/submit';
 import { toApiDate, toDateInput } from '../../shared/util/dates';
 import { Empty, ErrorState, Loading } from '../../shared/ui/states';
+import { ssrResource } from '../../core/api/ssr-resource';
 
 /**
  * Seasons — the spine of the temporal model.
@@ -49,9 +50,9 @@ import { Empty, ErrorState, Loading } from '../../shared/ui/states';
         }
       </header>
 
-      @if (seasons.isLoading()) {
+      @if (seasons.isLoading() && !seasons.value()) {
         <app-loading message="Loading seasons…" />
-      } @else if (seasons.error()) {
+      } @else if (seasons.error() && !seasons.value()) {
         <app-error-state [message]="errorMessage()" />
       } @else if (!seasons.value()?.items?.length) {
         <app-empty
@@ -129,7 +130,7 @@ export class SeasonList {
     });
   }
 
-  protected readonly seasons = resource({
+  protected readonly seasons = ssrResource('season-pages.seasons', {
     loader: () => this.reader.list({ limit: 100 }),
   });
 

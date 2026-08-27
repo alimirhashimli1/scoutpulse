@@ -3,6 +3,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { League, Season, Team } from '../models/football';
 import { LEAGUE_READER, SEASON_READER, TEAM_READER } from './contracts';
 import { MAX_PAGE_SIZE, Page, PageQuery } from './page';
+import { transferredMap } from './transferred-map';
 
 /**
  * Resolves club, competition and season ids to names.
@@ -29,9 +30,16 @@ export class LookupStore {
   private readonly leagueReader = inject(LEAGUE_READER);
   private readonly seasonReader = inject(SEASON_READER);
 
-  private readonly teamsById = signal(new Map<string, Team>());
-  private readonly leaguesById = signal(new Map<string, League>());
-  private readonly seasonsById = signal(new Map<string, Season>());
+  // Declared before the signals, which seed from them at construction: on a
+  // server-rendered page the browser has to start with the same names the
+  // server used, or the first render disagrees with the DOM it is hydrating.
+  private readonly teamsTransfer = transferredMap<Team>('lookup.teams');
+  private readonly leaguesTransfer = transferredMap<League>('lookup.leagues');
+  private readonly seasonsTransfer = transferredMap<Season>('lookup.seasons');
+
+  private readonly teamsById = signal(this.teamsTransfer.initial());
+  private readonly leaguesById = signal(this.leaguesTransfer.initial());
+  private readonly seasonsById = signal(this.seasonsTransfer.initial());
 
   /** In-flight loads, so ten components asking at once produce one request. */
   private teamsLoading: Promise<void> | null = null;
@@ -55,34 +63,31 @@ export class LookupStore {
 
   async loadTeams(): Promise<void> {
     if (this.teamsById().size > 0) return;
-    this.teamsLoading ??= this.collect(
-      (page) => this.teamReader.list(page),
-      this.teamsById,
-    ).finally(() => {
-      this.teamsLoading = null;
-    });
+    this.teamsLoading ??= this.collect((page) => this.teamReader.list(page), this.teamsById)
+      .then(() => this.teamsTransfer.publish(this.teamsById()))
+      .finally(() => {
+        this.teamsLoading = null;
+      });
     return this.teamsLoading;
   }
 
   async loadLeagues(): Promise<void> {
     if (this.leaguesById().size > 0) return;
-    this.leaguesLoading ??= this.collect(
-      (page) => this.leagueReader.list(page),
-      this.leaguesById,
-    ).finally(() => {
-      this.leaguesLoading = null;
-    });
+    this.leaguesLoading ??= this.collect((page) => this.leagueReader.list(page), this.leaguesById)
+      .then(() => this.leaguesTransfer.publish(this.leaguesById()))
+      .finally(() => {
+        this.leaguesLoading = null;
+      });
     return this.leaguesLoading;
   }
 
   async loadSeasons(): Promise<void> {
     if (this.seasonsById().size > 0) return;
-    this.seasonsLoading ??= this.collect(
-      (page) => this.seasonReader.list(page),
-      this.seasonsById,
-    ).finally(() => {
-      this.seasonsLoading = null;
-    });
+    this.seasonsLoading ??= this.collect((page) => this.seasonReader.list(page), this.seasonsById)
+      .then(() => this.seasonsTransfer.publish(this.seasonsById()))
+      .finally(() => {
+        this.seasonsLoading = null;
+      });
     return this.seasonsLoading;
   }
 
