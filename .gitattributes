@@ -1,0 +1,30 @@
+# Line endings are decided here, not by whatever core.autocrlf each machine
+# happens to have set.
+#
+# Without this file, a Windows checkout with core.autocrlf=true commits CRLF
+# into any file git has already stored with CRLF -- autocrlf skips normalising
+# those, so the first one to slip through is permanent and spreads. 103 files
+# had drifted that way, and it broke CI in two places at once:
+#
+#   * `gofmt -l .` reports every CRLF Go file, failing the formatting gate on
+#     four of the six module jobs. Since that step runs before build, vet and
+#     test, none of those ever ran.
+#   * `prettier --check` does the same for 58 frontend files, failing the
+#     Frontend job at its second step.
+#
+# Neither was a code problem -- the same files pass both tools the moment the
+# line endings are LF. But the failure reads as "the build is broken", and the
+# integration job (needs: [build, migrations]) never starts, so one setting
+# presents as the whole pipeline being red.
+#
+# `eol=lf` normalises the working copy too, not just the stored blob. That is
+# deliberate: the Go services, the frontend and the Docker images are all built
+# on Linux, so LF is what everything downstream expects, and matching it here
+# means the diff a Windows machine produces is the diff CI sees.
+* text=auto eol=lf
+
+# PowerShell scripts are the exception -- they are Windows-only by definition
+# and CRLF is the convention there.
+*.ps1 text eol=crlf
+
+*.ico binary
