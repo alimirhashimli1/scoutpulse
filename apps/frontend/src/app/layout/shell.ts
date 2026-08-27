@@ -96,8 +96,8 @@ import { ThemeStore } from '../core/theme/theme';
     <footer class="footer">
       <div class="page">
         <p>
-          ScoutPulse — transfers, valuations and careers over time.
-          <span class="muted">No match data: this is a record of people and clubs.</span>
+          ScoutPulse — a scouting portal for football.
+          <span class="muted">Players, clubs and coaches, in one searchable record.</span>
         </p>
         <!--
           The badge says "beta"; this says what beta means here. A label on its
