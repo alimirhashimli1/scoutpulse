@@ -67,21 +67,51 @@ function resolveServerEntry() {
  * *before* the import below, not after.
  */
 function applyRuntimeConfig() {
-  const hosts = [
+  const ownHosts = [
     process.env.VERCEL_URL,
     process.env.VERCEL_BRANCH_URL,
     process.env.VERCEL_PROJECT_PRODUCTION_URL,
   ].filter(Boolean);
 
-  if (!process.env.NG_ALLOWED_HOSTS && hosts.length > 0) {
-    process.env.NG_ALLOWED_HOSTS = [...new Set(hosts)].join(',');
-  }
+  // Unioned with anything configured, never replaced by it. A deployment has
+  // to answer for its own addresses -- they are the ones Vercel routes to it,
+  // so they are not in question -- and making the setting additive means
+  // adding a custom domain does not also mean remembering to re-list them.
+  //
+  // It also means a value meant for something else cannot lock the site out of
+  // itself, which is not hypothetical: NG_ALLOWED_HOSTS was once set to the
+  // *gateway's* hostname, and every page answered 400.
+  const configured = (process.env.NG_ALLOWED_HOSTS ?? '')
+    .split(',')
+    .map((host) => host.trim())
+    .filter(Boolean);
+
+  process.env.NG_ALLOWED_HOSTS = [...new Set([...ownHosts, ...configured])].join(',');
 
   // Canonical links and og:url. The production hostname is preferred: a
   // preview naming itself canonical would point every tag at a throwaway URL.
+  //
+  // An explicit value wins, but only if it is absolute. These tags are required
+  // to be -- a relative canonical is ignored, and a relative og:url resolves
+  // against the crawler's own host -- and the failure is invisible from inside
+  // the app, so a bare hostname is rejected here rather than quietly shipped in
+  // the head of every page.
   const siteHost = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
-  if (!process.env.SITE_URL && siteHost) {
-    process.env.SITE_URL = `https://${siteHost}`;
+  const derived = siteHost ? `https://${siteHost}` : undefined;
+  const configuredSite = process.env.SITE_URL;
+
+  if (configuredSite && !/^https?:\/\//i.test(configuredSite)) {
+    console.warn(
+      '[ssr] SITE_URL=%s is not an absolute URL; ignoring it and using %s instead. ' +
+        'Canonical and og:url tags must carry a scheme.',
+      configuredSite,
+      derived ?? '(nothing)',
+    );
+    if (derived) {
+      process.env.SITE_URL = derived;
+    }
+  } else if (!configuredSite && derived) {
+    process.env.SITE_URL = derived;
   }
 
   // The real hostname arrives in `X-Forwarded-Host`; `Host` carries the edge's
@@ -92,9 +122,7 @@ function applyRuntimeConfig() {
   process.env.TRUST_PROXY_HEADERS ??= 'true';
 
   // Cold starts are rare and this is one line of text, but it is the
-  // difference between reading the answer and redeploying to guess at it: if
-  // Vercel's system environment variables are not exposed to the runtime, the
-  // host list comes out empty and every page silently degrades to CSR.
+  // difference between reading the answer and redeploying to guess at it.
   console.log(
     '[ssr] allowed hosts: %s | site url: %s | gateway: %s',
     process.env.NG_ALLOWED_HOSTS || '(none - system env vars not exposed?)',

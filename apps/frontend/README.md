@@ -101,7 +101,14 @@ Set in Project Settings → Environment Variables, for Production and Preview:
 `api/ssr.mjs`. The first two are derived from the
 hostnames Vercel already publishes to the process, so preview deployments —
 which get a fresh hostname every time — work without a hand-maintained list.
-Setting any of them explicitly overrides that.
+
+`NG_ALLOWED_HOSTS` is **additive**: whatever you set is unioned with the
+deployment’s own hostnames rather than replacing them. A deployment always has
+to answer for the addresses Vercel routes to it, and making it additive means a
+value meant for something else cannot lock the site out of itself. `SITE_URL`
+does take an explicit value, but only an absolute one — a bare hostname is
+rejected with a warning, because a canonical tag without a scheme is ignored by
+crawlers and fails invisibly.
 
 `TRUST_PROXY_HEADERS` is the one that is easy to lose an afternoon to. A
 function always sits behind Vercel's edge, so the public hostname arrives in
