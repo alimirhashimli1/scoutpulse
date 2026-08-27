@@ -1,14 +1,29 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "angular",
+  "framework": null,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/frontend/browser",
+  "functions": {
+    "api/ssr.mjs": {
+      "includeFiles": "dist/frontend/server/**"
+    }
+  },
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "https://scoutpulse-production.up.railway.app/api/:path*"
+      "source": "/api/football/:path*",
+      "destination": "https://scoutpulse-production.up.railway.app/api/football/:path*"
+    },
+    {
+      "source": "/api/identity/:path*",
+      "destination": "https://scoutpulse-production.up.railway.app/api/identity/:path*"
     },
     {
       "source": "/.well-known/jwks.json",
       "destination": "https://scoutpulse-production.up.railway.app/.well-known/jwks.json"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/api/ssr"
     }
   ]
 }
