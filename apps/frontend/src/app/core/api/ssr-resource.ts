@@ -20,23 +20,16 @@ import { isPlatformBrowser } from '@angular/common';
  * Angular discards the server's DOM, the page collapses to the height of the
  * skeleton, and grows back when the loader settles a tick later.
  *
- * That is two full-viewport layout shifts on every load of every
- * server-rendered page — measured at a cumulative 1.81 on the transfer feed,
- * where anything above 0.1 is considered poor. It also means the server render
- * is thrown away: all of SSR's cost, none of its benefit.
- *
- * Seeding the resource closes it. The server records each resolved value under
- * a key derived from the resource's name and its params; the browser reads it
- * back synchronously at construction and passes it as `defaultValue`, so the
- * first client render draws the same thing the server did and hydration finds
- * the DOM it expects.
+ * Seeding the resource closes it. The server records its first resolved value;
+ * the browser reads it back synchronously and passes it as `defaultValue`, so
+ * the first client render draws what the server drew and hydration finds the
+ * DOM it expects.
  *
  * **The template has to cooperate**: branch on the value before `isLoading()`,
- * or the loading arm wins anyway and nothing is gained. See transfer-feed.ts.
+ * or the loading arm wins anyway and nothing is gained.
  *
- * Only worth applying to routes in app.routes.server.ts that render on the
- * server. A client-only route has no server DOM to mismatch, so its skeleton
- * is the honest first paint.
+ * Only worth applying to routes that render on the server. A client-only route
+ * has no server DOM to mismatch, so its skeleton is the honest first paint.
  */
 export function ssrResource<T, P>(
   name: string,
@@ -52,20 +45,32 @@ export function ssrResource<T, P>(
   const state = inject(TransferState);
   const isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
-  const keyFor = (params: P) => makeStateKey<T>(`${name}:${stableKey(params)}`);
+  /**
+   * Keyed by name alone, deliberately — not by params.
+   *
+   * Keying by params would mean evaluating `params()` here, during field
+   * initialization, and `resource()` does not: it treats params as a reactive
+   * computation and reads it later. Calling it early reads fields declared
+   * further down the class and required inputs before Angular has set them,
+   * and both throw. The server never noticed, because it has nothing to seed
+   * and skipped the call; the browser broke on every navigation.
+   *
+   * The name is enough. What is being carried is the value the server rendered
+   * with, and there is exactly one of those per resource per render.
+   */
+  const key = makeStateKey<T>(name);
 
-  // Read synchronously, before the resource is created: `defaultValue` has to
-  // be in hand for the very first render, which is the one that must match.
+  // Read before the resource is created: `defaultValue` has to be in hand for
+  // the very first render, which is the one that has to match.
   let seeded: T | undefined;
-  if (isBrowser) {
-    const key = keyFor(options.params ? options.params() : (undefined as P));
-    if (state.hasKey(key)) {
-      seeded = state.get(key, undefined as T);
-      // Taken, not borrowed. Leaving it would let a later navigation back to
-      // these params render a value from page load rather than reloading.
-      state.remove(key);
-    }
+  if (isBrowser && state.hasKey(key)) {
+    seeded = state.get(key, undefined as T);
+    // Taken, not borrowed. Leaving it would let a later navigation back to
+    // this route render page-load data rather than fetching current data.
+    state.remove(key);
   }
+
+  let published = false;
 
   return resource<T | undefined, P>({
     params: options.params,
@@ -73,27 +78,14 @@ export function ssrResource<T, P>(
       const value = await options.loader(
         args as { params: Exclude<P, undefined>; abortSignal: AbortSignal },
       );
-      if (!isBrowser) {
-        state.set(keyFor(args.params as P), value);
+      // First write wins: it is the one whose output went into the HTML, and
+      // so the one the browser's first render has to reproduce.
+      if (!isBrowser && !published) {
+        published = true;
+        state.set(key, value);
       }
       return value;
     },
     defaultValue: seeded,
-  });
-}
-
-/**
- * Key order has to match across the two renders, and object literals give no
- * such guarantee once a params object is built from more than one place, so
- * keys are sorted rather than trusted.
- */
-function stableKey(params: unknown): string {
-  return JSON.stringify(params, (_, value) => {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      return Object.fromEntries(
-        Object.entries(value as object).sort(([a], [b]) => a.localeCompare(b)),
-      );
-    }
-    return value;
   });
 }
