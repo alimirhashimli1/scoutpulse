@@ -114,6 +114,26 @@ function applyRuntimeConfig() {
     process.env.SITE_URL = derived;
   }
 
+  // Where the renderer fetches data from.
+  //
+  // The browser uses root-relative paths and lets the rewrites in vercel.json
+  // carry them to Railway. The renderer cannot: it has no origin to resolve a
+  // relative URL against, and fetch rejects one outright.
+  //
+  // So it is pointed at this deployment's own public origin, and goes through
+  // exactly the same rewrites. That costs one extra hop through the edge per
+  // fetch, and buys the thing worth having: the service addresses live in
+  // vercel.json and nowhere else. The alternative -- FOOTBALL_API_URL and
+  // IDENTITY_API_URL naming the Railway hosts directly -- is one hop faster and
+  // two more places to forget when a URL changes.
+  //
+  // An explicit GATEWAY_INTERNAL_URL still wins, as does the FOOTBALL/IDENTITY
+  // pair, so a deployment that wants the direct route can have it.
+  const hasDirectPair = process.env.FOOTBALL_API_URL && process.env.IDENTITY_API_URL;
+  if (!process.env.GATEWAY_INTERNAL_URL && !hasDirectPair && derived) {
+    process.env.GATEWAY_INTERNAL_URL = derived;
+  }
+
   // The real hostname arrives in `X-Forwarded-Host`; `Host` carries the edge's
   // own. Without this Angular checks the wrong one against the list above,
   // finds no match, and quietly serves an empty shell with a 200 -- including

@@ -91,11 +91,16 @@ own renderer upstream.
 
 ### Environment variables
 
-Set in Project Settings → Environment Variables, for Production and Preview:
+None are required. The renderer derives what it needs from what Vercel already
+publishes to the process.
 
-| Variable | Value | Why |
-| --- | --- | --- |
-| `GATEWAY_INTERNAL_URL` | `https://scoutpulse-production.up.railway.app` | Where the *renderer* reaches the gateway. It cannot use the relative path the browser uses — a Node process has no origin to resolve one against. Without this it falls back to `http://localhost:8000` and every server-rendered page comes back with no data. |
+| Variable | When to set it |
+| --- | --- |
+| `GATEWAY_INTERNAL_URL` | Only to override where the renderer fetches data. It defaults to this deployment’s own public origin, so server-side fetches go through the same `rewrites` the browser uses and the service addresses stay in `vercel.json` alone. |
+| `FOOTBALL_API_URL` + `IDENTITY_API_URL` | Both together, to address the services directly and skip the extra hop through the edge. Half a pair is ignored. |
+
+The browser never needs any of this: it uses root-relative paths, and the
+rewrites carry them to Railway.
 
 `NG_ALLOWED_HOSTS`, `SITE_URL` and `TRUST_PROXY_HEADERS` are set in
 `api/ssr.mjs`. The first two are derived from the

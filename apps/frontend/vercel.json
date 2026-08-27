@@ -11,15 +11,15 @@
   "rewrites": [
     {
       "source": "/api/football/:path*",
-      "destination": "https://scoutpulse-production.up.railway.app/api/football/:path*"
+      "destination": "https://scoutpulse-production-dd8c.up.railway.app/:path*"
     },
     {
       "source": "/api/identity/:path*",
-      "destination": "https://scoutpulse-production.up.railway.app/api/identity/:path*"
+      "destination": "https://scoutpulse-production-7341.up.railway.app/:path*"
     },
     {
       "source": "/.well-known/jwks.json",
-      "destination": "https://scoutpulse-production.up.railway.app/.well-known/jwks.json"
+      "destination": "https://scoutpulse-production-7341.up.railway.app/.well-known/jwks.json"
     },
     {
       "source": "/",
