@@ -17,7 +17,14 @@
     />
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <!--
+      Two icons, and the order matters: a browser that understands SVG takes
+      the last one it can use, and the vector stays sharp on a high-density
+      screen and in the places a tab icon gets scaled up. The .ico carries
+      16/32/48px rasters for everything older, and for Windows shortcuts.
+    -->
+    <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <!-- Matches the palette so the browser paints the right chrome and the
        first frame is not a white flash on a dark page. -->
     <meta name="color-scheme" content="light dark" />
