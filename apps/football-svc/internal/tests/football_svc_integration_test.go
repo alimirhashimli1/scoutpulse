@@ -215,4 +215,57 @@ func TestFootballServiceIntegration(t *testing.T) {
 		}
 		assert.True(t, found, "Arsenal should be in the response")
 	})
+
+	// Tactics boards against real SQL: the JSONB round trip, the step count
+	// computed in the query, the optional owner filter and the author ordering
+	// are all things an in-memory stub cannot prove.
+	t.Run("tactics boards round-trip through Postgres", func(t *testing.T) {
+		tactics := repository.NewPostgresTacticRepository(db)
+		const ali = "11111111-1111-1111-1111-111111111111"
+		const real = "22222222-2222-2222-2222-222222222222"
+
+		mk := func(slug, owner, name, title string) *domain.TacticBoard {
+			b := &domain.TacticBoard{
+				Slug: slug, OwnerID: owner, OwnerName: name, Title: title,
+				Content: json.RawMessage(`{"v":1,"steps":[{"duration":1},{"duration":2}]}`),
+			}
+			require.NoError(t, tactics.Create(ctx, b))
+			return b
+		}
+		mk("realAAAAAAAA", real, "real123", "Atlético – Real analysis")
+		mk("aliAAAAAAAAA", ali, "aligsbsu", "Long passes drill")
+		mk("aliBBBBBBBBB", ali, "aligsbsu", "Barça – Real analysis")
+
+		got, err := tactics.GetBySlug(ctx, "aliAAAAAAAAA")
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"v":1,"steps":[{"duration":1},{"duration":2}]}`, string(got.Content))
+
+		all, err := tactics.List(ctx, nil, domain.NewPage(50, 0))
+		require.NoError(t, err)
+		require.Len(t, all, 3)
+		assert.Equal(t, "aligsbsu", all[0].OwnerName, "grouped by author name")
+		assert.Equal(t, "aligsbsu", all[1].OwnerName)
+		assert.Equal(t, "real123", all[2].OwnerName)
+		assert.Equal(t, 2, all[0].Steps, "steps counted in SQL")
+
+		owner := ali
+		mine, err := tactics.List(ctx, &owner, domain.NewPage(50, 0))
+		require.NoError(t, err)
+		assert.Len(t, mine, 2)
+
+		got.Title = "Long passes drill v2"
+		got.Content = json.RawMessage(`{"v":1}`)
+		require.NoError(t, tactics.Update(ctx, got))
+		reread, err := tactics.GetBySlug(ctx, "aliAAAAAAAAA")
+		require.NoError(t, err)
+		assert.Equal(t, "Long passes drill v2", reread.Title)
+
+		removed, err := tactics.DeleteByOwner(ctx, ali)
+		require.NoError(t, err)
+		assert.EqualValues(t, 2, removed)
+
+		require.NoError(t, tactics.Delete(ctx, "realAAAAAAAA"))
+		_, err = tactics.GetBySlug(ctx, "realAAAAAAAA")
+		require.Error(t, err)
+	})
 }

@@ -1,0 +1,48 @@
+/* Overlays on the 3D stage, shared by the editor and the viewer: the camera
+   switcher and the step caption. Glass over the pitch, legible in both
+   themes because the pitch underneath is the same in both. */
+app-board-view {
+  position: absolute;
+  inset: 0;
+}
+.views {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-lg);
+  background: rgb(10 14 18 / 55%);
+  backdrop-filter: blur(6px);
+}
+.views button {
+  width: 2.1rem;
+  height: 2.1rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: #e2e8f0;
+  cursor: pointer;
+}
+.views button.on {
+  background: rgb(255 255 255 / 18%);
+  color: #fff;
+}
+.caption {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-4);
+  transform: translateX(-50%);
+  max-width: min(90%, 44rem);
+  padding: var(--space-2) var(--space-5);
+  border-radius: 999px;
+  background: rgb(10 14 18 / 72%);
+  backdrop-filter: blur(6px);
+  color: #f8fafc;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+}

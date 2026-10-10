@@ -1,0 +1,266 @@
+@if (loadError()) {
+  <div class="page notice">
+    <h1>Can't edit this board</h1>
+    <p>{{ loadError() }}</p>
+    <p>
+      @if (slug()) {
+        <a [routerLink]="['/tactics', slug()]">Watch it</a> ·
+      }
+      <a routerLink="/tactics/new">Start a new board</a>
+    </p>
+  </div>
+} @else {
+  <div class="studio" [class.busy]="loading()">
+    <header class="top">
+      <a class="back" [routerLink]="canSave() ? '/tactics' : '/'" title="Back">←</a>
+      <div class="naming">
+        <label class="visually-hidden" for="board-title">Board title</label>
+        <input
+          id="board-title"
+          class="title"
+          type="text"
+          maxlength="120"
+          placeholder="Untitled board"
+          [value]="title()"
+          (input)="title.set(value($event)); store.dirty.set(true)"
+        />
+        <button type="button" class="link" (click)="showDetails.set(!showDetails())">
+          {{
+            showDetails()
+              ? 'Hide description'
+              : description()
+                ? 'Edit description'
+                : 'Add a description'
+          }}
+        </button>
+      </div>
+
+      <div class="history">
+        <button
+          type="button"
+          class="ib"
+          title="Undo (Ctrl+Z)"
+          aria-label="Undo"
+          [disabled]="!store.canUndo()"
+          (click)="store.undo()"
+        >
+          <app-tactic-icon name="undo" />
+        </button>
+        <button
+          type="button"
+          class="ib"
+          title="Redo (Ctrl+Shift+Z)"
+          aria-label="Redo"
+          [disabled]="!store.canRedo()"
+          (click)="store.redo()"
+        >
+          <app-tactic-icon name="redo" />
+        </button>
+      </div>
+
+      <span class="status" aria-live="polite">
+        @if (saving()) {
+          Saving…
+        } @else if (store.dirty()) {
+          {{ canSave() ? 'Unsaved changes' : 'Not saved' }}
+        } @else if (savedSlug()) {
+          Saved
+        }
+      </span>
+
+      <button
+        type="button"
+        class="btn quiet"
+        [disabled]="recording()"
+        title="Record a play-through and download it"
+        (click)="downloadVideo()"
+      >
+        <app-tactic-icon name="download" /> {{ recording() ? 'Recording…' : 'Video' }}
+      </button>
+      @if (canSave()) {
+        <button
+          type="button"
+          class="btn primary"
+          [disabled]="saving() || (!store.dirty() && !!savedSlug())"
+          (click)="save()"
+        >
+          {{ savedSlug() ? 'Save' : 'Save board' }}
+        </button>
+      } @else {
+        <button type="button" class="btn primary" (click)="signInToSave()">Sign in to save</button>
+      }
+    </header>
+
+    @if (showDetails()) {
+      <div class="details">
+        <label class="visually-hidden" for="board-desc">Description</label>
+        <textarea
+          id="board-desc"
+          rows="2"
+          maxlength="1000"
+          placeholder="What is this board for? Players see this above the animation."
+          [value]="description()"
+          (input)="description.set(value($event)); store.dirty.set(true)"
+        ></textarea>
+      </div>
+    }
+
+    @if (!canSave()) {
+      <p class="banner">
+        You're not signed in. You can build and play this board, but it isn't saved, and refreshing
+        the page will lose it.
+        <button type="button" class="link" (click)="signInToSave()">
+          Sign in to save and share it</button
+        >.
+      </p>
+    }
+    @if (saveError()) {
+      <p class="banner error" role="alert">{{ saveError() }}</p>
+    }
+    @if (savedSlug(); as s) {
+      <div class="share">
+        <app-tactic-icon name="link" />
+        <span>Anyone with this link can watch it, no account needed:</span>
+        <input
+          type="text"
+          readonly
+          [value]="shareUrl()"
+          aria-label="Share link"
+          (focus)="$any($event.target).select()"
+        />
+        <button type="button" class="btn quiet" (click)="copyLink()">
+          {{ copied() ? 'Copied' : 'Copy link' }}
+        </button>
+        <a class="btn quiet" [routerLink]="['/tactics', s]" target="_blank">Open</a>
+      </div>
+    }
+
+    <div class="body">
+      <app-tool-palette />
+
+      <section class="centre">
+        <div class="stage">
+          <app-board-view
+            [doc]="store.doc()"
+            [frame]="frame()"
+            [editState]="editState()"
+            [tool]="store.tool()"
+            [preview]="store.preview()"
+            [view]="view()"
+            [tick]="tick"
+            (selected)="store.selection.set($event)"
+            (objectMoved)="store.moveObject($event.id, $event.at, $event.done)"
+            (bent)="store.bend($event.id, $event.mid, $event.done)"
+            (drawingEdited)="store.editDrawing($event.id, $event.change, $event.done)"
+            (placed)="store.tool() === 'text' ? store.placeText($event) : store.place($event)"
+            (stroked)="store.stroke($event.points, $event.done)"
+          />
+
+          <div class="views" role="group" aria-label="Camera">
+            @for (v of views; track v.value) {
+              <button
+                type="button"
+                [class.on]="view() === v.value"
+                [title]="v.label"
+                [attr.aria-label]="v.label"
+                (click)="view.set(v.value)"
+              >
+                <app-tactic-icon [name]="v.icon" />
+              </button>
+            }
+          </div>
+
+          @if (caption()) {
+            <p class="caption">{{ caption() }}</p>
+          }
+          @if (store.tool() === 'polygon') {
+            <p class="tip">
+              Click to add corners. Click the first corner again, or double-click, to close the
+              shape.
+            </p>
+          } @else if (!atRest() && !player.playing()) {
+            <p class="tip">Between steps. Pick a step below to edit it.</p>
+          }
+        </div>
+
+        <div class="steps">
+          <div class="chips" role="tablist" aria-label="Steps">
+            @for (s of store.doc().steps; track s.id; let i = $index) {
+              <button
+                type="button"
+                role="tab"
+                class="chip"
+                [class.on]="i === store.stepIndex()"
+                [attr.aria-selected]="i === store.stepIndex()"
+                [title]="s.note || 'Step ' + (i + 1)"
+                (click)="goToStep(i)"
+              >
+                {{ i + 1 }}
+              </button>
+            }
+            <button
+              type="button"
+              class="chip add"
+              title="Add a step after this one"
+              aria-label="Add step"
+              (click)="addStep()"
+            >
+              <app-tactic-icon name="plus" />
+            </button>
+          </div>
+
+          @let step = store.step();
+          <div class="step-props">
+            <label>
+              <span>Move</span>
+              <input
+                type="number"
+                min="0.2"
+                max="20"
+                step="0.1"
+                [disabled]="store.stepIndex() === 0"
+                [value]="step.duration"
+                (change)="store.updateStep({ duration: numberFrom($event, 0.2, 20) })"
+              />s
+            </label>
+            <label>
+              <span>Pause</span>
+              <input
+                type="number"
+                min="0"
+                max="20"
+                step="0.1"
+                [value]="step.hold"
+                (change)="store.updateStep({ hold: numberFrom($event, 0, 20) })"
+              />s
+            </label>
+            <label class="note">
+              <span class="visually-hidden">Caption for step {{ store.stepIndex() + 1 }}</span>
+              <input
+                type="text"
+                maxlength="200"
+                placeholder="Caption for this step, e.g. “6 drops to receive”"
+                [value]="step.note"
+                (change)="store.updateStep({ note: value($event) })"
+              />
+            </label>
+            <button
+              type="button"
+              class="ib"
+              title="Delete this step"
+              aria-label="Delete this step"
+              [disabled]="store.doc().steps.length <= 1"
+              (click)="store.deleteStep()"
+            >
+              <app-tactic-icon name="trash" />
+            </button>
+          </div>
+        </div>
+
+        <app-playback-bar class="playback" [player]="player" [locked]="recording()" />
+      </section>
+
+      <app-inspector />
+    </div>
+  </div>
+}

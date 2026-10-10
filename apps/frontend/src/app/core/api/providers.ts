@@ -30,6 +30,8 @@ import {
   HttpTransferRepository,
 } from './http/football-repositories';
 import { HttpUserAdminRepository } from './http/identity-repositories';
+import { HttpTacticRepository } from './http/tactic-repository';
+import { TACTIC_READER, TACTIC_WRITER } from './tactics';
 import { USER_ADMIN_READER, USER_ADMIN_WRITER } from './user-admin';
 
 /**
@@ -77,6 +79,10 @@ export function provideFootballApi(): Provider[] {
 
     HttpSearchRepository,
     { provide: SEARCH_READER, useExisting: HttpSearchRepository },
+
+    HttpTacticRepository,
+    { provide: TACTIC_READER, useExisting: HttpTacticRepository },
+    { provide: TACTIC_WRITER, useExisting: HttpTacticRepository },
 
     // identity-svc, not football-svc. Kept in the same call because it is the
     // same decision — which class answers which contract — and splitting it

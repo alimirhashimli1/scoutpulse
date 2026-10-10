@@ -1,0 +1,104 @@
+<section class="page list">
+  <header class="head">
+    <div>
+      <h1>Tactics boards</h1>
+      <p class="lede">
+        Animated drills, shapes and match analysis by members. Every board has its own link that
+        anyone can watch without an account; this list is only visible to signed-in members.
+      </p>
+    </div>
+    <a class="btn primary" routerLink="/tactics/new"><app-tactic-icon name="plus" /> New board</a>
+  </header>
+
+  <div class="filters" role="tablist" aria-label="Show">
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="filter() === 'all'"
+      [class.on]="filter() === 'all'"
+      (click)="filter.set('all')"
+    >
+      All members
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="filter() === 'mine'"
+      [class.on]="filter() === 'mine'"
+      (click)="filter.set('mine')"
+    >
+      Mine <span class="count">{{ myCount() }}</span>
+    </button>
+  </div>
+
+  @if (error()) {
+    <app-error-state [message]="error()!" />
+  }
+
+  @if (loading() && !boards().length) {
+    <app-loading [lines]="5" />
+  } @else if (!groups().length && !error()) {
+    <app-empty
+      [message]="filter() === 'mine' ? 'You have not made a board yet.' : 'No boards yet.'"
+      hint="Start one: put out a formation, draw the runs, add steps and press play."
+    />
+  } @else {
+    @for (g of groups(); track g.ownerId) {
+      <section class="author" [attr.aria-labelledby]="'author-' + g.ownerId">
+        <h2 [id]="'author-' + g.ownerId">
+          <span class="avatar" aria-hidden="true">{{ g.name.charAt(0).toUpperCase() }}</span>
+          {{ g.name }}
+          @if (g.mine) {
+            <span class="you">you</span>
+          }
+          <span class="n"
+            >{{ g.boards.length }} {{ g.boards.length === 1 ? 'board' : 'boards' }}</span
+          >
+        </h2>
+        <ul class="cards">
+          @for (b of g.boards; track b.slug) {
+            <li class="card">
+              <a class="open" [routerLink]="['/tactics', b.slug]">
+                <span class="pitch" aria-hidden="true"><span></span></span>
+                <span class="title">{{ b.title }}</span>
+                @if (b.description) {
+                  <span class="desc">{{ b.description }}</span>
+                }
+                <span class="meta">
+                  {{ b.steps }} {{ b.steps === 1 ? 'step' : 'steps' }} · updated
+                  {{ b.updated_at | date: 'd MMM y' }}
+                </span>
+              </a>
+              @if (g.mine || session.isAdmin()) {
+                <div class="own">
+                  @if (g.mine) {
+                    <a [routerLink]="['/tactics', b.slug, 'edit']">Edit</a>
+                  }
+                  <button type="button" (click)="askDelete(b)">Delete</button>
+                </div>
+              }
+            </li>
+          }
+        </ul>
+      </section>
+    }
+    @if (hasMore()) {
+      <button type="button" class="btn more" [disabled]="loading()" (click)="loadMore()">
+        {{ loading() ? 'Loading…' : 'Show more' }}
+      </button>
+    }
+  }
+
+  <app-confirm-dialog
+    [(open)]="confirmingDelete"
+    title="Delete this board?"
+    [message]="
+      '“' +
+      (toDelete()?.title ?? '') +
+      '” will be gone, and its link will stop working for everyone it was sent to.'
+    "
+    confirmLabel="Delete"
+    [danger]="true"
+    (confirmed)="confirmDelete()"
+  />
+</section>

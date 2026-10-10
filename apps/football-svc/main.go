@@ -80,6 +80,7 @@ func main() {
 	teamEditorRepo := repository.NewPostgresTeamEditorRepository(database)
 	teamSeasonRepo := repository.NewPostgresTeamSeasonRepository(database)
 	searchRepo := repository.NewPostgresSearchRepository(database)
+	tacticRepo := repository.NewPostgresTacticRepository(database)
 
 	// Authorization: one instance, shared by every service, so the grant
 	// cache is shared and an invalidation reaches all of them.
@@ -90,7 +91,7 @@ func main() {
 	// subscription is the only thing that will ever tell this service an
 	// account was deleted.
 	if canSubscribe {
-		consumer := service.NewIdentityEventConsumer(teamEditorRepo, authz, logger)
+		consumer := service.NewIdentityEventConsumer(teamEditorRepo, tacticRepo, authz, logger)
 		if err := consumer.Register(ctx, subscriber); err != nil {
 			log.Fatalf("Failed to subscribe to identity events: %v", err)
 		}
@@ -112,6 +113,7 @@ func main() {
 	teamEditorService := service.NewTeamEditorService(teamEditorRepo, teamRepo, authz)
 	teamSeasonService := service.NewTeamSeasonService(teamSeasonRepo, teamRepo, seasonRepo, leagueRepo, authz)
 	searchService := service.NewSearchService(searchRepo)
+	tacticService := service.NewTacticService(tacticRepo)
 
 	handlers := handler.Handlers{
 		League:      handler.NewLeagueHandler(leagueService),
@@ -126,6 +128,7 @@ func main() {
 		TeamEditor:  handler.NewTeamEditorHandler(teamEditorService),
 		TeamSeason:  handler.NewTeamSeasonHandler(teamSeasonService),
 		Search:      handler.NewSearchHandler(searchService),
+		Tactic:      handler.NewTacticHandler(tacticService),
 	}
 
 	// Tracing is optional: with no collector configured this installs a

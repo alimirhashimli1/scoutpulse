@@ -16,21 +16,27 @@ import (
 // boundary. Nothing would otherwise tell this service an account is gone, so
 // grants would outlive it — and if the id were ever reissued they would apply
 // to whoever received it. This consumer is what closes that (issue N16).
+//
+// Tactics boards are keyed by user_id the same way, and go with the account:
+// a board is somebody's own work rather than part of the shared record, and an
+// unlisted link to a deleted person's drawings has nobody left to answer for it.
 type IdentityEventConsumer struct {
 	editors repository.TeamEditorRepository
+	tactics repository.TacticRepository
 	authz   *Authorizer
 	logger  *slog.Logger
 }
 
 func NewIdentityEventConsumer(
 	editors repository.TeamEditorRepository,
+	tactics repository.TacticRepository,
 	authz *Authorizer,
 	logger *slog.Logger,
 ) *IdentityEventConsumer {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &IdentityEventConsumer{editors: editors, authz: authz, logger: logger}
+	return &IdentityEventConsumer{editors: editors, tactics: tactics, authz: authz, logger: logger}
 }
 
 // Register subscribes to the identity events this service cares about.
@@ -70,6 +76,18 @@ func (c *IdentityEventConsumer) handleUserDeleted(ctx context.Context, e events.
 	if removed > 0 {
 		c.logger.Info("removed editor grants for a deleted account",
 			"user_id", payload.UserID, "username", payload.Username, "grants", removed)
+	}
+
+	// After the grants, so a failure here retries an event whose grant
+	// removal has already happened -- which is harmless, since both deletes
+	// are idempotent.
+	boards, err := c.tactics.DeleteByOwner(ctx, payload.UserID)
+	if err != nil {
+		return err
+	}
+	if boards > 0 {
+		c.logger.Info("removed tactics boards for a deleted account",
+			"user_id", payload.UserID, "username", payload.Username, "boards", boards)
 	}
 	return nil
 }

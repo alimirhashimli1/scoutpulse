@@ -3,6 +3,13 @@ import { Routes } from '@angular/router';
 import { adminGuard, authGuard, editorGuard } from './core/auth/guards';
 
 /**
+ * Asks before leaving an editor with unsaved work. Typed structurally so this
+ * file does not import the editor and pull it out of its lazy chunk.
+ */
+const leaveTacticsEditor = (component: { canLeave?: () => boolean } | null) =>
+  component?.canLeave ? component.canLeave() : true;
+
+/**
  * Every feature route is lazily loaded, so the initial bundle carries the shell
  * and nothing else. Render modes are set separately in app.routes.server.ts.
  *
@@ -216,6 +223,38 @@ export const routes: Routes = [
     canActivate: [adminGuard],
     title: 'Editor access · ScoutPulse',
   },
+  // --- tactics boards ---
+  // The directory is members only; a board itself is public by its link, and
+  // the editor is open to everyone (a visitor's board just is not saved).
+  // `new` is declared before `:slug` so it is not read as a board.
+  {
+    path: 'tactics',
+    loadComponent: () => import('./features/tactics/list/tactics-list').then((m) => m.TacticsList),
+    canActivate: [authGuard],
+    title: 'Tactics boards · ScoutPulse',
+  },
+  {
+    path: 'tactics/new',
+    loadComponent: () =>
+      import('./features/tactics/editor/tactics-editor').then((m) => m.TacticsEditor),
+    canDeactivate: [leaveTacticsEditor],
+    title: 'Tactics board · ScoutPulse',
+  },
+  {
+    path: 'tactics/:slug/edit',
+    loadComponent: () =>
+      import('./features/tactics/editor/tactics-editor').then((m) => m.TacticsEditor),
+    canActivate: [authGuard],
+    canDeactivate: [leaveTacticsEditor],
+    title: 'Edit tactics board · ScoutPulse',
+  },
+  {
+    path: 'tactics/:slug',
+    loadComponent: () =>
+      import('./features/tactics/viewer/tactics-viewer').then((m) => m.TacticsViewer),
+    title: 'Tactics board · ScoutPulse',
+  },
+
   // A real 404, not a redirect to the home page. Redirecting answered 200 OK
   // for every dead link, which loses the address a visitor followed and lets a
   // crawler treat an unbounded set of non-existent URLs as valid pages.

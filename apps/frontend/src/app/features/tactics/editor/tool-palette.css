@@ -1,0 +1,141 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  overflow-y: auto;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+}
+h5 {
+  margin-top: var(--space-2);
+}
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.tool {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  background: none;
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+  text-align: left;
+  white-space: nowrap;
+}
+.tool span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tool.icon-only {
+  justify-content: center;
+  padding: 8px 0;
+  background: var(--surface-2);
+}
+.tool:hover {
+  color: var(--accent);
+  border-color: var(--line);
+}
+.tool.on {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.kit {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  border: 3px solid;
+  flex: none;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 30%);
+}
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 5px;
+}
+.swatch {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+}
+.swatch[aria-checked='true'] {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.custom {
+  background: conic-gradient(#f43f5e, #facc15, #22c55e, #22d3ee, #3b82f6, #a855f7, #f43f5e);
+  overflow: hidden;
+}
+.custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.widths {
+  display: flex;
+  gap: 4px;
+}
+.widths button {
+  flex: 1;
+  height: 1.9rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.widths button span {
+  display: block;
+  width: 60%;
+  background: var(--ink-soft);
+  border-radius: 4px;
+}
+.widths button.on {
+  border-color: var(--accent);
+}
+
+@media (max-width: 56rem) {
+  :host {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+  h5 {
+    display: none;
+  }
+  .group,
+  .grid {
+    display: flex;
+    flex-direction: row;
+  }
+  .tool.icon-only {
+    width: 2.4rem;
+  }
+  .swatches {
+    grid-template-columns: repeat(8, 1.4rem);
+  }
+  .widths {
+    display: none;
+  }
+}

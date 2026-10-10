@@ -1,0 +1,431 @@
+@if (obj(); as o) {
+  <!-- ------------------------------------------------ a piece on the board -->
+  <header>
+    <h4>{{ o.kind === 'player' ? (o.keeper ? 'Goalkeeper' : 'Player') : o.kind }}</h4>
+    <button
+      type="button"
+      class="icon-btn"
+      title="Deselect"
+      aria-label="Deselect"
+      (click)="store.selection.set(null)"
+    >
+      <app-tactic-icon name="close" />
+    </button>
+  </header>
+
+  @if (o.kind === 'player') {
+    <div class="pair">
+      <label class="f">
+        <span>Number</span>
+        <input
+          type="text"
+          maxlength="3"
+          [value]="o.number ?? ''"
+          (input)="store.updateObject(o.id, { number: value($event) })"
+        />
+      </label>
+      <label class="f">
+        <span>Team</span>
+        <select
+          [value]="o.team ?? 'home'"
+          (change)="store.updateObject(o.id, { team: $any(value($event)) })"
+        >
+          @for (t of teamIds; track t) {
+            <option [value]="t">{{ store.doc().teams[t].name }}</option>
+          }
+        </select>
+      </label>
+    </div>
+    <label class="f">
+      <span>Name</span>
+      <input
+        type="text"
+        maxlength="24"
+        placeholder="Optional"
+        [value]="o.name ?? ''"
+        (input)="store.updateObject(o.id, { name: value($event) })"
+      />
+    </label>
+    <label class="check">
+      <input
+        type="checkbox"
+        [checked]="!!o.keeper"
+        (change)="store.updateObject(o.id, { keeper: $any($event.target).checked || undefined })"
+      />
+      Goalkeeper
+    </label>
+
+    <div class="f">
+      <span>Training bib</span>
+      <app-color-pick
+        [value]="o.bib"
+        [allowNone]="true"
+        noneLabel="No bib"
+        label="Bib colour"
+        (picked)="store.updateObject(o.id, { bib: $event ?? undefined })"
+      />
+    </div>
+
+    <details [open]="!!o.color">
+      <summary>This player's own colours</summary>
+      <p class="hint">
+        For a neutral or a player who stands apart. Leave on the team kit otherwise.
+      </p>
+      <div class="f">
+        <span>Shirt</span>
+        <app-color-pick
+          [value]="o.color"
+          [allowNone]="true"
+          noneLabel="Team kit"
+          (picked)="store.updateObject(o.id, { color: $event ?? undefined })"
+        />
+      </div>
+      <div class="f">
+        <span>Trim</span>
+        <app-color-pick
+          [value]="o.color2"
+          [allowNone]="true"
+          noneLabel="Team kit"
+          (picked)="store.updateObject(o.id, { color2: $event ?? undefined })"
+        />
+      </div>
+      <label class="f">
+        <span>Pattern</span>
+        <select [value]="o.pattern ?? ''" (change)="setPattern($event)">
+          <option value="">Team kit ({{ look()?.pattern }})</option>
+          @for (p of patterns; track p) {
+            <option [value]="p">{{ p }}</option>
+          }
+        </select>
+      </label>
+    </details>
+  } @else if (o.kind !== 'ball') {
+    <div class="f">
+      <span>Colour</span>
+      <app-color-pick
+        [value]="o.color"
+        (picked)="store.updateObject(o.id, { color: $event ?? undefined })"
+      />
+    </div>
+  }
+
+  <label class="f">
+    <span
+      >Size <output>{{ ((o.size ?? 1) * 100).toFixed(0) }}%</output></span
+    >
+    <input
+      type="range"
+      min="0.5"
+      max="2"
+      step="0.05"
+      [value]="o.size ?? 1"
+      (input)="
+        store.updateObject(o.id, {
+          size: numberValue($event) === 1 ? undefined : numberValue($event),
+        })
+      "
+    />
+  </label>
+  @if (rotatable()) {
+    <label class="f">
+      <span
+        >Facing <output>{{ o.rotation ?? 0 }}°</output></span
+      >
+      <input
+        type="range"
+        min="0"
+        max="345"
+        step="15"
+        [value]="o.rotation ?? 0"
+        (input)="store.updateObject(o.id, { rotation: numberValue($event) })"
+      />
+    </label>
+  }
+
+  <h4 class="sub">In step {{ store.stepIndex() + 1 }}</h4>
+  <div class="toggles">
+    <button
+      type="button"
+      class="chip"
+      [class.on]="highlighted()"
+      (click)="store.toggleIn('highlight', o.id)"
+    >
+      <app-tactic-icon name="spot" /> Spotlight
+    </button>
+    @if (store.stepIndex() > 0) {
+      <button
+        type="button"
+        class="chip"
+        [class.on]="inAir()"
+        title="Travels through the air into this step"
+        (click)="store.toggleIn('air', o.id)"
+      >
+        <app-tactic-icon name="air" /> Lofted
+      </button>
+    }
+    @if (bent()) {
+      <button type="button" class="chip" (click)="store.straighten(o.id)">Straighten path</button>
+    }
+  </div>
+  @if (store.stepIndex() > 0) {
+    <p class="hint">
+      Drag it to where it moves in this step. Drag the yellow handle on its path to curve the run.
+    </p>
+  }
+
+  <div class="actions">
+    <button type="button" class="btn" (click)="store.duplicateSelection()">
+      <app-tactic-icon name="copy" /> Duplicate
+    </button>
+    <button type="button" class="btn danger" (click)="store.deleteSelection()">
+      <app-tactic-icon name="trash" /> Delete
+    </button>
+  </div>
+} @else if (drawing(); as d) {
+  <!-- -------------------------------------------------------- a drawing -->
+  <header>
+    <h4>
+      {{
+        d.kind === 'arrow'
+          ? 'Arrow'
+          : d.kind === 'rect' || d.kind === 'ellipse' || d.kind === 'polygon'
+            ? 'Zone'
+            : d.kind
+      }}
+    </h4>
+    <button
+      type="button"
+      class="icon-btn"
+      title="Deselect"
+      aria-label="Deselect"
+      (click)="store.selection.set(null)"
+    >
+      <app-tactic-icon name="close" />
+    </button>
+  </header>
+
+  @if (d.kind === 'text') {
+    <label class="f">
+      <span>Text</span>
+      <input
+        #textField
+        type="text"
+        maxlength="60"
+        [value]="d.text ?? ''"
+        (input)="store.updateDrawing(d.id, { text: value($event) })"
+      />
+    </label>
+  }
+  <div class="f">
+    <span>Colour</span>
+    <app-color-pick
+      [value]="d.color"
+      (picked)="store.updateDrawing(d.id, { color: $event ?? '#ffffff' })"
+    />
+  </div>
+  @if (isLine()) {
+    <div class="f">
+      <span>Line</span>
+      <div class="seg">
+        @for (s of strokeStyles; track s.value) {
+          <button
+            type="button"
+            [class.on]="(d.style ?? 'solid') === s.value"
+            (click)="store.updateDrawing(d.id, { style: s.value })"
+          >
+            {{ s.label }}
+          </button>
+        }
+      </div>
+    </div>
+  }
+  <label class="f">
+    <span>{{ d.kind === 'text' ? 'Size' : 'Thickness' }}</span>
+    <input
+      type="range"
+      min="0.12"
+      max="0.9"
+      step="0.02"
+      [value]="d.width ?? 0.32"
+      (input)="store.updateDrawing(d.id, { width: numberValue($event) })"
+    />
+  </label>
+  @if (isZone()) {
+    <label class="f">
+      <span>Fill</span>
+      <input
+        type="range"
+        min="0"
+        max="0.7"
+        step="0.02"
+        [value]="d.fill ?? 0.22"
+        (input)="store.updateDrawing(d.id, { fill: numberValue($event) })"
+      />
+    </label>
+  }
+  @if (d.control) {
+    <button type="button" class="chip" (click)="store.updateDrawing(d.id, { control: undefined })">
+      Straighten
+    </button>
+  }
+  <div class="actions">
+    <button type="button" class="btn danger" (click)="store.deleteSelection()">
+      <app-tactic-icon name="trash" /> Delete
+    </button>
+  </div>
+} @else {
+  <!-- ------------------------------------------------------- the board -->
+  <h4>Pitch</h4>
+  <label class="f">
+    <span>Show</span>
+    <select
+      [value]="store.doc().pitch.layout"
+      (change)="store.setPitch({ layout: $any(value($event)) })"
+    >
+      @for (l of layouts; track l.value) {
+        <option [value]="l.value">{{ l.label }}</option>
+      }
+    </select>
+  </label>
+  <div class="f">
+    <span>Look</span>
+    <div class="seg">
+      @for (s of styles; track s.value) {
+        <button
+          type="button"
+          [class.on]="store.doc().pitch.style === s.value"
+          (click)="store.setPitch({ style: s.value })"
+        >
+          {{ s.label }}
+        </button>
+      }
+    </div>
+  </div>
+  <div class="f">
+    <span>Markings</span>
+    <div class="seg">
+      @for (m of markings; track m.value) {
+        <button
+          type="button"
+          [class.on]="store.doc().pitch.markings === m.value"
+          (click)="store.setPitch({ markings: m.value })"
+        >
+          {{ m.label }}
+        </button>
+      }
+    </div>
+  </div>
+  <label class="check">
+    <input
+      type="checkbox"
+      [checked]="store.doc().pitch.stadium"
+      (change)="store.setPitch({ stadium: $any($event.target).checked })"
+    />
+    Stadium around the pitch
+  </label>
+
+  <h4 class="sub">Teams</h4>
+  <div class="seg tabs">
+    @for (t of teamIds; track t) {
+      <button type="button" [class.on]="kitTab() === t" (click)="kitTab.set(t)">
+        <span class="dot" [style.background]="store.doc().teams[t].primary"></span
+        >{{ store.doc().teams[t].name }}
+      </button>
+    }
+  </div>
+  @let kit = store.doc().teams[kitTab()];
+  <label class="f">
+    <span>Name</span>
+    <input
+      type="text"
+      maxlength="20"
+      [value]="kit.name"
+      (change)="store.setKit(kitTab(), { name: value($event) || kit.name })"
+    />
+  </label>
+  <div class="f">
+    <span>Shirt</span>
+    <app-color-pick
+      [value]="kit.primary"
+      (picked)="store.setKit(kitTab(), { primary: $event ?? kit.primary })"
+    />
+  </div>
+  <div class="f">
+    <span>Second colour</span>
+    <app-color-pick
+      [value]="kit.secondary"
+      (picked)="store.setKit(kitTab(), { secondary: $event ?? kit.secondary })"
+    />
+  </div>
+  <label class="f">
+    <span>Pattern</span>
+    <select
+      [value]="kit.pattern"
+      (change)="store.setKit(kitTab(), { pattern: $any(value($event)) })"
+    >
+      @for (p of patterns; track p) {
+        <option [value]="p">{{ p }}</option>
+      }
+    </select>
+  </label>
+  <div class="f">
+    <span>Numbers</span>
+    <app-color-pick
+      [value]="kit.numbers"
+      (picked)="store.setKit(kitTab(), { numbers: $event ?? kit.numbers })"
+    />
+  </div>
+  <div class="f">
+    <span>Goalkeeper</span>
+    <app-color-pick
+      [value]="kit.keeper"
+      (picked)="store.setKit(kitTab(), { keeper: $event ?? kit.keeper })"
+    />
+  </div>
+
+  <h4 class="sub">Line-up</h4>
+  <div class="pair">
+    <label class="f">
+      <span>Formation</span>
+      <select [value]="formationName()" (change)="formationName.set(value($event))">
+        @for (f of formations; track f) {
+          <option [value]="f">{{ f }}</option>
+        }
+      </select>
+    </label>
+    <label class="f">
+      <span>Team</span>
+      <select [value]="formationTeam()" (change)="formationTeam.set($any(value($event)))">
+        @for (t of teamIds; track t) {
+          <option [value]="t">{{ store.doc().teams[t].name }}</option>
+        }
+      </select>
+    </label>
+  </div>
+  <div class="actions">
+    <button
+      type="button"
+      class="btn"
+      title="Defending the left goal"
+      (click)="addFormation('left')"
+    >
+      Add, left half
+    </button>
+    <button
+      type="button"
+      class="btn"
+      title="Defending the right goal"
+      (click)="addFormation('right')"
+    >
+      Add, right half
+    </button>
+  </div>
+  <button type="button" class="link" (click)="store.removeTeam(formationTeam())">
+    Remove all {{ store.doc().teams[formationTeam()].name }} players
+  </button>
+
+  <p class="hint tips">
+    Pick a tool on the left and click the pitch. Right-drag (or two fingers) turns the camera; the
+    wheel zooms. <kbd>Del</kbd> removes, <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes.
+  </p>
+}

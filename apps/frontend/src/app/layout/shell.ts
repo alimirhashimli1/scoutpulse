@@ -46,6 +46,16 @@ import { ThemeStore } from '../core/theme/theme';
           <a routerLink="/transfers" routerLinkActive="active">Transfers</a>
           <a routerLink="/clubs" routerLinkActive="active">Clubs</a>
           <a routerLink="/competitions" routerLinkActive="active">Competitions</a>
+          <!--
+            Members land on the boards list; a visitor, who cannot see that
+            list, goes straight to an editor they can use without an account.
+          -->
+          <a
+            [routerLink]="session.isAuthenticated() ? '/tactics' : '/tactics/new'"
+            routerLinkActive="active"
+          >
+            Tactics board
+          </a>
         </nav>
 
         <div class="account">

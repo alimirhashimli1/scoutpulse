@@ -77,6 +77,18 @@ export const serverRoutes: ServerRoute[] = [
   { path: 'admin/users', renderMode: RenderMode.Client },
   { path: 'admin/clubs/:id/editors', renderMode: RenderMode.Client },
 
+  // --- tactics boards ----------------------------------------------------
+  //
+  // The list and the editor are client only for the same reasons as every
+  // other private or write page. A single board is rendered on the server,
+  // not for search engines — it carries noindex — but so a link pasted into
+  // a chat unfurls with the board's title. The 3D view itself is browser only.
+  // `new` precedes `:slug`, so it is not matched as a board.
+  { path: 'tactics', renderMode: RenderMode.Client },
+  { path: 'tactics/new', renderMode: RenderMode.Client },
+  { path: 'tactics/:slug/edit', renderMode: RenderMode.Client },
+  { path: 'tactics/:slug', renderMode: RenderMode.Server },
+
   // --- anything else is genuinely not a page ---------------------------
   //
   // Rendered, so the visitor gets the not-found page rather than a blank

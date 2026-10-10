@@ -25,6 +25,7 @@ type Handlers struct {
 	TeamEditor  *TeamEditorHandler
 	TeamSeason  *TeamSeasonHandler
 	Search      *SearchHandler
+	Tactic      *TacticHandler
 }
 
 // RegisterRoutes registers all API routes for the football service.
@@ -122,6 +123,17 @@ func RegisterRoutes(mux *http.ServeMux, h Handlers) {
 	// writable here -- they are what the current squad is derived from.
 	protect(mux, "PUT /api/v1/transfers/{id}", h.Transfer.UpdateTransfer)
 	protect(mux, "DELETE /api/v1/transfers/{id}", h.Transfer.DeleteTransfer)
+
+	// --- tactics boards ---
+	// Unlisted rather than private. One board is public by its slug, because
+	// the players and coaches it is sent to have no accounts; the directory of
+	// boards is for members only, which is what keeps them out of view. Any
+	// signed-in member may create one.
+	mux.HandleFunc("GET /api/v1/tactics/{slug}", h.Tactic.GetTactic)
+	protect(mux, "GET /api/v1/tactics", h.Tactic.ListTactics)
+	protect(mux, "POST /api/v1/tactics", h.Tactic.CreateTactic)
+	protect(mux, "PUT /api/v1/tactics/{slug}", h.Tactic.UpdateTactic)
+	protect(mux, "DELETE /api/v1/tactics/{slug}", h.Tactic.DeleteTactic)
 }
 
 // protect registers a route that requires a valid bearer token.

@@ -1,0 +1,79 @@
+@if (board.value(); as b) {
+  <article class="page viewer">
+    <header class="head">
+      <div class="titles">
+        <h1>{{ b.title }}</h1>
+        <p class="byline">
+          by <strong>{{ b.owner_name || 'a member' }}</strong>
+          <span class="muted"
+            >&nbsp;· {{ b.updated_at | date: 'd MMM y' }} · {{ doc().steps.length }}
+            {{ doc().steps.length === 1 ? 'step' : 'steps' }}</span
+          >
+        </p>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn" (click)="copyLink()">
+          <app-tactic-icon name="link" /> {{ copied() ? 'Copied' : 'Copy link' }}
+        </button>
+        <button type="button" class="btn" [disabled]="recording()" (click)="downloadVideo()">
+          <app-tactic-icon name="download" /> {{ recording() ? 'Recording…' : 'Video' }}
+        </button>
+        @if (isOwner()) {
+          <a class="btn primary" [routerLink]="['/tactics', b.slug, 'edit']">Edit</a>
+        }
+      </div>
+    </header>
+    @if (b.description) {
+      <p class="description">{{ b.description }}</p>
+    }
+
+    <div class="stage" #stage>
+      <app-board-view [doc]="doc()" [frame]="player.frame()" [view]="view()" [tick]="tick" />
+
+      <div class="views" role="group" aria-label="Camera">
+        @for (v of views; track v.value) {
+          <button
+            type="button"
+            [class.on]="view() === v.value"
+            [title]="v.label"
+            [attr.aria-label]="v.label"
+            (click)="view.set(v.value)"
+          >
+            <app-tactic-icon [name]="v.icon" />
+          </button>
+        }
+        <button
+          type="button"
+          title="Full screen (F)"
+          aria-label="Full screen"
+          (click)="fullscreen()"
+        >
+          <app-tactic-icon name="expand" />
+        </button>
+      </div>
+
+      @if (player.frame().note) {
+        <p class="caption">{{ player.frame().note }}</p>
+      }
+      @if (!started() && doc().steps.length > 1) {
+        <button type="button" class="big-play" aria-label="Play the animation" (click)="start()">
+          <app-tactic-icon name="play" />
+        </button>
+      }
+    </div>
+
+    <app-playback-bar [player]="player" [locked]="recording()" />
+    <p class="help muted">
+      Drag to turn the camera, scroll or pinch to zoom. Space plays and pauses; the arrow keys step.
+    </p>
+  </article>
+} @else if (board.isLoading()) {
+  <div class="page pad"><app-loading [lines]="6" message="Loading the board…" /></div>
+} @else if (notFound()) {
+  <div class="page pad">
+    <h1>Board not found</h1>
+    <p class="muted">The link may be mistyped, or its author has deleted the board.</p>
+  </div>
+} @else if (board.error()) {
+  <div class="page pad"><app-error-state message="Could not load this board." /></div>
+}

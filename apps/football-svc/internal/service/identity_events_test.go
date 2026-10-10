@@ -36,7 +36,7 @@ func TestUserDeleted_RemovesEveryGrant(t *testing.T) {
 		grant("other-user", "team-1")
 
 	authz := newTestAuthorizer(t, editors)
-	consumer := NewIdentityEventConsumer(editors, authz, quietLogger())
+	consumer := NewIdentityEventConsumer(editors, newStubTactics(), authz, quietLogger())
 
 	err := consumer.handleUserDeleted(context.Background(),
 		envelopeFor(t, events.SubjectUserDeleted, events.UserDeleted{
@@ -66,7 +66,7 @@ func TestUserDeleted_RemovesEveryGrant(t *testing.T) {
 func TestUserDeleted_ClearsTheCachedDecision(t *testing.T) {
 	editors := newStubEditors().grant("doomed-user", "team-1")
 	authz := newTestAuthorizer(t, editors)
-	consumer := NewIdentityEventConsumer(editors, authz, quietLogger())
+	consumer := NewIdentityEventConsumer(editors, newStubTactics(), authz, quietLogger())
 
 	// Warm the cache.
 	require.NoError(t, authz.RequireTeam(ctxAs("doomed-user", RoleEditor), "team-1"))
@@ -84,7 +84,7 @@ func TestUserDeleted_ClearsTheCachedDecision(t *testing.T) {
 func TestRoleChanged_ClearsTheCachedDecision(t *testing.T) {
 	editors := newStubEditors().grant("user-1", "team-1")
 	authz := newTestAuthorizer(t, editors)
-	consumer := NewIdentityEventConsumer(editors, authz, quietLogger())
+	consumer := NewIdentityEventConsumer(editors, newStubTactics(), authz, quietLogger())
 
 	require.NoError(t, authz.RequireTeam(ctxAs("user-1", RoleEditor), "team-1"))
 
@@ -104,7 +104,7 @@ func TestRoleChanged_ClearsTheCachedDecision(t *testing.T) {
 // retry loop rather than eventual success.
 func TestMalformedEventIsDropped(t *testing.T) {
 	editors := newStubEditors()
-	consumer := NewIdentityEventConsumer(editors, newTestAuthorizer(t, editors), quietLogger())
+	consumer := NewIdentityEventConsumer(editors, newStubTactics(), newTestAuthorizer(t, editors), quietLogger())
 
 	bad := events.Envelope{ID: "e", Subject: events.SubjectUserDeleted, Payload: []byte(`{"user_id":`)}
 
@@ -116,7 +116,7 @@ func TestMalformedEventIsDropped(t *testing.T) {
 // an empty user_id must not become a delete-everything.
 func TestEmptyUserIDIsIgnored(t *testing.T) {
 	editors := newStubEditors().grant("user-1", "team-1")
-	consumer := NewIdentityEventConsumer(editors, newTestAuthorizer(t, editors), quietLogger())
+	consumer := NewIdentityEventConsumer(editors, newStubTactics(), newTestAuthorizer(t, editors), quietLogger())
 
 	require.NoError(t, consumer.handleUserDeleted(context.Background(),
 		envelopeFor(t, events.SubjectUserDeleted, events.UserDeleted{UserID: ""})))
