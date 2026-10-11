@@ -83,6 +83,31 @@ describe('EditorStore', () => {
     expect(store.doc().steps).toHaveLength(3);
   });
 
+  it('reorders steps without changing what each one shows', () => {
+    const a = placePlayer([0, 0]);
+    const b = placePlayer([5, 0]);
+    store.addStep();
+    store.moveObject(a, [10, 0], true);
+    store.updateStep({ note: 'A runs' });
+    store.addStep();
+    store.moveObject(b, [5, 8], true);
+    store.updateStep({ note: 'B drops' });
+    const at = (i: number) => [positionAt(store.doc(), i, a), positionAt(store.doc(), i, b)];
+    const before = [0, 1, 2].map(at);
+
+    store.moveStep(2, 1);
+    expect(store.doc().steps.map((s) => s.note)).toEqual(['', 'B drops', 'A runs']);
+    expect(store.stepIndex()).toBe(1);
+    expect([0, 2, 1].map(at)).toEqual(before);
+
+    store.moveStep(1, 0);
+    expect(store.doc().steps.map((s) => s.note)).toEqual(['B drops', '', 'A runs']);
+    expect(at(0)).toEqual(before[2]);
+    store.undo();
+    store.undo();
+    expect(store.doc().steps.map((s) => s.note)).toEqual(['', 'A runs', 'B drops']);
+  });
+
   it('removes a deleted object from every step', () => {
     const id = placePlayer([0, 0]);
     store.addStep();

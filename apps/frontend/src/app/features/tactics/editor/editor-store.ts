@@ -22,6 +22,7 @@ import {
   newStep,
   nextNumber,
   positionAt,
+  positionsAt,
 } from '../board/model';
 import { Frame, still } from '../board/playback';
 
@@ -456,6 +457,40 @@ export class EditorStore {
     steps.splice(i + 1, 0, copy);
     this.apply({ ...doc, steps });
     this.stepIndex.set(i + 1);
+    if (this.selection()?.type === 'drawing') this.selection.set(null);
+  }
+
+  /**
+   * Moves a step to another place in the order and follows it there.
+   *
+   * A step stores only what moved in it, so reordering the raw steps would
+   * change what every step around it shows. Instead each step is resolved to
+   * where everything stands, the order is changed, and the positions are
+   * stored again as differences from the new previous step. Every step then
+   * looks the same as before; only the order they play in has changed.
+   */
+  moveStep(from: number, to: number): void {
+    const doc = this.doc();
+    const n = doc.steps.length;
+    to = Math.max(0, Math.min(n - 1, to));
+    if (from === to || from < 0 || from >= n) return;
+
+    const resolved = doc.steps.map((_, i) => positionsAt(doc, i));
+    const order = doc.steps.map((_, i) => i);
+    order.splice(to, 0, ...order.splice(from, 1));
+
+    const steps = order.map((at, k) => {
+      const here = resolved[at];
+      const before = k > 0 ? resolved[order[k - 1]] : new Map<string, Vec2>();
+      const pos: Record<string, Vec2> = {};
+      for (const [id, p] of here) {
+        const q = before.get(id);
+        if (!q || q[0] !== p[0] || q[1] !== p[1]) pos[id] = p;
+      }
+      return { ...doc.steps[at], pos };
+    });
+    this.apply({ ...doc, steps });
+    this.stepIndex.set(to);
     if (this.selection()?.type === 'drawing') this.selection.set(null);
   }
 

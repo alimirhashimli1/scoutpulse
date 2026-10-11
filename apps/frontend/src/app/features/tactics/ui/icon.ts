@@ -45,6 +45,8 @@ const ICONS: Record<string, string> = {
   restart: '<path d="M4 12a8 8 0 108-8 8 8 0 00-5.7 2.3L4 8.5"/><path d="M4 3.5v5h5"/>',
   prev: '<path d="M6 5v14M18 5L9 12l9 7z"/>',
   next: '<path d="M18 5v14M6 5l9 7-9 7z"/>',
+  earlier: '<path d="M15 5l-7 7 7 7"/>',
+  later: '<path d="M9 5l7 7-7 7"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   link: '<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>',
   download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',

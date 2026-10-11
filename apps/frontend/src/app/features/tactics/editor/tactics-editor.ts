@@ -312,6 +312,40 @@ export class TacticsEditor implements OnInit {
     this.store.duplicateStep();
   }
 
+  protected moveStep(from: number, to: number): void {
+    this.player.pause();
+    this.store.moveStep(from, to);
+  }
+
+  /** The step chip being dragged to a new place, and the chip it is over. */
+  protected readonly draggingStep = signal<number | null>(null);
+  protected readonly dropStep = signal<number | null>(null);
+
+  protected onStepDragStart(e: DragEvent, i: number): void {
+    this.draggingStep.set(i);
+    // Firefox starts no drag without data.
+    e.dataTransfer?.setData('text/plain', String(i + 1));
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  }
+
+  protected onStepDragOver(e: DragEvent, i: number): void {
+    if (this.draggingStep() === null) return;
+    e.preventDefault();
+    this.dropStep.set(i);
+  }
+
+  protected onStepDrop(e: DragEvent, i: number): void {
+    const from = this.draggingStep();
+    e.preventDefault();
+    this.onStepDragEnd();
+    if (from !== null) this.moveStep(from, i);
+  }
+
+  protected onStepDragEnd(): void {
+    this.draggingStep.set(null);
+    this.dropStep.set(null);
+  }
+
   protected numberFrom(e: Event, min: number, max: number): number {
     const v = Number((e.target as HTMLInputElement).value);
     return Math.max(min, Math.min(max, Number.isFinite(v) ? v : min));

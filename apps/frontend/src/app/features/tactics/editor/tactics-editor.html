@@ -192,8 +192,16 @@
                 class="chip"
                 [class.on]="i === store.stepIndex()"
                 [attr.aria-selected]="i === store.stepIndex()"
-                [title]="s.note || 'Step ' + (i + 1)"
+                [class.dragging]="i === draggingStep()"
+                [class.drop]="i === dropStep() && i !== draggingStep()"
+                [title]="(s.note || 'Step ' + (i + 1)) + ' · drag to reorder'"
+                draggable="true"
                 (click)="goToStep(i)"
+                (dragstart)="onStepDragStart($event, i)"
+                (dragover)="onStepDragOver($event, i)"
+                (dragleave)="dropStep.set(null)"
+                (drop)="onStepDrop($event, i)"
+                (dragend)="onStepDragEnd()"
               >
                 {{ i + 1 }}
               </button>
@@ -244,6 +252,26 @@
                 (change)="store.updateStep({ note: value($event) })"
               />
             </label>
+            <button
+              type="button"
+              class="ib"
+              title="Move this step earlier"
+              aria-label="Move this step earlier"
+              [disabled]="store.stepIndex() === 0"
+              (click)="moveStep(store.stepIndex(), store.stepIndex() - 1)"
+            >
+              <app-tactic-icon name="earlier" />
+            </button>
+            <button
+              type="button"
+              class="ib"
+              title="Move this step later"
+              aria-label="Move this step later"
+              [disabled]="store.stepIndex() === store.doc().steps.length - 1"
+              (click)="moveStep(store.stepIndex(), store.stepIndex() + 1)"
+            >
+              <app-tactic-icon name="later" />
+            </button>
             <button
               type="button"
               class="ib"

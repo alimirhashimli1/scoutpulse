@@ -46,3 +46,12 @@ app-board-view {
   text-align: center;
   pointer-events: none;
 }
+
+/* Step chips while one is dragged to a new place (the editor's step strip;
+   here because the editor's own stylesheet is at its size budget). */
+.chip.dragging {
+  opacity: 0.4;
+}
+.chip.drop {
+  box-shadow: 0 0 0 2px var(--accent);
+}
