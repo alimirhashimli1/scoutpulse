@@ -69,6 +69,7 @@ export class BoardView {
   readonly doc = input.required<TacticDoc>();
   readonly frame = input.required<Frame>();
   readonly editState = input<EditState>({
+    editor: false,
     editing: false,
     step: 0,
     selection: null,

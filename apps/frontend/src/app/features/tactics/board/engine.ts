@@ -78,7 +78,13 @@ export interface EngineHandlers {
 }
 
 export interface EditState {
-  /** Interactive editing; false for the viewer. */
+  /**
+   * This board is in the editor. Decides the mouse layout — left edits, right
+   * turns the camera — and stays true even while editing is paused, so the
+   * left button never silently becomes a camera control mid-session.
+   */
+  editor: boolean;
+  /** Edits are accepted right now: false while playing or between steps. */
   editing: boolean;
   step: number;
   selection: Target | null;
@@ -131,7 +137,13 @@ export class BoardEngine {
   private drawings: Drawing[] = [];
   private drawingsKey: Drawing[] | null = null;
   private drawingOpacity = 1;
-  private edit: EditState = { editing: false, step: 0, selection: null, trails: false };
+  private edit: EditState = {
+    editor: false,
+    editing: false,
+    step: 0,
+    selection: null,
+    trails: false,
+  };
   private frame: Frame | null = null;
   private gesture: Gesture | null = null;
   private polygon: Vec2[] = [];
@@ -622,7 +634,7 @@ export class BoardEngine {
 
   private applyInteractivity(): void {
     const c = this.controls;
-    if (this.edit.editing) {
+    if (this.edit.editor) {
       // Left is for editing; right orbits, wheel zooms, two fingers do both.
       c.mouseButtons = {
         LEFT: null,

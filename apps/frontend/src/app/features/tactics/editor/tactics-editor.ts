@@ -105,6 +105,7 @@ export class TacticsEditor implements OnInit {
   );
 
   protected readonly editState = computed<EditState>(() => ({
+    editor: true,
     editing: this.atRest() && !this.recording(),
     step: this.store.stepIndex(),
     selection: this.store.selection(),
@@ -134,11 +135,27 @@ export class TacticsEditor implements OnInit {
         if (!this.player.playing() && this.player.step() !== i) this.player.seekStep(i);
       });
     });
+    //
+    // Only the clock moving may move the editor. Reading player.step() here
+    // used to make a timing edit count too: changing a step's duration shifts
+    // every later step's start, the clock stayed where it was, and the editor
+    // was carried off to whichever step now covered that moment — or left
+    // between two steps, where editing is off.
     effect(() => {
-      const s = this.player.step();
+      this.player.time();
       const playing = this.player.playing();
       untracked(() => {
+        const s = this.player.step();
         if (!playing && this.store.stepIndex() !== s) this.store.goToStep(s);
+      });
+    });
+    // And when the timeline itself changes — a step added, removed or retimed —
+    // the clock goes back to the start of the step being edited, so the board
+    // is never left stranded between steps by an edit.
+    effect(() => {
+      this.player.timeline();
+      untracked(() => {
+        if (!this.player.playing()) this.player.seekStep(this.store.stepIndex());
       });
     });
     // Starting playback drops the selection and any half-drawn shape.
