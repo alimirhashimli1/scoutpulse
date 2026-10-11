@@ -247,6 +247,15 @@
             <button
               type="button"
               class="ib"
+              title="Duplicate this step"
+              aria-label="Duplicate this step"
+              (click)="duplicateStep()"
+            >
+              <app-tactic-icon name="copy" />
+            </button>
+            <button
+              type="button"
+              class="ib"
               title="Delete this step"
               aria-label="Delete this step"
               [disabled]="store.doc().steps.length <= 1"

@@ -307,6 +307,11 @@ export class TacticsEditor implements OnInit {
     this.store.addStep();
   }
 
+  protected duplicateStep(): void {
+    this.player.pause();
+    this.store.duplicateStep();
+  }
+
   protected numberFrom(e: Event, min: number, max: number): number {
     const v = Number((e.target as HTMLInputElement).value);
     return Math.max(min, Math.min(max, Number.isFinite(v) ? v : min));

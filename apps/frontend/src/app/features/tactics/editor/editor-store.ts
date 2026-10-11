@@ -438,6 +438,28 @@ export class EditorStore {
   }
 
   /**
+   * Inserts a copy of the current step right after it: same drawings, caption,
+   * spotlights and timings. Nothing moves into the copy, since everything
+   * already stands where the original left it; the move curves stay behind.
+   */
+  duplicateStep(): void {
+    const doc = this.doc();
+    const i = this.stepIndex();
+    const { bend: _bend, air: _air, ...source } = doc.steps[i];
+    const copy: Step = {
+      ...source,
+      id: newId(),
+      pos: {},
+      drawings: source.drawings.map((d) => ({ ...d, id: newId() })),
+    };
+    const steps = [...doc.steps];
+    steps.splice(i + 1, 0, copy);
+    this.apply({ ...doc, steps });
+    this.stepIndex.set(i + 1);
+    if (this.selection()?.type === 'drawing') this.selection.set(null);
+  }
+
+  /**
    * Deletes the current step. Positions set in it are carried into the next
    * step, so everything after it stays where it was rather than jumping back.
    */

@@ -54,6 +54,35 @@ describe('EditorStore', () => {
     expect(positionAt(store.doc(), 1, id)).toEqual([10, 0]);
   });
 
+  it('duplicates a step after itself, with its own copies of the drawings', () => {
+    const id = placePlayer([0, 0]);
+    store.addStep();
+    store.moveObject(id, [10, 0], true);
+    store.updateStep({ note: 'Switch play', hold: 2 });
+    store.tool.set('arrow');
+    store.stroke(
+      [
+        [0, 0],
+        [10, 0],
+      ],
+      true,
+    );
+    store.addStep();
+    store.goToStep(1);
+
+    store.duplicateStep();
+    const [, original, copy] = store.doc().steps;
+    expect(store.doc().steps).toHaveLength(4);
+    expect(store.stepIndex()).toBe(2);
+    expect(copy).toMatchObject({ note: 'Switch play', hold: 2, pos: {} });
+    expect(copy.drawings).toHaveLength(1);
+    expect(copy.drawings[0].id).not.toBe(original.drawings[0].id);
+    expect(copy.id).not.toBe(original.id);
+    expect(positionAt(store.doc(), 2, id)).toEqual([10, 0]);
+    store.undo();
+    expect(store.doc().steps).toHaveLength(3);
+  });
+
   it('removes a deleted object from every step', () => {
     const id = placePlayer([0, 0]);
     store.addStep();
