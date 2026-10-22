@@ -22,3 +22,8 @@ api.http
 .DS_Store
 Thumbs.db
 .aider*
+
+# Database backups (contain user e-mails and password hashes)
+backups/
+*.dump
+*.dump.partial
