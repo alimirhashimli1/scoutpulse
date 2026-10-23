@@ -1,0 +1,216 @@
+.ae-canvas {
+  min-height: 24rem;
+}
+.ae-booting {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.ae-prose {
+  min-height: 24rem;
+  outline: none;
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+  line-height: 1.7;
+  color: var(--ink);
+  padding-bottom: 8rem;
+}
+.ae-prose > * {
+  margin-block: 0 1.1em;
+}
+.ae-prose p {
+  max-width: none;
+}
+.ae-prose h2,
+.ae-prose h3,
+.ae-prose h4 {
+  margin-block: 1.6em 0.5em;
+}
+.ae-prose h2 {
+  font-size: var(--text-2xl);
+}
+.ae-prose h3 {
+  font-size: var(--text-xl);
+}
+.ae-prose ul,
+.ae-prose ol {
+  padding-left: 1.4em;
+}
+.ae-prose li > p {
+  margin: 0 0 0.3em;
+}
+.ae-prose li::marker {
+  color: var(--accent);
+}
+.ae-prose blockquote {
+  margin-inline: 0;
+  border-left: 3px solid var(--accent);
+  padding-left: 1.1em;
+  color: var(--ink-soft);
+  font-size: 1.3rem;
+  font-style: italic;
+}
+.ae-prose hr {
+  border: 0;
+  height: 1.5em;
+  text-align: center;
+  color: var(--muted);
+}
+.ae-prose hr::before {
+  content: '· · ·';
+  letter-spacing: 0.6em;
+}
+.ae-prose hr.ProseMirror-selectednode,
+.ae-prose .ae-embed.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--radius-lg);
+}
+.ae-prose a {
+  color: var(--accent);
+  cursor: text;
+}
+.ae-prose .is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--muted);
+  opacity: 0.7;
+  pointer-events: none;
+}
+.ae-prose .ProseMirror-gapcursor::after {
+  border-top-color: var(--accent);
+}
+
+/* --- embeds as cards ------------------------------------------------- */
+.ae-embed {
+  position: relative;
+  margin-block: 1.4em;
+}
+.ae-embed.wide {
+  margin-inline: -4rem;
+}
+.ae-embed-body img {
+  display: block;
+  width: 100%;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+.ae-embed-caption {
+  margin-top: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.ae-embed-caption.empty {
+  font-style: italic;
+  opacity: 0.6;
+}
+.ProseMirror[contenteditable='false'] .ae-embed-caption.empty,
+.ProseMirror[contenteditable='false'] .ae-embed-bar {
+  display: none;
+}
+.ae-embed-error {
+  padding: var(--space-5);
+  border: 1px dashed var(--critical);
+  border-radius: var(--radius-lg);
+  color: var(--critical);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+}
+.ae-embed-bar {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-lg);
+  background: rgb(10 14 18 / 72%);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.ae-embed:hover .ae-embed-bar,
+.ae-embed.selected .ae-embed-bar,
+.ae-embed-bar:focus-within {
+  opacity: 1;
+}
+.ae-embed-bar button {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: #f1f5f9;
+  cursor: pointer;
+}
+.ae-embed-bar button:hover {
+  background: rgb(255 255 255 / 16%);
+}
+.ae-embed-bar svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+.ae-board-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-5);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(
+      90deg,
+      transparent 49.7%,
+      rgb(255 255 255 / 45%) 49.7% 50.3%,
+      transparent 50.3%
+    ),
+    repeating-linear-gradient(90deg, #3f9b4c 0 10%, #378f45 10% 20%);
+  color: #fff;
+  font-family: var(--font-body);
+}
+.ae-board-card > svg {
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0.5rem;
+  border-radius: 50%;
+  background: rgb(10 14 18 / 45%);
+}
+.ae-board-card div {
+  display: flex;
+  flex-direction: column;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 40%);
+}
+.ae-board-card span {
+  font-size: var(--text-sm);
+  opacity: 0.9;
+}
+.ae-video-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: #0b0f12;
+}
+.ae-video-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0;
+}
+.ae-video-badge {
+  position: absolute;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgb(10 14 18 / 70%);
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+}
+@media (max-width: 70rem) {
+  .ae-embed.wide {
+    margin-inline: 0;
+  }
+}

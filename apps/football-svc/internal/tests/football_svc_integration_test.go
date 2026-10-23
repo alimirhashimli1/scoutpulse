@@ -272,4 +272,8 @@ func TestFootballServiceIntegration(t *testing.T) {
 		_, err = tactics.GetBySlug(ctx, "realAAAAAAAA")
 		require.Error(t, err)
 	})
+
+	t.Run("articles round-trip through Postgres", func(t *testing.T) {
+		articlesAgainstPostgres(t, ctx, db)
+	})
 }

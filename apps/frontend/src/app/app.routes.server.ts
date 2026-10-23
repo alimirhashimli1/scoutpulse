@@ -89,6 +89,17 @@ export const serverRoutes: ServerRoute[] = [
   { path: 'tactics/:slug/edit', renderMode: RenderMode.Client },
   { path: 'tactics/:slug', renderMode: RenderMode.Server },
 
+  // --- analysis ----------------------------------------------------------
+  //
+  // The section and its articles are the SEO surface proper: rendered per
+  // request, so a crawler and a link preview get the whole text. The desk is
+  // a set of write pages like any other, client only.
+  { path: 'articles', renderMode: RenderMode.Server },
+  { path: 'articles/:slug', renderMode: RenderMode.Server },
+  { path: 'desk', renderMode: RenderMode.Client },
+  { path: 'desk/new', renderMode: RenderMode.Client },
+  { path: 'desk/:id', renderMode: RenderMode.Client },
+
   // --- anything else is genuinely not a page ---------------------------
   //
   // Rendered, so the visitor gets the not-found page rather than a blank

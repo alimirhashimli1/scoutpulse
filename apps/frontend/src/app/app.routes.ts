@@ -6,7 +6,7 @@ import { adminGuard, authGuard, editorGuard } from './core/auth/guards';
  * Asks before leaving an editor with unsaved work. Typed structurally so this
  * file does not import the editor and pull it out of its lazy chunk.
  */
-const leaveTacticsEditor = (component: { canLeave?: () => boolean } | null) =>
+const leaveEditor = (component: { canLeave?: () => boolean } | null) =>
   component?.canLeave ? component.canLeave() : true;
 
 /**
@@ -237,7 +237,7 @@ export const routes: Routes = [
     path: 'tactics/new',
     loadComponent: () =>
       import('./features/tactics/editor/tactics-editor').then((m) => m.TacticsEditor),
-    canDeactivate: [leaveTacticsEditor],
+    canDeactivate: [leaveEditor],
     title: 'Tactics board · ScoutPulse',
   },
   {
@@ -245,8 +245,45 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/tactics/editor/tactics-editor').then((m) => m.TacticsEditor),
     canActivate: [authGuard],
-    canDeactivate: [leaveTacticsEditor],
+    canDeactivate: [leaveEditor],
     title: 'Edit tactics board · ScoutPulse',
+  },
+  // --- analysis ---
+  // The section and each live article are public. The desk -- drafts, review,
+  // scheduling -- is for editors and administrators; which of them may do
+  // what is the API's to decide. `new` precedes `:id`.
+  {
+    path: 'articles',
+    loadComponent: () => import('./features/articles/list/article-list').then((m) => m.ArticleList),
+    title: 'Analysis · ScoutPulse',
+  },
+  {
+    path: 'articles/:slug',
+    loadComponent: () =>
+      import('./features/articles/reader/article-page').then((m) => m.ArticlePage),
+    title: 'Analysis · ScoutPulse',
+  },
+  {
+    path: 'desk',
+    loadComponent: () => import('./features/articles/desk/article-desk').then((m) => m.ArticleDesk),
+    canActivate: [editorGuard],
+    title: 'Editorial desk · ScoutPulse',
+  },
+  {
+    path: 'desk/new',
+    loadComponent: () =>
+      import('./features/articles/editor/article-editor').then((m) => m.ArticleEditor),
+    canActivate: [editorGuard],
+    canDeactivate: [leaveEditor],
+    title: 'New article · ScoutPulse',
+  },
+  {
+    path: 'desk/:id',
+    loadComponent: () =>
+      import('./features/articles/editor/article-editor').then((m) => m.ArticleEditor),
+    canActivate: [editorGuard],
+    canDeactivate: [leaveEditor],
+    title: 'Edit article · ScoutPulse',
   },
   {
     path: 'tactics/:slug',

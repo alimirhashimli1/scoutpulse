@@ -27,6 +27,7 @@ type Handlers struct {
 	TeamSeason  *TeamSeasonHandler
 	Search      *SearchHandler
 	Tactic      *TacticHandler
+	Article     *ArticleHandler
 }
 
 // RegisterRoutes registers all API routes for the football service.
@@ -149,6 +150,21 @@ func RegisterRoutes(mux *http.ServeMux, h Handlers) {
 	protect("POST /api/v1/tactics", h.Tactic.CreateTactic)
 	protect("PUT /api/v1/tactics/{slug}", h.Tactic.UpdateTactic)
 	protect("DELETE /api/v1/tactics/{slug}", h.Tactic.DeleteTactic)
+
+	// --- analysis articles ---
+	// The section readers see is public and holds only live articles. Everything
+	// else -- drafts, the review queue, scheduling -- is the editorial desk,
+	// behind a token; which role may do what there is decided in the service.
+	mux.HandleFunc("GET /api/v1/articles", h.Article.ListArticles)
+	mux.HandleFunc("GET /api/v1/articles/{slug}", h.Article.GetArticle)
+	protect("GET /api/v1/desk/articles", h.Article.DeskList)
+	protect("POST /api/v1/desk/articles", h.Article.Create)
+	protect("GET /api/v1/desk/articles/{id}", h.Article.DeskGet)
+	protect("PUT /api/v1/desk/articles/{id}", h.Article.Update)
+	protect("DELETE /api/v1/desk/articles/{id}", h.Article.Delete)
+	protect("POST /api/v1/desk/articles/{id}/submit", h.Article.Submit)
+	protect("POST /api/v1/desk/articles/{id}/request-changes", h.Article.RequestChanges)
+	protect("POST /api/v1/desk/articles/{id}/withdraw", h.Article.Withdraw)
 }
 
 // Per-account write allowance: a burst of 60, then two a second. An editor

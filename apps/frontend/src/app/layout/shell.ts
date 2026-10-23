@@ -46,6 +46,7 @@ import { ThemeStore } from '../core/theme/theme';
           <a routerLink="/transfers" routerLinkActive="active">Transfers</a>
           <a routerLink="/clubs" routerLinkActive="active">Clubs</a>
           <a routerLink="/competitions" routerLinkActive="active">Competitions</a>
+          <a routerLink="/articles" routerLinkActive="active">Analysis</a>
           <!--
             Members land on the boards list; a visitor, who cannot see that
             list, goes straight to an editor they can use without an account.
@@ -75,6 +76,9 @@ import { ThemeStore } from '../core/theme/theme';
           </button>
 
           @if (session.isAuthenticated()) {
+            @if (session.isEditor()) {
+              <a routerLink="/desk" routerLinkActive="active">Desk</a>
+            }
             @if (session.isAdmin()) {
               <a routerLink="/admin/users" routerLinkActive="active">Users</a>
             }

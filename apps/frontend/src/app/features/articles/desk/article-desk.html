@@ -1,0 +1,158 @@
+<section class="page desk">
+  <header class="head">
+    <div>
+      <h1>Editorial desk</h1>
+      <p class="lede">
+        @if (session.isAdmin()) {
+          Every article on the site. Review what writers send in, and publish or schedule what is
+          ready. Your own articles go live without review.
+        } @else {
+          Your drafts and submissions. When an article is ready, submit it and an administrator will
+          review it before it goes live.
+        }
+      </p>
+    </div>
+    <div class="actions">
+      <a class="btn" routerLink="/articles">View the section</a>
+      <a class="btn primary" routerLink="/desk/new"><app-article-icon name="plus" /> New article</a>
+    </div>
+  </header>
+
+  @if (queue().length) {
+    <aside class="queue" aria-labelledby="queue-title">
+      <h2 id="queue-title">
+        <app-article-icon name="clock" />
+        {{ queue().length }} {{ queue().length === 1 ? 'article is' : 'articles are' }} waiting for
+        your review
+      </h2>
+      <ul>
+        @for (a of queue(); track a.id) {
+          <li>
+            <a [routerLink]="['/desk', a.id]">
+              <strong>{{ a.title || 'Untitled' }}</strong>
+              <span class="muted">by {{ a.author_name }} · sent {{ ago(a.submitted_at) }}</span>
+            </a>
+            <a class="btn small" [routerLink]="['/desk', a.id]">Review</a>
+          </li>
+        }
+      </ul>
+    </aside>
+  }
+
+  <div class="bar">
+    <div class="tabs" role="tablist" aria-label="Show">
+      @for (t of tabs; track t.value) {
+        <button
+          type="button"
+          role="tab"
+          [class.on]="tab() === t.value"
+          [attr.aria-selected]="tab() === t.value"
+          (click)="tab.set(t.value)"
+        >
+          {{ t.label }} <span class="count">{{ counts()[t.value] }}</span>
+        </button>
+      }
+    </div>
+    @if (session.isAdmin()) {
+      <div class="scope" role="group" aria-label="Whose articles">
+        <button type="button" [class.on]="scope() === 'everyone'" (click)="scope.set('everyone')">
+          Everyone
+        </button>
+        <button type="button" [class.on]="scope() === 'mine'" (click)="scope.set('mine')">
+          Mine
+        </button>
+      </div>
+    }
+  </div>
+
+  @if (error()) {
+    <app-error-state [message]="error()!" />
+  }
+
+  @if (loading() && !articles().length) {
+    <app-loading [lines]="5" />
+  } @else if (!visible().length && !error()) {
+    <app-empty
+      [message]="tab() === 'all' ? 'Nothing on the desk yet.' : 'Nothing here.'"
+      hint="Start a new article: write, add images, embed your tactics boards, then submit or publish."
+    />
+  } @else {
+    <ul class="rows">
+      @for (a of visible(); track a.id) {
+        <li class="row">
+          <a class="main" [routerLink]="['/desk', a.id]">
+            <span class="top">
+              <app-article-status [status]="a.status" [publishAt]="a.publish_at" />
+              <span class="title" [class.untitled]="!a.title">{{
+                a.title || 'Untitled draft'
+              }}</span>
+            </span>
+            <span class="sub muted">
+              @if (!isMine(a)) {
+                <span>by {{ a.author_name }}</span>
+              }
+              @switch (a.status) {
+                @case ('published') {
+                  @if (live(a)) {
+                    <span>published {{ a.publish_at | date: 'd MMM y' }}</span>
+                  } @else {
+                    <span class="when">
+                      <app-article-icon name="clock" /> goes live
+                      {{ a.publish_at | date: 'EEE d MMM, HH:mm' }} ({{ ago(a.publish_at) }})
+                    </span>
+                  }
+                }
+                @case ('in_review') {
+                  <span>sent for review {{ ago(a.submitted_at) }}</span>
+                  @if (a.publish_at) {
+                    <span>· asks for {{ a.publish_at | date: 'd MMM, HH:mm' }}</span>
+                  }
+                }
+                @default {
+                  <span>edited {{ ago(a.updated_at) }}</span>
+                }
+              }
+              @if (a.reading_minutes && a.excerpt) {
+                <span>· {{ a.reading_minutes }} min read</span>
+              }
+            </span>
+            @if (a.status === 'changes_requested' && a.review_note) {
+              <span class="note">“{{ a.review_note }}”</span>
+            }
+          </a>
+          <div class="own">
+            @if (live(a)) {
+              <a [routerLink]="['/articles', a.slug]" title="Open the live article">
+                <app-article-icon name="external" /><span class="visually-hidden">View live</span>
+              </a>
+            }
+            @if (canDelete(a)) {
+              <button type="button" title="Delete" (click)="askDelete(a)">
+                <app-article-icon name="trash" /><span class="visually-hidden">Delete</span>
+              </button>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+    @if (hasMore()) {
+      <button type="button" class="btn more" [disabled]="loading()" (click)="load()">
+        {{ loading() ? 'Loading…' : 'Show more' }}
+      </button>
+    }
+  }
+
+  <app-confirm-dialog
+    [(open)]="confirmingDelete"
+    title="Delete this article?"
+    [message]="
+      '“' +
+      (toDelete()?.title || 'Untitled draft') +
+      '” will be deleted for good' +
+      (toDelete()?.status === 'published' ? ', and its page will stop working for readers.' : '.')
+    "
+    confirmLabel="Delete"
+    [danger]="true"
+    (confirmed)="confirmDelete()"
+  />
+</section>

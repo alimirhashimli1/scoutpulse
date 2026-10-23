@@ -1,0 +1,193 @@
+@let a = article();
+
+<section class="card">
+  <div class="status-line">
+    <app-article-status [status]="status()" [publishAt]="a?.publish_at ?? null" />
+    @if (live() && a) {
+      <a class="view" [routerLink]="['/articles', a.slug]" target="_blank">
+        View live <app-article-icon name="external" />
+      </a>
+    }
+  </div>
+
+  <p class="explain">
+    @switch (status()) {
+      @case ('draft') {
+        @if (!a) {
+          Start writing; the draft saves itself as you go.
+        } @else if (isAdmin()) {
+          Not public yet. Publish it now or schedule it; as an administrator, yours needs no review.
+        } @else {
+          Only you and the administrators can see this draft. Submit it when it is ready.
+        }
+      }
+      @case ('changes_requested') {
+        Sent back {{ ago(a!.reviewed_at) }}{{ a!.reviewer_name ? ' by ' + a!.reviewer_name : '' }}.
+        Make the changes, then submit it again.
+      }
+      @case ('in_review') {
+        @if (reviewingOther()) {
+          {{ a!.author_name }} sent this for review {{ ago(a!.submitted_at) }}. Read it in Preview,
+          then publish it or send it back with a note.
+        } @else if (isAdmin()) {
+          Waiting for review. As an administrator you can publish it yourself.
+        } @else {
+          Sent for review {{ ago(a!.submitted_at) }}. It is locked while it waits; withdraw it to
+          make changes.
+        }
+      }
+      @case ('published') {
+        @if (scheduled()) {
+          Goes live <strong>{{ a!.publish_at | date: 'EEEE d MMMM, HH:mm' }}</strong> ({{
+            ago(a!.publish_at)
+          }}), with nothing more to do.
+        } @else {
+          Live since {{ a!.publish_at | date: 'd MMMM y, HH:mm' }}.
+          @if (!isAdmin()) {
+            Only an administrator can edit a published article; unpublish it to change it yourself.
+          }
+        }
+      }
+    }
+  </p>
+
+  @if (status() === 'changes_requested' && a?.review_note) {
+    <blockquote class="note">
+      <p>{{ a!.review_note }}</p>
+      @if (a!.reviewer_name) {
+        <cite>{{ a!.reviewer_name }}</cite>
+      }
+    </blockquote>
+  }
+
+  @if (a && !live() && (isAdmin() || status() === 'draft' || status() === 'changes_requested')) {
+    <fieldset class="when" [disabled]="busy()">
+      <legend>{{ isAdmin() ? 'When' : 'Preferred publish time' }}</legend>
+      <label>
+        <input type="radio" name="when" [checked]="when() === 'now'" (change)="when.set('now')" />
+        {{ isAdmin() ? 'Now' : 'As soon as it is approved' }}
+      </label>
+      <label>
+        <input
+          type="radio"
+          name="when"
+          [checked]="when() === 'later'"
+          (change)="when.set('later')"
+        />
+        On a date
+      </label>
+      @if (when() === 'later') {
+        <input
+          type="datetime-local"
+          aria-label="Publish date and time"
+          [min]="minAt()"
+          [value]="at()"
+          (input)="at.set(value($event))"
+        />
+        @if (atInvalid() && at()) {
+          <span class="bad">Pick a time in the future.</span>
+        } @else if (publishAt()) {
+          <span class="hint">{{ ago(publishAt()) }}, your time</span>
+        }
+      }
+    </fieldset>
+
+    <button type="button" class="btn primary go" [disabled]="busy() || atInvalid()" (click)="go()">
+      <app-article-icon [name]="isAdmin() ? 'check' : 'send'" /> {{ primaryLabel() }}
+    </button>
+    @if (!isAdmin()) {
+      <p class="hint">
+        An administrator reviews it, then publishes it or sends it back with notes.
+      </p>
+    }
+  }
+
+  @if (reviewingOther()) {
+    @if (reviewing()) {
+      <label class="field">
+        <span>What needs to change?</span>
+        <textarea
+          rows="4"
+          maxlength="2000"
+          [value]="note()"
+          (input)="note.set(value($event))"
+        ></textarea>
+      </label>
+      <div class="row">
+        <button type="button" class="btn" (click)="reviewing.set(false)">Cancel</button>
+        <button
+          type="button"
+          class="btn danger"
+          [disabled]="busy() || !note().trim()"
+          (click)="sendBack()"
+        >
+          Send back
+        </button>
+      </div>
+    } @else {
+      <button type="button" class="btn" [disabled]="busy()" (click)="reviewing.set(true)">
+        Request changes
+      </button>
+    }
+  }
+
+  @if (a && status() === 'in_review' && mine()) {
+    <button type="button" class="btn" [disabled]="busy()" (click)="withdraw.emit()">
+      Withdraw from review
+    </button>
+  }
+  @if (a && status() === 'published') {
+    <button type="button" class="btn" [disabled]="busy()" (click)="withdraw.emit()">
+      {{ scheduled() ? 'Cancel the schedule' : 'Unpublish' }}
+    </button>
+  }
+</section>
+
+<section class="card">
+  <h3>Tags</h3>
+  <div class="tags" [class.off]="!canEdit()">
+    @for (t of tags(); track t) {
+      <span class="tag">
+        #{{ t }}
+        @if (canEdit()) {
+          <button type="button" [attr.aria-label]="'Remove ' + t" (click)="removeTag(t)">
+            <app-article-icon name="close" />
+          </button>
+        }
+      </span>
+    }
+    @if (canEdit() && tags().length < maxTags) {
+      <input
+        type="text"
+        aria-label="Add a tag"
+        [placeholder]="tags().length ? 'Add…' : 'pressing, premier league…'"
+        [value]="tagDraft()"
+        (input)="tagDraft.set(value($event))"
+        (keydown)="onTagKey($event)"
+        (blur)="addTag()"
+      />
+    }
+  </div>
+  <p class="hint">Readers can browse every article with a tag. Up to {{ maxTags }}.</p>
+</section>
+
+<section class="card facts">
+  <h3>Details</h3>
+  <dl>
+    <dt>Length</dt>
+    <dd>{{ words() }} words · {{ minutes() }} min read</dd>
+    @if (a) {
+      <dt>Author</dt>
+      <dd>{{ a.author_name || 'You' }}</dd>
+      <dt>Address</dt>
+      <dd class="slug">/articles/{{ a.slug }}</dd>
+      <dt>Created</dt>
+      <dd>{{ a.created_at | date: 'd MMM y, HH:mm' }}</dd>
+    }
+  </dl>
+  @if (a && (isAdmin() || (mine() && status() !== 'published'))) {
+    <button type="button" class="btn danger small" [disabled]="busy()" (click)="remove.emit()">
+      <app-article-icon name="trash" /> Delete article
+    </button>
+  }
+</section>

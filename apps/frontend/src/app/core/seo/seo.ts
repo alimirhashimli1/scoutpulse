@@ -18,6 +18,12 @@ export interface PageDescription {
    * arbitrary queries, paginated slices, account and admin screens.
    */
   noindex?: boolean;
+  /**
+   * An absolute image address for link previews. With one, the preview is
+   * the large card; without, any previous page's image is removed so it does
+   * not follow the visitor to a page it has nothing to do with.
+   */
+  image?: string;
 }
 
 /**
@@ -59,7 +65,13 @@ export class Seo {
     this.meta.updateTag({ property: 'og:site_name', content: Seo.SITE_NAME });
 
     // Twitter reads og:* for everything except the card style itself.
-    this.meta.updateTag({ name: 'twitter:card', content: 'summary' });
+    if (page.image) {
+      this.meta.updateTag({ property: 'og:image', content: page.image });
+      this.meta.updateTag({ name: 'twitter:card', content: 'summary_large_image' });
+    } else {
+      this.meta.removeTag("property='og:image'");
+      this.meta.updateTag({ name: 'twitter:card', content: 'summary' });
+    }
 
     if (page.noindex) {
       this.meta.updateTag({ name: 'robots', content: 'noindex, follow' });

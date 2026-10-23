@@ -1,0 +1,246 @@
+<dialog #dialog (cancel)="$event.preventDefault(); cancel()" (click)="onBackdrop($event)">
+  @if (request(); as r) {
+    <form class="panel" (submit)="$event.preventDefault(); apply()">
+      <header>
+        <h2>
+          @switch (r.kind) {
+            @case ('link') {
+              Link
+            }
+            @case ('image') {
+              {{ r.attrs.src ? 'Edit image' : 'Add an image' }}
+            }
+            @case ('cover') {
+              Cover image
+            }
+            @case ('board') {
+              Embed a tactics board
+            }
+            @case ('video') {
+              Embed a video
+            }
+          }
+        </h2>
+        <button type="button" class="x" aria-label="Close" (click)="cancel()">
+          <app-article-icon name="close" />
+        </button>
+      </header>
+
+      @switch (r.kind) {
+        @case ('link') {
+          <label class="field">
+            <span>Link to</span>
+            <input
+              type="text"
+              autofocus
+              autocomplete="off"
+              placeholder="Paste a web address, or search players and clubs"
+              [value]="url()"
+              (input)="onUrl(value($event))"
+            />
+          </label>
+          @if (hits.value()?.length && !looksLikeAddress()) {
+            <ul class="hits" aria-label="On ScoutPulse">
+              @for (h of hits.value(); track h.kind + h.id) {
+                <li>
+                  <button type="button" (click)="pickHit(h)">
+                    <span class="kind">{{ kindLabel[h.kind] }}</span>
+                    <strong>{{ h.name }}</strong>
+                    @if (h.subtitle) {
+                      <span class="muted">{{ h.subtitle }}</span>
+                    }
+                  </button>
+                </li>
+              }
+            </ul>
+          } @else if (url().trim() && !looksLikeAddress() && !hits.isLoading()) {
+            <p class="hint">
+              Nothing on ScoutPulse matches. Paste a full address to link elsewhere.
+            </p>
+          }
+          @if (linkTarget(); as t) {
+            <p class="hint">
+              Links to <code>{{ t }}</code
+              >{{ t.startsWith('/') ? ' on ScoutPulse' : ', opening in a new tab' }}.
+            </p>
+          }
+          @if (r.askText) {
+            <label class="field">
+              <span>Text to show</span>
+              <input
+                type="text"
+                [value]="text()"
+                (input)="text.set(value($event))"
+                placeholder="Defaults to the address"
+              />
+            </label>
+          }
+        }
+
+        @case ('image') {
+          <ng-container *ngTemplateOutlet="imageFields; context: { $implicit: r.kind }" />
+        }
+        @case ('cover') {
+          <ng-container *ngTemplateOutlet="imageFields; context: { $implicit: r.kind }" />
+        }
+
+        @case ('board') {
+          <label class="field">
+            <span>Your boards</span>
+            <input
+              type="search"
+              placeholder="Filter by title, or paste any board’s link"
+              [value]="boardFilter() || url()"
+              (input)="boardFilter.set(value($event)); onUrl(value($event))"
+            />
+          </label>
+          @if (boards.isLoading()) {
+            <p class="hint">Loading your boards…</p>
+          } @else if (!boards.value()?.length) {
+            <p class="hint">
+              You have no saved boards yet. <a href="/tactics/new" target="_blank">Draw one</a>,
+              save it, then come back.
+            </p>
+          } @else {
+            <ul class="boards">
+              @for (b of filteredBoards(); track b.slug) {
+                <li>
+                  <button
+                    type="button"
+                    [class.on]="boardSlug() === b.slug"
+                    (click)="pickBoard(b.slug, b.title)"
+                  >
+                    <span class="pitch" aria-hidden="true"></span>
+                    <strong>{{ b.title }}</strong>
+                    <span class="muted"
+                      >{{ b.steps }} {{ b.steps === 1 ? 'step' : 'steps' }} ·
+                      {{ b.updated_at | date: 'd MMM' }}</span
+                    >
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+          <label class="field">
+            <span>Caption</span>
+            <input
+              type="text"
+              maxlength="300"
+              placeholder="What to watch for"
+              [value]="caption()"
+              (input)="caption.set(value($event))"
+            />
+          </label>
+          <p class="hint">
+            Everyone who reads the article will be able to play this board and open it.
+          </p>
+        }
+
+        @case ('video') {
+          <label class="field">
+            <span>YouTube or Vimeo link</span>
+            <input
+              type="url"
+              autofocus
+              placeholder="https://www.youtube.com/watch?v=…"
+              [value]="url()"
+              (input)="onUrl(value($event))"
+            />
+          </label>
+          @if (video()) {
+            <div class="video-preview">
+              @if (videoPoster(); as p) {
+                <img [src]="p" alt="" referrerpolicy="no-referrer" />
+              } @else {
+                <span>Vimeo video {{ video()!.id }}</span>
+              }
+            </div>
+          }
+          <label class="field">
+            <span>Caption</span>
+            <input
+              type="text"
+              maxlength="300"
+              [value]="caption()"
+              (input)="caption.set(value($event))"
+            />
+          </label>
+        }
+      }
+
+      @if (error(); as e) {
+        <p class="error" role="alert">{{ e }}</p>
+      }
+
+      <footer>
+        @if (r.kind === 'link' && r.href) {
+          <button type="button" class="btn danger" (click)="removeLink()">Remove link</button>
+        }
+        <span class="grow"></span>
+        <button type="button" class="btn" (click)="cancel()">Cancel</button>
+        <button type="submit" class="btn primary" [disabled]="!canApply()">
+          {{ r.kind === 'link' ? 'Apply' : r.kind === 'cover' ? 'Use as cover' : 'Insert' }}
+        </button>
+      </footer>
+    </form>
+  }
+</dialog>
+
+<ng-template #imageFields let-kind>
+  <label class="field">
+    <span>Image address</span>
+    <input
+      type="url"
+      autofocus
+      placeholder="https://…/photo.jpg"
+      [value]="url()"
+      (input)="onUrl(value($event))"
+    />
+  </label>
+  @if (imageSrc(); as src) {
+    <div class="image-preview" [class.loading]="preview() === 'loading'">
+      @if (preview() !== 'failed') {
+        <img
+          [src]="src"
+          alt=""
+          referrerpolicy="no-referrer"
+          (load)="preview.set('ok')"
+          (error)="preview.set('failed')"
+        />
+      }
+    </div>
+  }
+  @if (kind === 'image') {
+    <label class="field">
+      <span>Description <span class="muted">for readers who cannot see it</span></span>
+      <input
+        type="text"
+        maxlength="300"
+        placeholder="Saka cuts inside from the right"
+        [value]="alt()"
+        (input)="alt.set(value($event))"
+      />
+    </label>
+  }
+  <label class="field">
+    <span>Caption</span>
+    <input type="text" maxlength="300" [value]="caption()" (input)="caption.set(value($event))" />
+  </label>
+  <label class="field">
+    <span>Credit <span class="muted">photographer or source</span></span>
+    <input
+      type="text"
+      maxlength="120"
+      placeholder="Getty Images"
+      [value]="credit()"
+      (input)="credit.set(value($event))"
+    />
+  </label>
+  @if (kind === 'image') {
+    <label class="check">
+      <input type="checkbox" [checked]="wide()" (change)="wide.set($any($event.target).checked)" />
+      Wide: let it run wider than the text
+    </label>
+  }
+  <p class="hint">Use images you have the right to publish, and credit them.</p>
+</ng-template>

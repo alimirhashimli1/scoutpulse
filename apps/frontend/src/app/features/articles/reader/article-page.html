@@ -1,0 +1,114 @@
+@if (article.value(); as a) {
+  <div class="progress" aria-hidden="true" [style.transform]="'scaleX(' + progress() + ')'"></div>
+
+  <article class="article">
+    <header class="masthead">
+      @if (a.tags.length) {
+        <p class="kicker">
+          @for (t of a.tags.slice(0, 3); track t) {
+            <a [routerLink]="['/articles']" [queryParams]="{ tag: t }">{{ t }}</a>
+          }
+        </p>
+      }
+      <h1>{{ a.title }}</h1>
+      @if (a.subtitle) {
+        <p class="dek">{{ a.subtitle }}</p>
+      }
+      <div class="byline">
+        <span class="avatar" aria-hidden="true">{{
+          (a.author_name || 'S').charAt(0).toUpperCase()
+        }}</span>
+        <div class="who">
+          <span
+            >By <strong>{{ a.author_name || 'ScoutPulse' }}</strong></span
+          >
+          <span class="muted">
+            <time [attr.datetime]="a.publish_at">{{ a.publish_at | date: 'd MMMM y' }}</time>
+            · {{ a.reading_minutes }} min read
+            @if (updatedLater()) {
+              · updated {{ a.updated_at | date: 'd MMM y' }}
+            }
+          </span>
+        </div>
+        <div class="share">
+          <button type="button" class="chip" (click)="copyLink()">
+            <app-article-icon name="link" /> {{ copied() ? 'Copied' : 'Copy link' }}
+          </button>
+          <a class="chip" [href]="shareOnX(a.title)" target="_blank" rel="noopener noreferrer"
+            >Share on X</a
+          >
+          @if (canEdit()) {
+            <a class="chip" [routerLink]="['/desk', a.id]"><app-article-icon name="pen" /> Edit</a>
+          }
+        </div>
+      </div>
+    </header>
+
+    @if (cover(); as src) {
+      <figure class="cover">
+        <img
+          [src]="src"
+          [alt]="a.cover_caption || a.title"
+          referrerpolicy="no-referrer"
+          fetchpriority="high"
+        />
+        @if (a.cover_caption) {
+          <figcaption>{{ a.cover_caption }}</figcaption>
+        }
+      </figure>
+    }
+
+    <div class="layout" [class.with-contents]="contents().length">
+      @if (contents().length) {
+        <nav class="contents" aria-label="In this piece">
+          <h2>In this piece</h2>
+          <ol>
+            @for (e of contents(); track e.id) {
+              <li>
+                <a [href]="'/articles/' + a.slug + '#' + e.id">{{ e.text }}</a>
+              </li>
+            }
+          </ol>
+        </nav>
+      }
+      <app-article-body [doc]="a.body" />
+    </div>
+
+    <footer class="end">
+      @if (a.tags.length) {
+        <ul class="tags" aria-label="Topics">
+          @for (t of a.tags; track t) {
+            <li>
+              <a [routerLink]="['/articles']" [queryParams]="{ tag: t }">#{{ t }}</a>
+            </li>
+          }
+        </ul>
+      }
+      <p class="sign-off muted">
+        Written by {{ a.author_name || 'ScoutPulse' }} for ScoutPulse analysis.
+      </p>
+    </footer>
+  </article>
+
+  @if (more.value()?.length) {
+    <section class="page more" aria-labelledby="more-title">
+      <h2 id="more-title">More analysis</h2>
+      <ul class="cards">
+        @for (m of more.value(); track m.id) {
+          <li><app-article-card [article]="m" /></li>
+        }
+      </ul>
+      <a class="all" routerLink="/articles">All articles →</a>
+    </section>
+  }
+} @else if (article.isLoading()) {
+  <div class="page pad"><app-loading [lines]="8" message="Loading the article…" /></div>
+} @else if (notFound()) {
+  <div class="page pad">
+    <h1>Article not found</h1>
+    <p class="muted">It may have been moved or taken down, or the link is mistyped.</p>
+    <p><a routerLink="/articles">Browse all analysis</a></p>
+  </div>
+} @else if (article.error()) {
+  <div class="page pad"><app-error-state message="Could not load this article." /></div>
+}

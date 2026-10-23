@@ -323,7 +323,7 @@ func TestUserDeleted_RemovesTheirTacticsBoards(t *testing.T) {
 	kept, err := svc.Create(ctxAsNamed("other-user", "other", "user"), validBoard("Kept"))
 	require.NoError(t, err)
 
-	consumer := NewIdentityEventConsumer(editors, tactics, newTestAuthorizer(t, editors), quietLogger())
+	consumer := NewIdentityEventConsumer(editors, tactics, newStubArticles(), newTestAuthorizer(t, editors), quietLogger())
 	err = consumer.handleUserDeleted(context.Background(),
 		envelopeFor(t, events.SubjectUserDeleted, events.UserDeleted{UserID: "doomed-user"}))
 	require.NoError(t, err)

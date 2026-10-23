@@ -1,0 +1,218 @@
+@if (loadError()) {
+  <div class="page notice">
+    <h1>Can't open this article</h1>
+    <app-error-state [message]="loadError()!" />
+    <p><a routerLink="/desk">Back to the desk</a></p>
+  </div>
+} @else if (loading() && !article()) {
+  <div class="page notice"><app-loading [lines]="8" message="Opening the article…" /></div>
+} @else {
+  <div class="writer">
+    <header class="top">
+      <a class="back" routerLink="/desk"
+        ><app-article-icon name="back" /><span class="label">Desk</span></a
+      >
+      <span class="save" [class.err]="saveError()" aria-live="polite">
+        {{ saveLabel() }}
+        @if (savedAt() && !dirty() && !saving() && !saveError()) {
+          <span class="muted">· {{ savedAt() | date: 'HH:mm' }}</span>
+        }
+      </span>
+      <span class="grow"></span>
+      @if (canEdit() && mode() === 'write') {
+        <div class="history">
+          <button
+            type="button"
+            class="ib"
+            title="Undo (Ctrl+Z)"
+            aria-label="Undo"
+            [disabled]="!history().undo"
+            (click)="undo()"
+          >
+            <app-article-icon name="undo" />
+          </button>
+          <button
+            type="button"
+            class="ib"
+            title="Redo (Ctrl+Shift+Z)"
+            aria-label="Redo"
+            [disabled]="!history().redo"
+            (click)="redo()"
+          >
+            <app-article-icon name="redo" />
+          </button>
+        </div>
+      }
+      <div class="modes" role="tablist" aria-label="View">
+        <button
+          type="button"
+          role="tab"
+          [class.on]="mode() === 'write'"
+          [attr.aria-selected]="mode() === 'write'"
+          (click)="mode.set('write')"
+        >
+          <app-article-icon name="pen" /><span class="label">Write</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          [class.on]="mode() === 'preview'"
+          [attr.aria-selected]="mode() === 'preview'"
+          (click)="mode.set('preview')"
+        >
+          <app-article-icon name="eye" /><span class="label">Preview</span>
+        </button>
+      </div>
+      <button
+        type="button"
+        class="ib"
+        [class.on]="panelOpen()"
+        [title]="panelOpen() ? 'Hide publishing' : 'Show publishing'"
+        aria-label="Publishing panel"
+        (click)="panelOpen.set(!panelOpen())"
+      >
+        <app-article-icon name="panel" />
+      </button>
+    </header>
+
+    @if (notice()) {
+      <p class="banner ok" role="status">
+        <app-article-icon name="check" /> {{ notice() }}
+        @if (isLive()) {
+          <a [routerLink]="['/articles', article()!.slug]">Open it</a>
+        }
+      </p>
+    }
+    @if (actionError()) {
+      <p class="banner err" role="alert">{{ actionError() }}</p>
+    }
+    @if (saveError()) {
+      <p class="banner err" role="alert">{{ saveError() }}</p>
+    }
+    @if (lockReason()) {
+      <p class="banner warn">{{ lockReason() }} Use the panel on the right to move it on.</p>
+    }
+
+    <div class="body" [class.solo]="!panelOpen()">
+      <main class="sheet">
+        <div class="write" [hidden]="mode() !== 'write'">
+          @if (cover(); as src) {
+            <figure class="cover">
+              <img [src]="src" alt="" referrerpolicy="no-referrer" />
+              @if (canEdit()) {
+                <div class="cover-bar">
+                  <button type="button" (click)="editCover()">Change</button>
+                  <button type="button" (click)="removeCover()">Remove</button>
+                </div>
+              }
+              @if (coverCaption()) {
+                <figcaption>{{ coverCaption() }}</figcaption>
+              }
+            </figure>
+          } @else if (canEdit()) {
+            <button type="button" class="add-cover" (click)="editCover()">
+              <app-article-icon name="image" /> Add a cover image
+            </button>
+          }
+
+          <label class="visually-hidden" for="headline">Headline</label>
+          <textarea
+            id="headline"
+            class="headline"
+            rows="1"
+            maxlength="160"
+            placeholder="Headline"
+            [value]="title()"
+            [readOnly]="!canEdit()"
+            (input)="setTitle(value($event)); autoGrow($event)"
+            (keydown.enter)="$event.preventDefault(); dek.focus()"
+          ></textarea>
+          <label class="visually-hidden" for="standfirst">Standfirst</label>
+          <textarea
+            #dek
+            id="standfirst"
+            class="dek"
+            rows="1"
+            maxlength="300"
+            placeholder="The one line that makes them read on"
+            [value]="subtitle()"
+            [readOnly]="!canEdit()"
+            (input)="subtitle.set(value($event)); edited(); autoGrow($event)"
+            (keydown.enter)="toBody($event)"
+          ></textarea>
+
+          <div class="tools" [hidden]="!canEdit()">
+            <app-article-toolbar
+              [editor]="editor()"
+              [version]="version()"
+              (insert)="insert($event)"
+            />
+          </div>
+
+          @if (initialBody(); as init) {
+            <app-article-canvas
+              [initial]="init"
+              [editable]="canEdit()"
+              [hooks]="hooks"
+              (changed)="onBody($event)"
+            />
+          }
+        </div>
+
+        @if (mode() === 'preview') {
+          <div class="preview">
+            @if (tags().length) {
+              <p class="kicker">{{ tags().slice(0, 3).join(' · ') }}</p>
+            }
+            <h1>{{ title() || 'Untitled' }}</h1>
+            @if (subtitle()) {
+              <p class="dek">{{ subtitle() }}</p>
+            }
+            <p class="byline">
+              By <strong>{{ article()?.author_name || session.user()?.username }}</strong> ·
+              {{ minutes() }} min read
+            </p>
+            @if (cover(); as src) {
+              <img class="preview-cover" [src]="src" alt="" referrerpolicy="no-referrer" />
+            }
+            <app-article-body [doc]="body()" />
+          </div>
+        }
+      </main>
+
+      @if (panelOpen()) {
+        <aside class="side" aria-label="Publishing">
+          <app-publish-panel
+            [article]="article()"
+            [isAdmin]="session.isAdmin()"
+            [myId]="session.user()?.id"
+            [tags]="tags()"
+            [busy]="busy() || saving()"
+            [words]="words()"
+            [canEdit]="canEdit()"
+            (tagsChange)="setTags($event)"
+            (submit)="submit($event)"
+            (requestChanges)="requestChanges($event)"
+            (withdraw)="withdraw()"
+            (remove)="confirmingDelete.set(true)"
+          />
+        </aside>
+      }
+    </div>
+  </div>
+
+  <app-insert-dialog [request]="dialogRequest()" (done)="onDialog($event)" />
+  <app-confirm-dialog
+    [(open)]="confirmingDelete"
+    title="Delete this article?"
+    [message]="
+      '“' +
+      (title() || 'Untitled draft') +
+      '” will be deleted for good' +
+      (article()?.status === 'published' ? ', and its page will stop working for readers.' : '.')
+    "
+    confirmLabel="Delete"
+    [danger]="true"
+    (confirmed)="confirmDelete()"
+  />
+}

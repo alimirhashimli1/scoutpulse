@@ -20,23 +20,30 @@ import (
 // Tactics boards are keyed by user_id the same way, and go with the account:
 // a board is somebody's own work rather than part of the shared record, and an
 // unlisted link to a deleted person's drawings has nobody left to answer for it.
+//
+// Articles are split: drafts and submissions go with the account, for the same
+// reason, but published ones stay. They are part of the site rather than
+// somebody's private work, readers have linked to them, and the byline was
+// captured when they were written.
 type IdentityEventConsumer struct {
-	editors repository.TeamEditorRepository
-	tactics repository.TacticRepository
-	authz   *Authorizer
-	logger  *slog.Logger
+	editors  repository.TeamEditorRepository
+	tactics  repository.TacticRepository
+	articles repository.ArticleRepository
+	authz    *Authorizer
+	logger   *slog.Logger
 }
 
 func NewIdentityEventConsumer(
 	editors repository.TeamEditorRepository,
 	tactics repository.TacticRepository,
+	articles repository.ArticleRepository,
 	authz *Authorizer,
 	logger *slog.Logger,
 ) *IdentityEventConsumer {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &IdentityEventConsumer{editors: editors, tactics: tactics, authz: authz, logger: logger}
+	return &IdentityEventConsumer{editors: editors, tactics: tactics, articles: articles, authz: authz, logger: logger}
 }
 
 // Register subscribes to the identity events this service cares about.
@@ -88,6 +95,15 @@ func (c *IdentityEventConsumer) handleUserDeleted(ctx context.Context, e events.
 	if boards > 0 {
 		c.logger.Info("removed tactics boards for a deleted account",
 			"user_id", payload.UserID, "username", payload.Username, "boards", boards)
+	}
+
+	drafts, err := c.articles.DeleteUnpublishedByAuthor(ctx, payload.UserID)
+	if err != nil {
+		return err
+	}
+	if drafts > 0 {
+		c.logger.Info("removed unpublished articles for a deleted account",
+			"user_id", payload.UserID, "username", payload.Username, "articles", drafts)
 	}
 	return nil
 }
