@@ -40,12 +40,16 @@ export class SessionStore {
   /** Admins can do everything an editor can, so this includes them. */
   readonly isEditor = computed(() => this.role() === 'admin' || this.role() === 'editor');
 
-  readonly refreshToken = (): string | null => this.storage.read();
+  /** Whether a session cookie may exist to restore from. See TokenStorage. */
+  readonly hasStoredSession = (): boolean => this.storage.hasSession();
+
+  /** A refresh token left in storage by the pre-cookie version, if any. */
+  readonly legacyRefreshToken = (): string | null => this.storage.legacyToken();
 
   /** Records a completed sign-in, from login, refresh or the OAuth exchange. */
   start(tokens: TokenPair, user: User | null = null): void {
     this._accessToken.set(tokens.access_token);
-    this.storage.write(tokens.refresh_token);
+    this.storage.markSignedIn();
     if (user) this._user.set(user);
     this._status.set('authenticated');
   }
@@ -58,7 +62,7 @@ export class SessionStore {
    */
   renew(tokens: TokenPair): void {
     this._accessToken.set(tokens.access_token);
-    this.storage.write(tokens.refresh_token);
+    this.storage.markSignedIn();
     this._status.set('authenticated');
   }
 

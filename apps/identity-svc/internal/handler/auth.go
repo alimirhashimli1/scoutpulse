@@ -155,8 +155,9 @@ type RefreshRequest struct {
 
 // TokenResponse is returned by login and refresh.
 type TokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken string `json:"access_token"`
+	// Empty, and left out, for a client that asked for the session cookie.
+	RefreshToken string `json:"refresh_token,omitempty"`
 	TokenType    string `json:"token_type"`
 	// ExpiresIn is the access token's lifetime in seconds, so a client knows
 	// when to refresh without having to parse the token.
@@ -327,7 +328,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpx.WriteJSON(w, http.StatusOK, tokens)
+	h.writeTokens(w, r, tokens)
 }
 
 // Refresh exchanges a refresh token for a new pair, rotating the refresh token.
@@ -342,20 +343,22 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, r, err)
 		return
 	}
-	if req.RefreshToken == "" {
+	presented := presentedRefreshToken(r, req.RefreshToken)
+	if presented == "" {
 		httpx.WriteError(w, r, apperr.Invalid("refresh_token is required"))
 		return
 	}
 
-	stored, err := h.RefreshRepo.GetByToken(r.Context(), req.RefreshToken)
+	stored, err := h.RefreshRepo.GetByToken(r.Context(), presented)
 	if err != nil {
 		httpx.WriteError(w, r, apperr.Unauthorized("invalid refresh token"))
 		return
 	}
 
 	if !stored.Active(time.Now()) {
-		// A revoked token being presented means it leaked after rotation.
-		if stored.RevokedAt != nil {
+		// A revoked token being presented means it leaked after rotation --
+		// unless it was rotated a moment ago, which is two tabs racing.
+		if stored.RevokedAt != nil && time.Since(*stored.RevokedAt) > rotationGrace {
 			_ = h.RefreshRepo.RevokeAllForUser(r.Context(), stored.UserID)
 		}
 		httpx.WriteError(w, r, apperr.Unauthorized("invalid refresh token"))
@@ -394,7 +397,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpx.WriteJSON(w, http.StatusOK, TokenResponse{
+	h.writeTokens(w, r, TokenResponse{
 		AccessToken:  accessToken,
 		RefreshToken: nextToken,
 		TokenType:    "Bearer",
@@ -411,8 +414,12 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.RefreshToken != "" {
-		if err := h.RefreshRepo.Revoke(r.Context(), req.RefreshToken); err != nil {
+	// Cleared first, so the browser lets go of it even if the revoke fails.
+	if wantsSessionCookie(r) {
+		h.clearRefreshCookie(w, r)
+	}
+	if token := presentedRefreshToken(r, req.RefreshToken); token != "" {
+		if err := h.RefreshRepo.Revoke(r.Context(), token); err != nil {
 			httpx.WriteError(w, r, err)
 			return
 		}

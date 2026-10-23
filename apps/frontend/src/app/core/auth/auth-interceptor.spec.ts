@@ -10,7 +10,7 @@ import { TestBed } from '@angular/core/testing';
 
 import { API_CONFIG, apiConfigFor } from '../tokens/api-config';
 import { TokenPair } from '../models/identity';
-import { SKIP_AUTH } from './auth-repository';
+import { REFRESH_RACE_RETRY_MS, SKIP_AUTH } from './auth-repository';
 import { authInterceptor, resetRefreshState } from './auth-interceptor';
 import { SessionStore } from './session-store';
 
@@ -29,10 +29,13 @@ const PROTECTED_URL = `${api.football}/api/v1/players`;
  */
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
+/** Waits out the pause before a refresh refused as a tab race is retried. */
+const waitForRaceRetry = () =>
+  new Promise<void>((resolve) => setTimeout(resolve, REFRESH_RACE_RETRY_MS + 20));
+
 function tokenPair(suffix: string): TokenPair {
   return {
     access_token: `access-${suffix}`,
-    refresh_token: `refresh-${suffix}`,
     token_type: 'Bearer',
     expires_in: 900,
   };
@@ -113,20 +116,23 @@ describe('authInterceptor', () => {
     expect(results.length).toBe(3);
   });
 
-  it('sends the stored refresh token, not the access token', async () => {
+  it('refreshes with the session cookie, never a token from script', async () => {
     http.get(PROTECTED_URL).subscribe({ error: () => undefined });
 
     controller.expectOne(PROTECTED_URL).flush(null, { status: 401, statusText: 'Unauthorized' });
 
     const refresh = controller.expectOne(REFRESH_URL);
-    expect(refresh.request.body).toEqual({ refresh_token: 'refresh-original' });
+    expect(refresh.request.body).toEqual({});
+    expect(refresh.request.headers.get('X-Session-Cookie')).toBe('1');
+    expect(refresh.request.headers.get('X-Forwarded-Prefix')).toBe('/api/identity');
+    expect(refresh.request.headers.has('Authorization')).toBe(false);
     refresh.flush(tokenPair('renewed'));
 
     await flush();
     controller.expectOne(PROTECTED_URL).flush({ ok: true });
   });
 
-  it('stores the rotated tokens, since the old pair is now dead', async () => {
+  it('uses the renewed access token', async () => {
     http.get(PROTECTED_URL).subscribe({ error: () => undefined });
     controller.expectOne(PROTECTED_URL).flush(null, { status: 401, statusText: 'Unauthorized' });
     controller.expectOne(REFRESH_URL).flush(tokenPair('renewed'));
@@ -134,7 +140,7 @@ describe('authInterceptor', () => {
     await flush();
 
     expect(session.accessToken()).toBe('access-renewed');
-    expect(session.refreshToken()).toBe('refresh-renewed');
+    expect(session.hasStoredSession()).toBe(true);
 
     controller.expectOne(PROTECTED_URL).flush({ ok: true });
   });
@@ -151,7 +157,7 @@ describe('authInterceptor', () => {
     http.get(PROTECTED_URL).subscribe({ error: () => undefined });
     controller.expectOne(PROTECTED_URL).flush(null, { status: 401, statusText: 'Unauthorized' });
     const second = controller.expectOne(REFRESH_URL);
-    expect(second.request.body).toEqual({ refresh_token: 'refresh-first' });
+    expect(second.request.body).toEqual({});
     second.flush(tokenPair('second'));
     await flush();
     controller.expectOne(PROTECTED_URL).flush({ ok: true });
@@ -161,15 +167,65 @@ describe('authInterceptor', () => {
     http.get(PROTECTED_URL).subscribe({ error: () => undefined });
     controller.expectOne(PROTECTED_URL).flush(null, { status: 401, statusText: 'Unauthorized' });
 
-    // What the backend returns when the token was already spent or revoked.
+    // What the backend returns when the session was spent or revoked. One
+    // retry follows, in case another tab had just rotated the cookie.
+    controller.expectOne(REFRESH_URL).flush(null, { status: 401, statusText: 'Unauthorized' });
+    await waitForRaceRetry();
     controller.expectOne(REFRESH_URL).flush(null, { status: 401, statusText: 'Unauthorized' });
     await flush();
 
     expect(session.isAuthenticated()).toBe(false);
-    expect(session.refreshToken()).toBeNull();
+    expect(session.hasStoredSession()).toBe(false);
   });
 
-  it('does not attempt a refresh with no refresh token', () => {
+  it('recovers when another tab rotated the cookie first', async () => {
+    let result: unknown;
+    http.get(PROTECTED_URL).subscribe((r) => (result = r));
+    controller.expectOne(PROTECTED_URL).flush(null, { status: 401, statusText: 'Unauthorized' });
+
+    // Refused: the other tab spent the shared token a moment earlier...
+    controller.expectOne(REFRESH_URL).flush(null, { status: 401, statusText: 'Unauthorized' });
+    await waitForRaceRetry();
+    // ...and its rotated cookie is what the retry carries.
+    controller.expectOne(REFRESH_URL).flush(tokenPair('after-race'));
+    await flush();
+
+    const retried = controller.expectOne(PROTECTED_URL);
+    expect(retried.request.headers.get('Authorization')).toBe('Bearer access-after-race');
+    retried.flush({ ok: true });
+    expect(result).toEqual({ ok: true });
+    expect(session.isAuthenticated()).toBe(true);
+  });
+
+  it('keeps the session when the refresh fails for a reason other than refusal', async () => {
+    http.get(PROTECTED_URL).subscribe({ error: () => undefined });
+    controller.expectOne(PROTECTED_URL).flush(null, { status: 401, statusText: 'Unauthorized' });
+
+    controller.expectOne(REFRESH_URL).error(new ProgressEvent('error'));
+    await flush();
+
+    expect(session.hasStoredSession()).toBe(true);
+  });
+
+  it('moves a token stored by the old version onto the cookie', async () => {
+    session.clear();
+    localStorage.setItem('scoutpulse.refresh_token', 'legacy-token');
+    expect(session.hasStoredSession()).toBe(true);
+
+    http.get(PROTECTED_URL).subscribe({ error: () => undefined });
+    controller.expectOne(PROTECTED_URL).flush(null, { status: 401, statusText: 'Unauthorized' });
+
+    const refresh = controller.expectOne(REFRESH_URL);
+    expect(refresh.request.body).toEqual({ refresh_token: 'legacy-token' });
+    refresh.flush(tokenPair('migrated'));
+    await flush();
+    controller.expectOne(PROTECTED_URL).flush({ ok: true });
+
+    expect(localStorage.getItem('scoutpulse.refresh_token')).toBeNull();
+    expect(session.hasStoredSession()).toBe(true);
+  });
+
+  it('does not attempt a refresh with no session', () => {
     session.clear();
 
     http.get(PROTECTED_URL).subscribe({ error: () => undefined });

@@ -21,7 +21,7 @@ Severity: **High** / **Medium** / **Low**.
 - **Fix:** covered by S1; additionally protect the endpoint in the services themselves (token, or a separate internal port).
 
 ### S3. Refresh token in `localStorage`, no security headers — Medium
-- **Status:** headers fixed. The SSR server sends a hash-based CSP (`script-src` allows only this origin, the captcha providers and the page's known inline scripts), plus `frame-ancestors 'none'`, X-Frame-Options, nosniff, Referrer-Policy and Permissions-Policy. Still open: moving the refresh token to an HttpOnly cookie.
+- **Status:** fixed. The SSR server sends a hash-based CSP (`script-src` allows only this origin, the captcha providers and the page's known inline scripts), plus `frame-ancestors 'none'`, X-Frame-Options, nosniff, Referrer-Policy and Permissions-Policy. The refresh token now lives in an HttpOnly, Secure, SameSite=Strict cookie scoped to the auth endpoints; only a non-secret "signed in" flag stays in localStorage. Tokens stored by the old version are moved onto the cookie on the next visit.
 - **Where:** [apps/frontend/src/app/core/auth/token-storage.ts](apps/frontend/src/app/core/auth/token-storage.ts), `server.ts`, `vercel.json`
 - **Problem:** a 30-day refresh token is readable by any injected script. There is no CSP, `frame-ancestors` or `X-Frame-Options`.
 - **Fix:** add CSP and frame headers now. Longer term, move the refresh token to an HttpOnly cookie on the identity origin.
@@ -46,6 +46,7 @@ Severity: **High** / **Medium** / **Low**.
 ## Bugs that hurt users
 
 ### B1. Multi-tab refresh can log the user out everywhere — High
+- **Status:** mostly fixed with S3. Tabs share the cookie; a token reused within 30 s of rotation is refused without revoking every session, and the refused tab retries once with the rotated cookie.
 - **Where:** [apps/frontend/src/app/core/auth/auth-interceptor.ts](apps/frontend/src/app/core/auth/auth-interceptor.ts), [auth-facade.ts](apps/frontend/src/app/core/auth/auth-facade.ts) (~line 86), [apps/identity-svc/internal/handler/auth.go](apps/identity-svc/internal/handler/auth.go) (~line 328)
 - **Problem:** refresh dedupe only works within one tab, but all tabs share one rotating refresh token. When several tabs refresh at once:
   - the losing tab gets a 401 and runs `session.clear()`, deleting the token the winner just saved; or
@@ -53,6 +54,7 @@ Severity: **High** / **Medium** / **Low**.
 - **Fix:** coordinate tabs with `navigator.locks` or `BroadcastChannel`; give the backend a few seconds' grace for a just-rotated token.
 
 ### B2. Any startup failure signs the user out — Medium
+- **Status:** fixed with S3. Only a real 401 clears the session; network errors and cold starts leave it for the next load.
 - **Problem:** `restore()` catches every error and calls `session.clear()`, including network errors and Railway cold-start 5xx.
 - **Fix:** clear the session only on a real 401.
 

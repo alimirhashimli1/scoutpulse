@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 
 import { ApiError } from '../api/api-error';
-import { AuthRepository, LoginRequest, RegisterRequest } from './auth-repository';
+import { AuthRepository, LoginRequest, RegisterRequest, isUnauthorized } from './auth-repository';
 import { SessionStore } from './session-store';
 
 /**
@@ -62,9 +62,12 @@ export class AuthFacade {
    * asked for, and leaving them signed in to argue the point would be absurd.
    */
   async logout(): Promise<void> {
-    const refreshToken = this.session.refreshToken();
     try {
-      if (refreshToken) await this.auth.logout(refreshToken);
+      // The cookie is invisible from here, so the call is made whenever a
+      // session may exist; the server clears the cookie in its answer.
+      if (this.session.hasStoredSession() || this.session.isAuthenticated()) {
+        await this.auth.logout(this.session.legacyRefreshToken());
+      }
     } catch {
       // Deliberately ignored — see above.
     } finally {
@@ -75,27 +78,35 @@ export class AuthFacade {
   /**
    * Restores a session on page load, in the browser only.
    *
-   * The access token lives in memory and is gone after a reload, so the stored
-   * refresh token is exchanged for a new pair. Without this every refresh of
-   * the page would sign the user out.
+   * The access token lives in memory and is gone after a reload, so the session
+   * cookie is exchanged for a new one. Without this every refresh of the page
+   * would sign the user out. Only attempted when this browser has signed in
+   * before -- the cookie itself cannot be seen from script.
    *
-   * A failure here is normal, not exceptional: the token expires after 30 days,
+   * A refusal is normal, not exceptional: the session expires after 30 days,
    * and the user may have signed out in another tab. It resolves to anonymous
    * rather than throwing, because "not signed in" is a working state.
+   *
+   * Any other failure -- the network, a service waking from a cold start --
+   * leaves this page signed out but keeps the session, so the next load tries
+   * again. Clearing it then would sign the user out over a dropped connection.
    */
   async restore(): Promise<void> {
-    const refreshToken = this.session.refreshToken();
-    if (!refreshToken) {
+    if (!this.session.hasStoredSession()) {
       this.session.markAnonymous();
       return;
     }
 
     try {
-      const tokens = await this.auth.refresh(refreshToken);
+      const tokens = await this.auth.refreshSession(this.session.legacyRefreshToken());
       this.session.renew(tokens);
       await this.loadProfile();
-    } catch {
-      this.session.clear();
+    } catch (error) {
+      if (isUnauthorized(error)) {
+        this.session.clear();
+      } else {
+        this.session.markAnonymous();
+      }
     }
   }
 

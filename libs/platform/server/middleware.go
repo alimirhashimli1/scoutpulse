@@ -210,7 +210,7 @@ func CORS(allowedOrigins []string) Middleware {
 
 			if r.Method == http.MethodOptions {
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, "+RequestIDHeader)
+				w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Session-Cookie, X-Forwarded-Prefix, "+RequestIDHeader)
 				w.Header().Set("Access-Control-Max-Age", "600")
 				w.WriteHeader(http.StatusNoContent)
 				return

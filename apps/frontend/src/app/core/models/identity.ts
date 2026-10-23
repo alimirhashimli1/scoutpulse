@@ -29,7 +29,11 @@ export interface Identity {
  */
 export interface TokenPair {
   access_token: string;
-  refresh_token: string;
+  /**
+   * Absent for the browser, which receives it as an HttpOnly cookie instead.
+   * Only clients that do not ask for the cookie get it here.
+   */
+  refresh_token?: string;
   token_type: 'Bearer';
   expires_in: number;
 }

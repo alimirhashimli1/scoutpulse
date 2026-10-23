@@ -248,7 +248,7 @@ func (h *Handler) ExchangeCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpx.WriteJSON(w, http.StatusOK, tokens)
+	h.writeTokens(w, r, tokens)
 }
 
 // resolveAccount finds, links, or creates the local account for a provider

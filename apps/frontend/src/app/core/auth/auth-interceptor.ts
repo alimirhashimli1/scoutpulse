@@ -1,10 +1,9 @@
-import { HttpErrorResponse, HttpInterceptorFn, HttpRequest } from '@angular/common/http';
+import { HttpInterceptorFn, HttpRequest } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Observable, catchError, from, switchMap, throwError } from 'rxjs';
 
-import { ApiError } from '../api/api-error';
 import { TokenPair } from '../models/identity';
-import { AuthRepository, SKIP_AUTH } from './auth-repository';
+import { AuthRepository, SKIP_AUTH, isUnauthorized } from './auth-repository';
 import { SessionStore } from './session-store';
 
 /**
@@ -56,19 +55,19 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         return throwError(() => error);
       }
 
-      // Nothing to refresh with — the user is simply signed out.
-      const refreshToken = session.refreshToken();
-      if (!refreshToken) {
+      // No session to refresh — the user is simply signed out.
+      if (!session.hasStoredSession()) {
         session.clear();
         return throwError(() => error);
       }
 
-      return from(refreshOnce(auth, session, refreshToken)).pipe(
+      return from(refreshOnce(auth, session)).pipe(
         switchMap((tokens) => send(tokens.access_token)),
         catchError((refreshError: unknown) => {
-          // The refresh itself failed: the token was expired, already used, or
-          // revoked. There is no way back from here without signing in again.
-          session.clear();
+          // Refused: the session expired, was revoked, or was signed out in
+          // another tab. There is no way back without signing in again. Any
+          // other failure leaves the session for the next attempt.
+          if (isUnauthorized(refreshError)) session.clear();
           return throwError(() => refreshError);
         }),
       );
@@ -83,13 +82,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
  * starting another. The slot is cleared in `finally` so a *later* 401 can
  * refresh again — leaving it set would permanently reuse a stale result.
  */
-function refreshOnce(
-  auth: AuthRepository,
-  session: SessionStore,
-  refreshToken: string,
-): Promise<TokenPair> {
+function refreshOnce(auth: AuthRepository, session: SessionStore): Promise<TokenPair> {
   inFlightRefresh ??= auth
-    .refresh(refreshToken)
+    .refreshSession(session.legacyRefreshToken())
     .then((tokens) => {
       session.renew(tokens);
       return tokens;
@@ -103,17 +98,6 @@ function refreshOnce(
 
 function withBearer(req: HttpRequest<unknown>, token: string): HttpRequest<unknown> {
   return req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
-}
-
-/**
- * By the time this runs, errorInterceptor has usually turned the failure into
- * an ApiError — but interceptor order is configurable, so both shapes are
- * recognised rather than depending on it.
- */
-function isUnauthorized(error: unknown): boolean {
-  if (error instanceof ApiError) return error.code === 'unauthorized';
-  if (error instanceof HttpErrorResponse) return error.status === 401;
-  return false;
 }
 
 /** Re-exported so the config can read it without importing rxjs. */

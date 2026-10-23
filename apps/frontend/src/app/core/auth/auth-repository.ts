@@ -1,7 +1,14 @@
-import { HttpClient, HttpContext, HttpContextToken } from '@angular/common/http';
+import {
+  HttpClient,
+  HttpContext,
+  HttpContextToken,
+  HttpErrorResponse,
+  HttpHeaders,
+} from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
+import { ApiError } from '../api/api-error';
 import { API_CONFIG } from '../tokens/api-config';
 import { Identity, TokenPair, User } from '../models/identity';
 
@@ -15,6 +22,44 @@ import { Identity, TokenPair, User } from '../models/identity';
 export const SKIP_AUTH = new HttpContextToken<boolean>(() => false);
 
 const skipAuth = () => ({ context: new HttpContext().set(SKIP_AUTH, true) });
+
+/**
+ * Auth calls that issue, rotate or end a session.
+ *
+ * The header asks identity-svc to keep the refresh token in an HttpOnly
+ * cookie instead of the response body, and is what allows it to read that
+ * cookie back. A cross-site page cannot add it, which is half of what keeps the
+ * cookie from being used against the user (SameSite=Strict is the other).
+ */
+function sessionCall(identityBase: string) {
+  // The path this service is reached under, which the cookie is scoped to.
+  // The server prefers its own configuration and only falls back to this.
+  const prefix = new URL(identityBase, 'http://base.invalid').pathname.replace(/\/+$/, '');
+  return {
+    ...skipAuth(),
+    headers: new HttpHeaders({
+      'X-Session-Cookie': '1',
+      ...(prefix ? { 'X-Forwarded-Prefix': prefix } : {}),
+    }),
+  };
+}
+
+/**
+ * How long a refresh refused as already used waits before trying once more.
+ *
+ * Every tab shares the one cookie, so two tabs refreshing together both send
+ * the same token and the slower is refused. By the time it hears back, the
+ * faster tab's response has set the rotated cookie, and a second attempt
+ * succeeds with it.
+ */
+export const REFRESH_RACE_RETRY_MS = 300;
+
+/** Whether an auth failure means the credentials were refused. */
+export function isUnauthorized(error: unknown): boolean {
+  if (error instanceof ApiError) return error.code === 'unauthorized';
+  if (error instanceof HttpErrorResponse) return error.status === 401;
+  return false;
+}
 
 export interface RegisterRequest {
   username: string;
@@ -65,30 +110,49 @@ export class AuthRepository {
   }
 
   login(body: LoginRequest): Promise<TokenPair> {
-    return firstValueFrom(this.http.post<TokenPair>(this.url('auth/login'), body, skipAuth()));
-  }
-
-  /**
-   * Exchanges a refresh token for a new pair.
-   *
-   * The old token is destroyed server-side by this call. Presenting it again
-   * is treated as a leaked credential and revokes **every** session the user
-   * holds — which is why exactly one of these may ever be in flight. See
-   * refreshInterceptor.
-   */
-  refresh(refreshToken: string): Promise<TokenPair> {
     return firstValueFrom(
-      this.http.post<TokenPair>(
-        this.url('auth/refresh'),
-        { refresh_token: refreshToken },
-        skipAuth(),
-      ),
+      this.http.post<TokenPair>(this.url('auth/login'), body, sessionCall(this.api.identity)),
     );
   }
 
-  logout(refreshToken: string): Promise<void> {
+  /**
+   * Exchanges the session cookie for a new access token, rotating the cookie.
+   *
+   * The old refresh token is destroyed server-side by this call. Presenting it
+   * again later is treated as a leaked credential and revokes **every** session
+   * the user holds — which is why one tab runs at most one of these at a time.
+   * See authInterceptor.
+   *
+   * `legacyToken` is a token stored by the pre-cookie version. Presented once,
+   * it is moved onto the cookie.
+   */
+  refresh(legacyToken?: string | null): Promise<TokenPair> {
+    const body = legacyToken ? { refresh_token: legacyToken } : {};
     return firstValueFrom(
-      this.http.post<void>(this.url('auth/logout'), { refresh_token: refreshToken }, skipAuth()),
+      this.http.post<TokenPair>(this.url('auth/refresh'), body, sessionCall(this.api.identity)),
+    );
+  }
+
+  /**
+   * refresh, tolerating another tab having rotated the cookie at the same
+   * moment. See REFRESH_RACE_RETRY_MS.
+   */
+  async refreshSession(legacyToken?: string | null): Promise<TokenPair> {
+    try {
+      return await this.refresh(legacyToken);
+    } catch (error) {
+      if (!isUnauthorized(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, REFRESH_RACE_RETRY_MS));
+      // Cookie only: a legacy token, if there was one, is what was just spent.
+      return this.refresh();
+    }
+  }
+
+  /** Revokes the session and clears its cookie. */
+  logout(legacyToken?: string | null): Promise<void> {
+    const body = legacyToken ? { refresh_token: legacyToken } : {};
+    return firstValueFrom(
+      this.http.post<void>(this.url('auth/logout'), body, sessionCall(this.api.identity)),
     );
   }
 
@@ -134,7 +198,11 @@ export class AuthRepository {
    */
   exchange(code: string): Promise<TokenPair> {
     return firstValueFrom(
-      this.http.post<TokenPair>(this.url('auth/exchange'), { code }, skipAuth()),
+      this.http.post<TokenPair>(
+        this.url('auth/exchange'),
+        { code },
+        sessionCall(this.api.identity),
+      ),
     );
   }
 

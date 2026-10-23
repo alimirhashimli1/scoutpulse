@@ -161,6 +161,19 @@ func (f *fakeRefreshRepo) RevokeAllForUser(_ context.Context, userID string) err
 	return nil
 }
 
+// ageRevocations moves every revocation d into the past, so a test can
+// replay a token from outside the rotation grace window.
+func (f *fakeRefreshRepo) ageRevocations(d time.Duration) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, t := range f.byHash {
+		if t.RevokedAt != nil {
+			past := t.RevokedAt.Add(-d)
+			t.RevokedAt = &past
+		}
+	}
+}
+
 func (f *fakeRefreshRepo) DeleteExpired(context.Context, time.Time) (int64, error) { return 0, nil }
 
 // --- helpers ------------------------------------------------------------
@@ -386,7 +399,9 @@ func TestRefreshReuseRevokesEverySession(t *testing.T) {
 	var second TokenResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &second))
 
-	// Replay of the now-revoked token.
+	// Replay of the now-revoked token, later than two tabs racing could
+	// explain.
+	sessions.ageRevocations(2 * rotationGrace)
 	rr = postJSON(t, h.Refresh, "/api/v1/auth/refresh",
 		RefreshRequest{RefreshToken: first.RefreshToken})
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
