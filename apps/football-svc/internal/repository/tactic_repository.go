@@ -17,6 +17,8 @@ type TacticRepository interface {
 	Create(ctx context.Context, board *domain.TacticBoard) error
 	Update(ctx context.Context, board *domain.TacticBoard) error
 	Delete(ctx context.Context, slug string) error
+	// CountByOwner reports how many boards one account holds.
+	CountByOwner(ctx context.Context, ownerID string) (int, error)
 	// DeleteByOwner removes every board by one account, for when that account
 	// is deleted. Boards are keyed by a user id this database cannot enforce a
 	// foreign key against.
@@ -102,6 +104,14 @@ func (r *postgresTacticRepository) Update(ctx context.Context, board *domain.Tac
 func (r *postgresTacticRepository) Delete(ctx context.Context, slug string) error {
 	res, err := r.db.ExecContext(ctx, `DELETE FROM tactic_boards WHERE slug = $1`, slug)
 	return affected("tactics board", res, err)
+}
+
+func (r *postgresTacticRepository) CountByOwner(ctx context.Context, ownerID string) (int, error) {
+	var n int
+	if err := r.db.GetContext(ctx, &n, `SELECT count(*) FROM tactic_boards WHERE owner_id = $1`, ownerID); err != nil {
+		return 0, translate("tactics board", err)
+	}
+	return n, nil
 }
 
 func (r *postgresTacticRepository) DeleteByOwner(ctx context.Context, ownerID string) (int64, error) {

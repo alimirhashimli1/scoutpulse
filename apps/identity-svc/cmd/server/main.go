@@ -40,6 +40,14 @@ const (
 	writeBurst         = 10
 )
 
+// Failed sign-ins allowed per account, whichever addresses they come from: ten
+// in a row, then one every three minutes. Generous for a person who has
+// forgotten which password they used; useless for guessing one.
+const (
+	accountFailureRatePerSecond = 1.0 / 180
+	accountFailureBurst         = 10
+)
+
 // How often the two janitors run. Login codes expire in 60 seconds and one is
 // written per provider sign-in, so they are swept far more often than refresh
 // tokens, which live 30 days.
@@ -217,6 +225,7 @@ func main() {
 		Captcha:      challenge,
 		CaptchaKind:  os.Getenv("CAPTCHA_PROVIDER"),
 		CaptchaSite:  os.Getenv("CAPTCHA_SITE_KEY"),
+		AccountLimit: server.NewRateLimit(accountFailureRatePerSecond, accountFailureBurst),
 		Log:          logger,
 	}
 

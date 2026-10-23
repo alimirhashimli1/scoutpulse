@@ -197,3 +197,63 @@ func TestRateLimitIsPerClient(t *testing.T) {
 	// One client exhausting its bucket must not throttle anyone else.
 	assert.Equal(t, http.StatusOK, call("198.51.100.2"))
 }
+
+func TestClientIPSources(t *testing.T) {
+	defer func(prev string) { clientIPSource = prev }(clientIPSource)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "10.0.0.5:1234"
+	req.Header.Set("X-Forwarded-For", "203.0.113.9, 10.0.0.1")
+	req.Header.Set("X-Real-IP", "198.51.100.4")
+
+	clientIPSource = ""
+	assert.Equal(t, "10.0.0.5", ClientIP(req), "by default no header is trusted")
+
+	clientIPSource = "X-Real-Ip"
+	assert.Equal(t, "198.51.100.4", ClientIP(req))
+
+	clientIPSource = "X-Forwarded-For"
+	assert.Equal(t, "203.0.113.9", ClientIP(req))
+
+	// A request that arrives without the configured header falls back to the
+	// peer, never to another header the caller could have set instead.
+	bare := httptest.NewRequest(http.MethodGet, "/", nil)
+	bare.RemoteAddr = "10.0.0.5:1234"
+	bare.Header.Set("X-Forwarded-For", "203.0.113.9")
+	clientIPSource = "X-Real-Ip"
+	assert.Equal(t, "10.0.0.5", ClientIP(bare))
+}
+
+func TestBlockedAndRecord(t *testing.T) {
+	rl := NewRateLimit(0.001, 2)
+
+	blocked, _ := rl.Blocked("k")
+	assert.False(t, blocked, "an unseen key is not blocked")
+	rl.Record("k")
+	blocked, _ = rl.Blocked("k")
+	assert.False(t, blocked)
+	rl.Record("k")
+	blocked, retry := rl.Blocked("k")
+	assert.True(t, blocked, "burst spent")
+	assert.Greater(t, retry.Seconds(), 0.0)
+
+	blocked, _ = rl.Blocked("other")
+	assert.False(t, blocked)
+}
+
+func TestMiddlewareByUsesTheKey(t *testing.T) {
+	rl := NewRateLimit(0.001, 1)
+	h := rl.MiddlewareBy(func(r *http.Request) string { return r.Header.Get("X-User") },
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+
+	call := func(user string) int {
+		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req.Header.Set("X-User", user)
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		return rr.Code
+	}
+	assert.Equal(t, http.StatusOK, call("a"))
+	assert.Equal(t, http.StatusTooManyRequests, call("a"))
+	assert.Equal(t, http.StatusOK, call("b"))
+}

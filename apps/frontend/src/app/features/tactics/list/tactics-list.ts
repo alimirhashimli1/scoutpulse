@@ -20,12 +20,12 @@ interface AuthorGroup {
 }
 
 /**
- * Every member's tactics boards, one section per author.
+ * The signed-in member's tactics boards.
  *
- * Members only: the boards themselves are watchable by link, but this
- * directory is what would make them findable, so it sits behind sign-in. An
- * author appears only once they have made a board — the grouping comes from
- * the boards, not from a list of accounts.
+ * The API returns only the caller's own boards -- a list of everyone's, open to
+ * any account, would be open to anyone who signs up, and the boards are meant to
+ * be reached only by the link their author sends. An administrator gets every
+ * member's, one section per author, with the All / Mine filter to narrow it.
  *
  * The signed-in member's own section comes first, since it is the one they
  * act on.

@@ -7,7 +7,9 @@
 package observability
 
 import (
+	"crypto/subtle"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -123,5 +125,30 @@ func routeOf(r *http.Request) string {
 	return "unmatched"
 }
 
-// Handler serves the Prometheus scrape endpoint.
-func Handler() http.Handler { return promhttp.Handler() }
+// Handler serves the Prometheus scrape endpoint, guarded by METRICS_TOKEN.
+//
+// The gateway hides /metrics, but a service reachable without the gateway --
+// a public Railway domain -- would otherwise publish its request volumes and
+// latencies to anyone. So the service guards it itself:
+//
+//   - METRICS_TOKEN set: a scrape must send "Authorization: Bearer <token>".
+//   - unset on Railway (RAILWAY_PROJECT_ID present): the endpoint answers 404.
+//   - unset elsewhere: open, for the compose Prometheus on the private network.
+func Handler() http.Handler {
+	return guard(os.Getenv("METRICS_TOKEN"), os.Getenv("RAILWAY_PROJECT_ID") != "", promhttp.Handler())
+}
+
+func guard(token string, public bool, next http.Handler) http.Handler {
+	if token == "" && !public {
+		return next
+	}
+	want := []byte("Bearer " + token)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got := []byte(r.Header.Get("Authorization"))
+		if token == "" || subtle.ConstantTimeCompare(got, want) != 1 {
+			http.NotFound(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}

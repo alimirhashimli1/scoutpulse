@@ -3,33 +3,35 @@
     <div>
       <h1>Tactics boards</h1>
       <p class="lede">
-        Animated drills, shapes and match analysis by members. Every board has its own link that
-        anyone can watch without an account; this list is only visible to signed-in members.
+        Your animated drills, shapes and match analysis. Only you see your boards here; each one has
+        its own link that anyone you send it to can watch without an account.
       </p>
     </div>
     <a class="btn primary" routerLink="/tactics/new"><app-tactic-icon name="plus" /> New board</a>
   </header>
 
-  <div class="filters" role="tablist" aria-label="Show">
-    <button
-      type="button"
-      role="tab"
-      [attr.aria-selected]="filter() === 'all'"
-      [class.on]="filter() === 'all'"
-      (click)="filter.set('all')"
-    >
-      All members
-    </button>
-    <button
-      type="button"
-      role="tab"
-      [attr.aria-selected]="filter() === 'mine'"
-      [class.on]="filter() === 'mine'"
-      (click)="filter.set('mine')"
-    >
-      Mine <span class="count">{{ myCount() }}</span>
-    </button>
-  </div>
+  @if (session.isAdmin()) {
+    <div class="filters" role="tablist" aria-label="Show">
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="filter() === 'all'"
+        [class.on]="filter() === 'all'"
+        (click)="filter.set('all')"
+      >
+        All members
+      </button>
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="filter() === 'mine'"
+        [class.on]="filter() === 'mine'"
+        (click)="filter.set('mine')"
+      >
+        Mine <span class="count">{{ myCount() }}</span>
+      </button>
+    </div>
+  }
 
   @if (error()) {
     <app-error-state [message]="error()!" />
@@ -39,7 +41,11 @@
     <app-loading [lines]="5" />
   } @else if (!groups().length && !error()) {
     <app-empty
-      [message]="filter() === 'mine' ? 'You have not made a board yet.' : 'No boards yet.'"
+      [message]="
+        filter() === 'mine' || !session.isAdmin()
+          ? 'You have not made a board yet.'
+          : 'No boards yet.'
+      "
       hint="Start one: put out a formation, draw the runs, add steps and press play."
     />
   } @else {

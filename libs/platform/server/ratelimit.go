@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -101,10 +102,16 @@ func (rl *RateLimit) sweepLocked(now time.Time) {
 	}
 }
 
-// Middleware returns the limiter as request middleware.
+// Middleware returns the limiter as request middleware, keyed by client IP.
 func (rl *RateLimit) Middleware(next http.Handler) http.Handler {
+	return rl.MiddlewareBy(ClientIP, next)
+}
+
+// MiddlewareBy is Middleware with the bucket chosen by key -- an account id,
+// say, for a limit that should follow a signed-in user across addresses.
+func (rl *RateLimit) MiddlewareBy(key func(*http.Request) string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ok, retryAfter := rl.allow(ClientIP(r))
+		ok, retryAfter := rl.allow(key(r))
 		if !ok {
 			w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter.Seconds())))
 			w.Header().Set("Content-Type", "application/json")
@@ -125,21 +132,76 @@ func Limit(rate float64, burst int, h http.Handler) http.Handler {
 	return NewRateLimit(rate, burst).Middleware(h)
 }
 
-// ClientIP identifies the caller for rate-limiting purposes.
-//
-// X-Forwarded-For is honoured because every request arrives through the
-// gateway, which would otherwise make all clients look like one. Only the
-// first entry is used, and it is only trusted because nothing but the gateway
-// can reach these ports once the compose file stops publishing them.
-func ClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if first, _, found := strings.Cut(xff, ","); found {
-			return strings.TrimSpace(first)
-		}
-		return strings.TrimSpace(xff)
+// Blocked reports whether key has exhausted its bucket, without spending a
+// token. Paired with Record, it builds a limit that counts only some requests
+// -- failed sign-ins, say -- while still refusing every request once the
+// budget is gone.
+func (rl *RateLimit) Blocked(key string) (bool, time.Duration) {
+	now := time.Now()
+
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	b, ok := rl.buckets[key]
+	if !ok {
+		return false, 0
 	}
-	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
-		return strings.TrimSpace(realIP)
+	tokens := b.tokens + now.Sub(b.lastSeen).Seconds()*rl.Rate
+	if tokens >= 1 {
+		return false, 0
+	}
+	return true, time.Duration((1-tokens)/rl.Rate*float64(time.Second)) + time.Second
+}
+
+// Record spends one token for key, whether or not one is available.
+func (rl *RateLimit) Record(key string) {
+	_, _ = rl.allow(key)
+}
+
+// ClientIPSource names where the caller's address is read from. It is set
+// once at startup from CLIENT_IP_HEADER and is deliberately not guessed per
+// request: a forwarded-for header is only evidence of anything when the
+// process knows which proxy wrote it, and a header any caller can send is a
+// rate-limit key any caller can change.
+//
+//   - "" (the default): the TCP peer address. Correct for a process nothing
+//     sits in front of, and safe everywhere -- at worst, everything behind one
+//     proxy shares a bucket.
+//   - "X-Real-IP": the value set by a proxy that overwrites it. Railway's edge
+//     does this, so it is the default when RAILWAY_PROJECT_ID is present.
+//   - "X-Forwarded-For": the first entry. Only for a proxy that discards the
+//     client's own copy, such as Caddy without trusted_proxies -- the compose
+//     gateway.
+var clientIPSource = clientIPSourceFromEnv()
+
+func clientIPSourceFromEnv() string {
+	if v, ok := os.LookupEnv("CLIENT_IP_HEADER"); ok {
+		return http.CanonicalHeaderKey(strings.TrimSpace(v))
+	}
+	if os.Getenv("RAILWAY_PROJECT_ID") != "" {
+		return "X-Real-Ip"
+	}
+	return ""
+}
+
+// ClientIP identifies the caller for rate-limiting purposes, from the source
+// configured in clientIPSource. A configured header that is missing falls back
+// to the peer address rather than to some other header, so a request that
+// skips the proxy cannot pick a key of its own.
+func ClientIP(r *http.Request) string {
+	switch clientIPSource {
+	case "X-Forwarded-For":
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			first, _, _ := strings.Cut(xff, ",")
+			if ip := strings.TrimSpace(first); ip != "" {
+				return ip
+			}
+		}
+	case "":
+	default:
+		if ip := strings.TrimSpace(r.Header.Get(clientIPSource)); ip != "" {
+			return ip
+		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {

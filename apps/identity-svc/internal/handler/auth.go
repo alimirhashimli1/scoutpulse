@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -68,7 +70,14 @@ type Handler struct {
 	// which widget to render. The secret never leaves this service.
 	CaptchaSite string
 	CaptchaKind string
-	Log         *slog.Logger
+	// AccountLimit caps failed sign-ins per account identifier, independent
+	// of where they come from. The per-IP limit on the route cannot do this
+	// alone: an attacker rotating addresses -- or forging the header the IP
+	// is read from -- gets a fresh bucket each time, but every guess against
+	// one account still lands in that account's bucket. Optional: nil
+	// disables it.
+	AccountLimit *server.RateLimit
+	Log          *slog.Logger
 }
 
 // publishUserDeleted tells the rest of the platform an account is gone.
@@ -266,15 +275,36 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	// and "wrong password" trivially distinguishable by timing however
 	// identical the response bodies are. Hashing against a fixed dummy hash
 	// keeps both paths on the same cost.
+	//
+	// The account budget is checked first and spent only on a failure, so a
+	// user who signs in correctly never uses it up. Unknown identifiers are
+	// counted the same as known ones; refusing only real accounts would leak
+	// which ones exist.
+	accountKey := strings.ToLower(strings.TrimSpace(req.Identifier))
+	if h.AccountLimit != nil {
+		if blocked, retryAfter := h.AccountLimit.Blocked(accountKey); blocked {
+			w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter.Seconds())))
+			httpx.WriteError(w, r, apperr.RateLimited(
+				"too many failed sign-in attempts for this account, try again later"))
+			return
+		}
+	}
+	failed := func() {
+		if h.AccountLimit != nil {
+			h.AccountLimit.Record(accountKey)
+		}
+		httpx.WriteError(w, r, apperr.Unauthorized("invalid credentials"))
+	}
+
 	user, err := h.UserRepo.GetByIdentifier(r.Context(), req.Identifier)
 	if err != nil {
 		_ = bcrypt.CompareHashAndPassword(dummyPasswordHash, []byte(req.Password))
-		httpx.WriteError(w, r, apperr.Unauthorized("invalid credentials"))
+		failed()
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		httpx.WriteError(w, r, apperr.Unauthorized("invalid credentials"))
+		failed()
 		return
 	}
 

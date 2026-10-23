@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -94,6 +95,18 @@ func (s *stubTactics) Delete(_ context.Context, slug string) error {
 	return nil
 }
 
+func (s *stubTactics) CountByOwner(_ context.Context, ownerID string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, b := range s.boards {
+		if b.OwnerID == ownerID {
+			n++
+		}
+	}
+	return n, nil
+}
+
 func (s *stubTactics) DeleteByOwner(_ context.Context, ownerID string) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -169,12 +182,52 @@ func TestTactics_ListGroupsByAuthor(t *testing.T) {
 	_, err = svc.Create(ctxAsNamed("u1", "aligsbsu", "user"), validBoard("Long passes drill"))
 	require.NoError(t, err)
 
-	list, err := svc.List(ctxAsNamed("u3", "viewer", "user"), nil, domain.NewPage(10, 0))
+	list, err := svc.List(ctxAsNamed("admin", "admin", RoleAdmin), nil, domain.NewPage(10, 0))
 
 	require.NoError(t, err)
 	require.Len(t, list, 2)
 	assert.Equal(t, "aligsbsu", list[0].OwnerName)
 	assert.Equal(t, "real123", list[1].OwnerName)
+}
+
+// Accounts are free, so a list of everyone's boards shown to any member would
+// be shown to anyone. A member sees their own, whatever they ask for.
+func TestTactics_MembersListOnlyTheirOwn(t *testing.T) {
+	svc := NewTacticService(newStubTactics())
+	_, err := svc.Create(ctxAsNamed("u1", "aligsbsu", "user"), validBoard("Mine"))
+	require.NoError(t, err)
+	_, err = svc.Create(ctxAsNamed("u2", "real123", "user"), validBoard("Theirs"))
+	require.NoError(t, err)
+
+	all, err := svc.List(ctxAsNamed("u1", "aligsbsu", "user"), nil, domain.NewPage(10, 0))
+	require.NoError(t, err)
+	require.Len(t, all, 1)
+	assert.Equal(t, "Mine", all[0].Title)
+
+	other := "u2"
+	asked, err := svc.List(ctxAsNamed("u1", "aligsbsu", "user"), &other, domain.NewPage(10, 0))
+	require.NoError(t, err)
+	require.Len(t, asked, 1, "asking for another author returns your own")
+	assert.Equal(t, "u1", asked[0].OwnerID)
+
+	none, err := svc.List(ctxAsNamed("u3", "viewer", "user"), nil, domain.NewPage(10, 0))
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}
+
+func TestTactics_CreateStopsAtTheCap(t *testing.T) {
+	repo := newStubTactics()
+	for i := 0; i < MaxTacticBoardsPerOwner; i++ {
+		slug := "seed" + strconv.Itoa(i)
+		repo.boards[slug] = domain.TacticBoard{Slug: slug, OwnerID: "u1"}
+	}
+	svc := NewTacticService(repo)
+
+	_, err := svc.Create(ctxAsNamed("u1", "aligsbsu", "user"), validBoard("One too many"))
+	assert.Equal(t, apperr.KindInvalid, apperr.KindOf(err))
+
+	_, err = svc.Create(ctxAsNamed("u2", "real123", "user"), validBoard("Someone else"))
+	assert.NoError(t, err, "the cap is per account")
 }
 
 func TestTactics_OnlyTheAuthorCanEdit(t *testing.T) {

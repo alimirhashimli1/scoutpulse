@@ -24,6 +24,12 @@ const (
 	MaxTacticTitleLength       = 120
 	MaxTacticDescriptionLength = 1000
 	MaxTacticContentBytes      = 512 << 10
+
+	// MaxTacticBoardsPerOwner bounds what one account can store. Any member
+	// may create boards, and accounts are free, so without it the table is
+	// open-ended storage for anyone who signs up. Far above what a coach
+	// keeps; low enough that the worst case is a few hundred megabytes.
+	MaxTacticBoardsPerOwner = 500
 )
 
 // slugAlphabet leaves out characters that are easy to misread when a link is
@@ -39,11 +45,13 @@ const slugLength = 12
 // The rules differ from the rest of this service in the same way member notes
 // do: **any signed-in member** may create boards, since a coach's drill is not
 // an edit to the shared record. Boards are unlisted: a public link plays one,
-// while the browsable list is for members only.
+// and the list shows each member only their own -- signing up is free, so a
+// list open to every member would be open to everyone.
 type TacticService interface {
 	// Get is public. Holding the slug is what grants access.
 	Get(ctx context.Context, slug string) (*domain.TacticBoard, error)
-	// List is for signed-in members. ownerID narrows it to one author.
+	// List returns the caller's own boards. Only an administrator may list
+	// everyone's, or another author's by ownerID.
 	List(ctx context.Context, ownerID *string, page domain.Page) ([]domain.TacticSummary, error)
 	Create(ctx context.Context, input TacticInput) (*domain.TacticBoard, error)
 	Update(ctx context.Context, slug string, input TacticInput) (*domain.TacticBoard, error)
@@ -77,11 +85,17 @@ func (s *tacticService) Get(ctx context.Context, slug string) (*domain.TacticBoa
 	return s.repo.GetBySlug(ctx, slug)
 }
 
-// List requires an account. The boards are reachable by link without one, but
-// the directory of them is what keeps them unlisted.
+// List requires an account and, for anyone but an administrator, returns only
+// the caller's boards whatever ownerID asks for. A board is reachable by its
+// link; a list of other members' links would make every board public to
+// anyone willing to register.
 func (s *tacticService) List(ctx context.Context, ownerID *string, page domain.Page) ([]domain.TacticSummary, error) {
-	if _, err := s.claims(ctx); err != nil {
+	claims, err := s.claims(ctx)
+	if err != nil {
 		return nil, err
+	}
+	if claims.Role != RoleAdmin {
+		ownerID = &claims.UserID
 	}
 	return s.repo.List(ctx, ownerID, page)
 }
@@ -105,6 +119,17 @@ func (s *tacticService) Create(ctx context.Context, input TacticInput) (*domain.
 	// From the token, never from the request: a client-supplied name would let
 	// anyone file a board under somebody else's.
 	board.OwnerName = claims.Username
+
+	// Checked before the insert rather than enforced by it, so two creates
+	// racing at the limit can both land. That overshoot is one board, which
+	// is not what the cap is for.
+	count, err := s.repo.CountByOwner(ctx, claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if count >= MaxTacticBoardsPerOwner {
+		return nil, apperr.Invalid("you have reached the limit of 500 tactics boards; delete some to make room")
+	}
 
 	const attempts = 3
 	for i := 0; i < attempts; i++ {

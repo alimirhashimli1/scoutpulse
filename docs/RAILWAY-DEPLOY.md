@@ -111,6 +111,8 @@ tokens — all at once. Currently the Caddyfile returns 404 at the catch-all.
 | `SMTP_HOST` `SMTP_PORT` `SMTP_USERNAME` `SMTP_PASSWORD` `SMTP_FROM` | optional — with no `SMTP_HOST` the verification link is written to the log, not emailed |
 | `CAPTCHA_PROVIDER` `CAPTCHA_SITE_KEY` `CAPTCHA_SECRET`            | optional — absent secret skips the check                                                  |
 | `NATS_URL`                                                        | omit (see below)                                                                          |
+| `CLIENT_IP_HEADER`                                                | optional — where rate limits read the caller's IP. Defaults to `X-Real-IP` on Railway (its edge overwrites it) and to the TCP peer elsewhere; `X-Forwarded-For` only behind a proxy that discards client copies (the compose Caddy) |
+| `METRICS_TOKEN`                                                   | optional — bearer token required to scrape `/metrics`. Unset on Railway, `/metrics` answers 404 |
 
 ### football-svc
 
@@ -122,6 +124,7 @@ tokens — all at once. Currently the Caddyfile returns 404 at the catch-all.
 | `JWT_PUBLIC_KEY`                         | **from local `.env`** — the matching RSA _public_ key. This service cannot mint tokens, only verify them. |
 | `CORS_ALLOWED_ORIGINS`                   | `https://<gateway-domain>`                                                                  |
 | `NATS_URL`                               | omit                                                                                        |
+| `CLIENT_IP_HEADER` `METRICS_TOKEN`      | optional, same as identity-svc                                                              |
 
 ### frontend
 

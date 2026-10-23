@@ -5,6 +5,8 @@ import {
   writeResponseToNodeResponse,
 } from '@angular/ssr/node';
 import express from 'express';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
@@ -55,6 +57,101 @@ const app = express();
 const angularApp = new AngularNodeAppEngine({ allowedHosts, trustProxyHeaders });
 
 /**
+ * The Content-Security-Policy, built around the page's inline scripts.
+ *
+ * Angular's `autoCsp` would do this, but refuses to run alongside SSR, so it is
+ * done here. Scripts are allowed from this origin, from the two captcha
+ * providers, and inline only by hash -- so markup that slips into a page
+ * cannot run script, and a stolen session token has nowhere to be sent by a
+ * script that was never allowed to load.
+ *
+ * Which inline scripts are trusted:
+ *  - those in the built template (the theme switch and Angular's event
+ *    contract), hashed once at startup. The template is build output, so
+ *    nothing a request can influence is in it;
+ *  - Angular's event-replay bootstrap, which lists the event types the
+ *    rendered page binds and so differs page to page. It is hashed per
+ *    response, and only when it matches its exact shape -- a name list and
+ *    nothing else -- so an injected script cannot pass as one;
+ *  - the stylesheet's `onload` swap from print to all media, by hash, through
+ *    'unsafe-hashes'. Without it the global styles would stay print-only.
+ *
+ * `frame-ancestors` and X-Frame-Options together stop the site being framed
+ * for clickjacking; the second is for browsers that predate the first.
+ */
+const serverDistFolder = import.meta.dirname;
+
+const sha256 = (source: string): string =>
+  `'sha256-${createHash('sha256').update(source, 'utf8').digest('base64')}'`;
+
+/** Inline, executable scripts: not `src`, not a JSON data block. */
+function inlineScripts(html: string): string[] {
+  const found: string[] = [];
+  for (const [, attrs, body] of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    if (/\bsrc\s*=/i.test(attrs) || /type\s*=\s*["']?application\/(ld\+)?json/i.test(attrs))
+      continue;
+    if (body.trim()) found.push(body);
+  }
+  return found;
+}
+
+function templateScriptHashes(): string[] {
+  const hashes = new Set<string>();
+  for (const file of [
+    join(serverDistFolder, 'index.server.html'),
+    join(browserDistFolder, 'index.csr.html'),
+  ]) {
+    if (!existsSync(file)) continue;
+    for (const script of inlineScripts(readFileSync(file, 'utf8'))) hashes.add(sha256(script));
+  }
+  if (hashes.size === 0) {
+    console.warn(
+      '[csp] no built template found next to the server; inline scripts will be blocked',
+    );
+  }
+  return [...hashes];
+}
+
+const templateHashes = templateScriptHashes();
+const STYLESHEET_ONLOAD = "this.media='all'";
+const EVENT_REPLAY_BOOTSTRAP =
+  /^window\.__jsaction_bootstrap\(document\.body,"ng",\[("[a-z]+"(,"[a-z]+")*)?\],\[("[a-z]+"(,"[a-z]+")*)?\]\);$/;
+const CAPTCHA_SCRIPT_ORIGINS = [
+  'https://challenges.cloudflare.com',
+  'https://www.google.com/recaptcha/',
+  'https://www.gstatic.com/recaptcha/',
+];
+
+function contentSecurityPolicy(html?: string): string {
+  const scripts = new Set(templateHashes);
+  for (const script of html ? inlineScripts(html) : []) {
+    if (EVENT_REPLAY_BOOTSTRAP.test(script.trim())) scripts.add(sha256(script));
+  }
+  return [
+    `script-src 'self' ${[...scripts].join(' ')} 'unsafe-hashes' ${sha256(STYLESHEET_ONLOAD)} ${CAPTCHA_SCRIPT_ORIGINS.join(' ')}`,
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+}
+
+const securityHeaders: Record<string, string> = {
+  'Content-Security-Policy': contentSecurityPolicy(),
+  'X-Frame-Options': 'DENY',
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+};
+
+app.use((_req, res, next) => {
+  for (const [name, value] of Object.entries(securityHeaders)) {
+    res.setHeader(name, value);
+  }
+  next();
+});
+
+/**
  * Example Express Rest API endpoints can be defined here.
  * Uncomment and define endpoints as necessary.
  *
@@ -83,7 +180,21 @@ app.use(
 app.use((req, res, next) => {
   angularApp
     .handle(req)
-    .then((response) => (response ? writeResponseToNodeResponse(response, res) : next()))
+    .then(async (response) => {
+      if (!response) return next();
+      // A rendered page carries its own event-replay bootstrap, which the
+      // policy has to name. Anything else passes through untouched.
+      if (!response.headers.get('content-type')?.includes('text/html')) {
+        return writeResponseToNodeResponse(response, res);
+      }
+      const html = await response.text();
+      const headers = new Headers(response.headers);
+      headers.set('Content-Security-Policy', contentSecurityPolicy(html));
+      return writeResponseToNodeResponse(
+        new Response(html, { status: response.status, statusText: response.statusText, headers }),
+        res,
+      );
+    })
     .catch(next);
 });
 

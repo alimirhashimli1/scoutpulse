@@ -26,6 +26,9 @@ const (
 	KindForbidden
 	KindNotFound
 	KindConflict
+	// KindRateLimited means the caller has used up an allowance and should
+	// retry later.
+	KindRateLimited
 )
 
 func (k Kind) String() string {
@@ -40,6 +43,8 @@ func (k Kind) String() string {
 		return "not_found"
 	case KindConflict:
 		return "conflict"
+	case KindRateLimited:
+		return "rate_limited"
 	default:
 		return "internal"
 	}
@@ -79,6 +84,7 @@ func Unauthorized(message string) *Error { return New(KindUnauthorized, message)
 func Forbidden(message string) *Error    { return New(KindForbidden, message) }
 func NotFound(message string) *Error     { return New(KindNotFound, message) }
 func Conflict(message string) *Error     { return New(KindConflict, message) }
+func RateLimited(message string) *Error  { return New(KindRateLimited, message) }
 
 // Internal wraps an unexpected failure. The cause is preserved for logging
 // but the client-facing message stays generic.

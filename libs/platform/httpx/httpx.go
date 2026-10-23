@@ -37,6 +37,8 @@ func StatusFor(kind apperr.Kind) int {
 		return http.StatusNotFound
 	case apperr.KindConflict:
 		return http.StatusConflict
+	case apperr.KindRateLimited:
+		return http.StatusTooManyRequests
 	default:
 		return http.StatusInternalServerError
 	}

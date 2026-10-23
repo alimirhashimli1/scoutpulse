@@ -253,6 +253,10 @@ func TestFootballServiceIntegration(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, mine, 2)
 
+		count, err := tactics.CountByOwner(ctx, ali)
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
+
 		got.Title = "Long passes drill v2"
 		got.Content = json.RawMessage(`{"v":1}`)
 		require.NoError(t, tactics.Update(ctx, got))
