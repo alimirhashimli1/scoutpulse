@@ -48,3 +48,6 @@ coverage/
 docs/
 *.md
 api.http
+
+# The downloaded Transfermarkt dataset: tens of megabytes no image uses.
+**/transfermarkt-data/

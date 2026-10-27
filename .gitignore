@@ -27,3 +27,6 @@ Thumbs.db
 backups/
 *.dump
 *.dump.partial
+
+# Downloaded Transfermarkt dataset (import-transfermarkt -download)
+transfermarkt-data/

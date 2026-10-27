@@ -103,7 +103,7 @@ import { ssrResource } from '../../core/api/ssr-resource';
                   </tr>
                 </thead>
                 <tbody>
-                  @for (p of squad.value()!.items; track p.id) {
+                  @for (p of orderedSquad(); track p.id) {
                     <tr>
                       <td class="tabular muted">{{ p.squad_number ?? '—' }}</td>
                       <td>
@@ -364,6 +364,20 @@ export class ClubPage {
     loader: ({ params }) => this.reader.squad(params.id, { limit: 100 }),
   });
 
+  /**
+   * The squad by line -- goalkeepers, defenders, midfielders, forwards --
+   * and by value within each. The API lists by name, which for a squad
+   * without squad numbers puts the goalkeepers among the strikers.
+   */
+  protected readonly orderedSquad = computed(() =>
+    [...(this.squad.value()?.items ?? [])].sort(
+      (a, b) =>
+        lineOf(a.position) - lineOf(b.position) ||
+        b.market_value_minor - a.market_value_minor ||
+        a.name.localeCompare(b.name),
+    ),
+  );
+
   protected readonly staff = ssrResource('club-page.staff', {
     params: () => ({ id: this.id() }),
     loader: ({ params }) => this.reader.staff(params.id, { limit: 50 }),
@@ -450,4 +464,14 @@ export class ClubPage {
   protected leagueName(id: string | null): string {
     return this.lookup.leagueName(id, 'Competition');
   }
+}
+
+/** Where a position sits from back to front; unrecognised ones go last. */
+function lineOf(position: string): number {
+  const p = position.toLowerCase();
+  if (p.includes('goalkeeper')) return 0;
+  if (p.includes('back') || p.includes('defen')) return 1;
+  if (p.includes('midfield')) return 2;
+  if (/wing|forward|striker|attack/.test(p)) return 3;
+  return 4;
 }

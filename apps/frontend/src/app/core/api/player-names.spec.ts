@@ -57,6 +57,9 @@ class RecordingReader implements PlayerReader {
   marketValues(): Promise<Page<never>> {
     return Promise.reject(new Error('not used'));
   }
+  stats(): Promise<Page<never>> {
+    return Promise.reject(new Error('not used'));
+  }
 }
 
 describe('PlayerNames', () => {

@@ -75,6 +75,7 @@ func main() {
 	playerNoteRepo := repository.NewPlayerNoteRepository(database)
 	transferRepo := repository.NewPostgresTransferRepository(database)
 	marketValueRepo := repository.NewPostgresMarketValueRepository(database)
+	playerStatsRepo := repository.NewPostgresPlayerStatsRepository(database)
 	seasonRepo := repository.NewPostgresSeasonRepository(database)
 	coachSpellRepo := repository.NewPostgresCoachSpellRepository(database)
 	teamEditorRepo := repository.NewPostgresTeamEditorRepository(database)
@@ -109,6 +110,7 @@ func main() {
 	seasonService := service.NewSeasonService(seasonRepo, authz)
 	transferService := service.NewTransferService(transferRepo, playerRepo, seasonRepo, authz, safePublisher)
 	marketValueService := service.NewMarketValueService(marketValueRepo, playerRepo, authz, safePublisher)
+	playerStatsService := service.NewPlayerStatsService(playerStatsRepo)
 	playerNoteService := service.NewPlayerNoteService(playerNoteRepo, playerRepo, authz)
 	coachSpellService := service.NewCoachSpellService(coachSpellRepo, coachRepo, authz, safePublisher)
 	teamEditorService := service.NewTeamEditorService(teamEditorRepo, teamRepo, authz)
@@ -124,6 +126,7 @@ func main() {
 		Player:      handler.NewPlayerHandler(playerService),
 		Transfer:    handler.NewTransferHandler(transferService),
 		MarketValue: handler.NewMarketValueHandler(marketValueService),
+		PlayerStats: handler.NewPlayerStatsHandler(playerStatsService),
 		PlayerNote:  handler.NewPlayerNoteHandler(playerNoteService),
 		Season:      handler.NewSeasonHandler(seasonService),
 		CoachSpell:  handler.NewCoachSpellHandler(coachSpellService),

@@ -165,6 +165,11 @@ type Player struct {
 	ShotsOnTargetPct  *float64 `db:"shots_on_target_pct" json:"shots_on_target_pct,omitempty"`
 	AerialDuelsWonPct *float64 `db:"aerial_duels_won_pct" json:"aerial_duels_won_pct,omitempty"`
 
+	// The international record, as imported. Nil means not recorded, which
+	// for a hand-entered player is the normal state rather than "never capped".
+	InternationalCaps  *int `db:"international_caps" json:"international_caps,omitempty"`
+	InternationalGoals *int `db:"international_goals" json:"international_goals,omitempty"`
+
 	// The two halves of the scouting assessment. Lists rather than prose, so
 	// they render as bullets and stay comparable between players.
 	Strengths  StringList `db:"strengths" json:"strengths"`
@@ -251,6 +256,23 @@ type Transfer struct {
 	Fee       *Minor    `db:"fee_minor" json:"fee_minor"`
 	Currency  string    `db:"currency" json:"currency"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+// PlayerSeasonStat is what a player did in one competition in one season,
+// for one club. Aggregated from match data at import; there is no write API,
+// because nothing here holds the matches a correction could be checked against.
+type PlayerSeasonStat struct {
+	ID          string  `db:"id" json:"id"`
+	PlayerID    string  `db:"player_id" json:"player_id"`
+	SeasonID    string  `db:"season_id" json:"season_id"`
+	LeagueID    string  `db:"league_id" json:"league_id"`
+	TeamID      *string `db:"team_id" json:"team_id"` // nil = a club outside the dataset
+	Appearances int     `db:"appearances" json:"appearances"`
+	Minutes     int     `db:"minutes" json:"minutes"`
+	Goals       int     `db:"goals" json:"goals"`
+	Assists     int     `db:"assists" json:"assists"`
+	YellowCards int     `db:"yellow_cards" json:"yellow_cards"`
+	RedCards    int     `db:"red_cards" json:"red_cards"`
 }
 
 // MarketValue is one point in a player's valuation history.

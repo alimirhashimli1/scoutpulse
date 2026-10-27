@@ -8,6 +8,7 @@ import {
   MarketValue,
   Player,
   PlayerNote,
+  PlayerSeasonStat,
   SearchKind,
   SearchResult,
   Season,
@@ -56,6 +57,8 @@ export interface PlayerReader {
   byId(id: string): Promise<Player>;
   transfers(id: string, query?: PageQuery): Promise<Page<Transfer>>;
   marketValues(id: string, query?: PageQuery): Promise<Page<MarketValue>>;
+  /** Every season line, newest season first. Not paged: a career is a few dozen rows. */
+  stats(id: string): Promise<Page<PlayerSeasonStat>>;
 }
 
 export interface PlayerWriter {

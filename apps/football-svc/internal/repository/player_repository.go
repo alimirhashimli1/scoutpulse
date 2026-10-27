@@ -50,6 +50,7 @@ const playerColumns = `id, team_id, name, first_name, last_name, date_of_birth,
 	position, secondary_positions, contract_start, contract_until,
 	market_value_minor, currency,
 	duels_won_pct, pass_completion_pct, shots_on_target_pct, aerial_duels_won_pct,
+	international_caps, international_goals,
 	strengths, weaknesses, created_at`
 
 func (r *postgresPlayerRepository) GetByID(ctx context.Context, id string) (*domain.Player, error) {

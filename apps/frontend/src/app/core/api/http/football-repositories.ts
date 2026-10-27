@@ -9,6 +9,7 @@ import {
   MarketValue,
   Player,
   PlayerNote,
+  PlayerSeasonStat,
   SearchKind,
   SearchResult,
   Season,
@@ -71,6 +72,10 @@ export class HttpPlayerRepository
 
   marketValues(id: string, query?: PageQuery): Promise<Page<MarketValue>> {
     return this.getPage<MarketValue>(this.url('players', id, 'market-values'), query);
+  }
+
+  stats(id: string): Promise<Page<PlayerSeasonStat>> {
+    return this.getPage<PlayerSeasonStat>(this.url('players', id, 'stats'));
   }
 
   create(player: Partial<Player>): Promise<Player> {

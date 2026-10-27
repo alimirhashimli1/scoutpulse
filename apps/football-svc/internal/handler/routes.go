@@ -20,6 +20,7 @@ type Handlers struct {
 	Player      *PlayerHandler
 	Transfer    *TransferHandler
 	MarketValue *MarketValueHandler
+	PlayerStats *PlayerStatsHandler
 	PlayerNote  *PlayerNoteHandler
 	Season      *SeasonHandler
 	CoachSpell  *CoachSpellHandler
@@ -114,6 +115,7 @@ func RegisterRoutes(mux *http.ServeMux, h Handlers) {
 	mux.HandleFunc("GET /api/v1/players/{id}", h.Player.GetPlayer)
 	mux.HandleFunc("GET /api/v1/players/{id}/transfers", h.Transfer.ListByPlayer)
 	mux.HandleFunc("GET /api/v1/players/{id}/market-values", h.MarketValue.ListValues)
+	mux.HandleFunc("GET /api/v1/players/{id}/stats", h.PlayerStats.ListStats)
 	protect("POST /api/v1/players", h.Player.CreatePlayer)
 	protect("PUT /api/v1/players/{id}", h.Player.UpdatePlayer)
 	protect("DELETE /api/v1/players/{id}", h.Player.DeletePlayer)

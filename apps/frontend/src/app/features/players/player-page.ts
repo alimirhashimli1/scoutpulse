@@ -7,14 +7,14 @@ import {
   input,
   resource,
 } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
 import { ApiError } from '../../core/api/api-error';
 import { PLAYER_READER } from '../../core/api/contracts';
 import { LookupStore } from '../../core/api/lookup-store';
 import { Permissions } from '../../core/auth/permissions';
-import { Player } from '../../core/models/football';
+import { Player, PlayerSeasonStat } from '../../core/models/football';
 import { Seo } from '../../core/seo/seo';
 import { MoneyPipe } from '../../shared/pipes/money-pipe';
 import { Actions } from '../../shared/ui/actions';
@@ -33,7 +33,11 @@ import { ValueChart } from './value-chart';
 @Component({
   selector: 'app-player-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DatePipe, MoneyPipe, ValueChart, Actions, PlayerNotes, Loading, ErrorState],
+  imports: [
+    RouterLink,
+    DatePipe,
+    DecimalPipe,
+    MoneyPipe, ValueChart, Actions, PlayerNotes, Loading, ErrorState],
   template: `
     @if (player.isLoading() && !player.value()) {
       <main class="page"><app-loading message="Loading player…" /></main>
@@ -112,6 +116,14 @@ import { ValueChart } from './value-chart';
                 <dd>{{ p.contract_until | date: 'MMM y' }}</dd>
               </div>
             }
+            @if (p.international_caps != null) {
+              <div>
+                <dt>International</dt>
+                <dd class="tabular">
+                  {{ p.international_caps }} caps · {{ p.international_goals ?? 0 }} goals
+                </dd>
+              </div>
+            }
           </dl>
 
           <!--
@@ -131,6 +143,72 @@ import { ValueChart } from './value-chart';
             </app-actions>
           }
         </header>
+
+        @if (seasons().length) {
+          <section>
+            <h4>Performance</h4>
+            <!--
+              One block per season: the season's total across every
+              competition first, then the competitions it is made of. A
+              January move gives a competition two lines, one per club, which
+              is why the club is a column rather than assumed.
+            -->
+            <div class="scroll-x">
+              <table class="stats">
+                <thead>
+                  <tr>
+                    <th scope="col">Competition</th>
+                    <th scope="col">Club</th>
+                    <th scope="col" class="right" title="Appearances">Apps</th>
+                    <th scope="col" class="right" title="Minutes played">Min</th>
+                    <th scope="col" class="right" title="Goals">Goals</th>
+                    <th scope="col" class="right" title="Assists">Ast</th>
+                    <th scope="col" class="right" title="Yellow cards">
+                      <span class="card yellow" aria-hidden="true"></span
+                      ><span class="visually-hidden">Yellow cards</span>
+                    </th>
+                    <th scope="col" class="right" title="Red cards">
+                      <span class="card red" aria-hidden="true"></span
+                      ><span class="visually-hidden">Red cards</span>
+                    </th>
+                  </tr>
+                </thead>
+                @for (s of seasons(); track s.seasonId) {
+                  <tbody>
+                    <tr class="total">
+                      <th scope="rowgroup" colspan="2">{{ s.label }}</th>
+                      <td class="right tabular">{{ s.total.appearances }}</td>
+                      <td class="right tabular">{{ s.total.minutes | number }}</td>
+                      <td class="right tabular">{{ s.total.goals }}</td>
+                      <td class="right tabular">{{ s.total.assists }}</td>
+                      <td class="right tabular">{{ s.total.yellow_cards }}</td>
+                      <td class="right tabular">{{ s.total.red_cards }}</td>
+                    </tr>
+                    @for (line of s.lines; track line.id) {
+                      <tr>
+                        <td>{{ leagueName(line.league_id) }}</td>
+                        <td class="muted">
+                          @if (line.team_id) {
+                            <a [routerLink]="['/clubs', line.team_id]">{{ clubName(line.team_id) }}</a>
+                          } @else {
+                            —
+                          }
+                        </td>
+                        <td class="right tabular">{{ line.appearances }}</td>
+                        <td class="right tabular">{{ line.minutes | number }}</td>
+                        <td class="right tabular">{{ line.goals }}</td>
+                        <td class="right tabular">{{ line.assists }}</td>
+                        <td class="right tabular">{{ line.yellow_cards }}</td>
+                        <td class="right tabular">{{ line.red_cards }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                }
+              </table>
+            </div>
+            <p class="source">Match data: Transfermarkt, via transfermarkt-datasets.</p>
+          </section>
+        }
 
         @if (percentages(p).length) {
           <section>
@@ -387,6 +465,39 @@ import { ValueChart } from './value-chart';
     .correct {
       font-size: var(--text-xs);
     }
+    .stats tbody + tbody .total th,
+    .stats tbody + tbody .total td {
+      border-top: 2px solid var(--line);
+    }
+    .total th,
+    .total td {
+      font-weight: 700;
+      background: var(--surface-2);
+    }
+    .total th {
+      text-transform: none;
+      letter-spacing: 0;
+      font-size: var(--text-sm);
+      color: var(--ink);
+    }
+    .card {
+      display: inline-block;
+      width: 0.6em;
+      height: 0.85em;
+      border-radius: 2px;
+      vertical-align: -0.1em;
+    }
+    .card.yellow {
+      background: #f5c518;
+    }
+    .card.red {
+      background: #d6312b;
+    }
+    .source {
+      margin-top: var(--space-2);
+      font-size: var(--text-xs);
+      color: var(--muted);
+    }
     app-actions {
       display: block;
       margin-top: var(--space-5);
@@ -413,6 +524,44 @@ export class PlayerPage {
   protected readonly transfers = ssrResource('player-page.transfers', {
     params: () => ({ id: this.id() }),
     loader: ({ params }) => this.reader.transfers(params.id, { limit: 50 }),
+  });
+
+  /**
+   * Season lines. The competition and season names have to be resolved
+   * before a row means anything, so both lookups are awaited here.
+   */
+  protected readonly stats = ssrResource('player-page.stats', {
+    params: () => ({ id: this.id() }),
+    loader: async ({ params }) => {
+      const [page] = await Promise.all([
+        this.reader.stats(params.id),
+        this.lookup.loadSeasons(),
+        this.lookup.loadLeagues(),
+      ]);
+      return page;
+    },
+  });
+
+  /** The lines grouped by season, in the API's order, each with its total. */
+  protected readonly seasons = computed(() => {
+    const groups: { seasonId: string; label: string; lines: PlayerSeasonStat[]; total: Totals }[] = [];
+    for (const line of this.stats.value()?.items ?? []) {
+      let group = groups.at(-1);
+      if (group?.seasonId !== line.season_id) {
+        group = {
+          seasonId: line.season_id,
+          label: this.lookup.seasonLabel(line.season_id, 'Season'),
+          lines: [],
+          total: { appearances: 0, minutes: 0, goals: 0, assists: 0, yellow_cards: 0, red_cards: 0 },
+        };
+        groups.push(group);
+      }
+      group.lines.push(line);
+      for (const key of Object.keys(group.total) as (keyof Totals)[]) {
+        group.total[key] += line[key];
+      }
+    }
+    return groups;
   });
 
   protected readonly values = ssrResource('player-page.values', {
@@ -494,7 +643,16 @@ export class PlayerPage {
     );
   }
 
+  protected leagueName(id: string): string {
+    return this.lookup.leagueName(id, 'Competition');
+  }
+
   protected clubName(id: string | null): string {
     return this.lookup.teamName(id, '—');
   }
 }
+
+type Totals = Pick<
+  PlayerSeasonStat,
+  'appearances' | 'minutes' | 'goals' | 'assists' | 'yellow_cards' | 'red_cards'
+>;

@@ -117,6 +117,10 @@ export interface Player {
   shots_on_target_pct?: number;
   aerial_duels_won_pct?: number;
 
+  /** The international record, as imported. Absent means not recorded. */
+  international_caps?: number;
+  international_goals?: number;
+
   /** The two halves of the assessment. Lists, so they render as bullets. */
   strengths: string[];
   weaknesses: string[];
@@ -172,6 +176,25 @@ export interface Transfer {
   fee_minor: MinorUnits | null;
   currency: string;
   created_at: IsoDate;
+}
+
+/**
+ * What a player did in one competition in one season, for one club.
+ * Aggregated from match data at import; read-only.
+ */
+export interface PlayerSeasonStat {
+  id: string;
+  player_id: string;
+  season_id: string;
+  league_id: string;
+  /** null is a club outside the dataset. */
+  team_id: string | null;
+  appearances: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  yellow_cards: number;
+  red_cards: number;
 }
 
 export interface MarketValue {
