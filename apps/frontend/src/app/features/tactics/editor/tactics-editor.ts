@@ -75,6 +75,7 @@ export class TacticsEditor implements OnInit {
 
   protected readonly views = VIEWS;
   protected readonly view = signal<CameraView>('tactical');
+  protected readonly flat = signal(false);
   protected readonly title = signal('');
   protected readonly description = signal('');
   protected readonly savedSlug = signal<string | null>(null);

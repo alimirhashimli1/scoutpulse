@@ -33,6 +33,16 @@ function standard(color: string, opts: { rough?: number; metal?: number; emissiv
   return m;
 }
 
+function basic(color: string): THREE.Material {
+  const key = `basic:${color}`;
+  let m = materials.get(key);
+  if (!m) {
+    m = new THREE.MeshBasicMaterial({ color });
+    materials.set(key, m);
+  }
+  return m;
+}
+
 export function disposeMaterials(): void {
   materials.forEach((m) => m.dispose());
   materials.clear();
@@ -50,11 +60,11 @@ function mesh(
 }
 
 /** A key that changes whenever the piece would look different. */
-export function appearanceKey(doc: TacticDoc, obj: BoardObject): string {
+export function appearanceKey(doc: TacticDoc, obj: BoardObject, flat = false): string {
   if (obj.kind === 'player') {
     const look = playerLook(doc, obj);
     return [
-      'player',
+      flat ? 'token' : 'player',
       look.primary,
       look.secondary,
       look.pattern,
@@ -69,10 +79,17 @@ export function appearanceKey(doc: TacticDoc, obj: BoardObject): string {
   return [obj.kind, obj.color ?? '', obj.size ?? 1].join('|');
 }
 
-export function buildPiece(doc: TacticDoc, obj: BoardObject): THREE.Group {
+/**
+ * The mesh for one object. `flat` is the 2D board: players become tokens,
+ * since a figure seen from straight above is only the top of its head.
+ * Equipment already reads from above and is shared by both.
+ */
+export function buildPiece(doc: TacticDoc, obj: BoardObject, flat = false): THREE.Group {
   const group =
     obj.kind === 'player'
-      ? player(doc, obj)
+      ? flat
+        ? token(doc, obj)
+        : player(doc, obj)
       : equipment(obj.kind, obj.color ?? EQUIPMENT_COLORS[obj.kind]);
   group.scale.setScalar(baseScale(obj.kind) * (obj.size ?? 1));
   group.userData['objectId'] = obj.id;
@@ -104,6 +121,12 @@ export function baseScale(kind: BoardObject['kind']): number {
 /** Heights the engine needs: where the label floats, how big the halo is. */
 export const PLAYER_HEIGHT = 2.9;
 export const PLAYER_RADIUS = 0.95;
+/**
+ * A 2D counter is larger than the 3D figure's base: from straight above the
+ * counter is all there is of a player, and its number has to read on a full
+ * pitch.
+ */
+export const TOKEN_RADIUS = 1.3;
 
 function player(doc: TacticDoc, obj: BoardObject): THREE.Group {
   const look = playerLook(doc, obj);
@@ -172,6 +195,61 @@ function player(doc: TacticDoc, obj: BoardObject): THREE.Group {
     );
     name.scale.set(4.4, 1.1, 1);
     name.position.y = obj.number ? PLAYER_HEIGHT + 2.3 : PLAYER_HEIGHT + 0.95;
+    name.renderOrder = 10;
+    g.add(name);
+  }
+  return g;
+}
+
+/**
+ * A player on the 2D board: a counter in the shirt colour, ringed in the
+ * second colour, with the number on its face and the name beneath. Unlit, so
+ * it is the same flat colour wherever it stands, as on a printed board.
+ */
+function token(doc: TacticDoc, obj: BoardObject): THREE.Group {
+  const look = playerLook(doc, obj);
+  const g = new THREE.Group();
+  const r = TOKEN_RADIUS;
+  const face = mesh(new THREE.CylinderGeometry(r, r, 0.12, 40), basic(look.primary), false);
+  face.position.y = 0.06;
+  g.add(face);
+  const rim = mesh(new THREE.TorusGeometry(r, 0.16, 8, 48), basic(look.secondary), false);
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.14;
+  g.add(rim);
+  if (obj.bib) {
+    const bib = mesh(new THREE.TorusGeometry(r * 0.62, 0.12, 8, 40), basic(obj.bib), false);
+    bib.rotation.x = Math.PI / 2;
+    bib.position.y = 0.15;
+    g.add(bib);
+  }
+
+  if (obj.number) {
+    const label = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: labelTexture(
+          obj.number,
+          look.numbers === look.primary ? '#ffffff' : look.numbers,
+          'number',
+        ),
+        depthTest: false,
+      }),
+    );
+    label.scale.set(2.5, 2.5, 1);
+    label.position.y = 0.3;
+    label.renderOrder = 10;
+    g.add(label);
+  }
+  if (obj.name) {
+    const name = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: labelTexture(obj.name, '#ffffff', 'name'),
+        depthTest: false,
+      }),
+    );
+    name.scale.set(5.6, 1.4, 1);
+    // +z is down the screen from above, so this sits under the counter.
+    name.position.set(0, 0.3, r + 0.8);
     name.renderOrder = 10;
     g.add(name);
   }

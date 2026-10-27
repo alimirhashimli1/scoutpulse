@@ -69,6 +69,7 @@ export class TacticsViewer {
   protected readonly tick = (dt: number) => this.player.tick(dt);
   protected readonly views = VIEWS;
   protected readonly view = signal<CameraView>('broadcast');
+  protected readonly flat = signal(false);
   protected readonly copied = signal(false);
   protected readonly recording = signal(false);
   protected readonly started = signal(false);

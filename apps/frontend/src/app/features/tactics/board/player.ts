@@ -21,6 +21,14 @@ export class BoardPlayer {
   readonly frame: Signal<Frame>;
   readonly step: Signal<number>;
   readonly atEnd: Signal<boolean>;
+  /**
+   * A play-through ran to the end and nothing has moved the clock since: the
+   * moment to offer a replay. Unlike atEnd, scrubbing or stepping to the last
+   * step does not count, so an editor working on that step is not covered by
+   * a replay button.
+   */
+  readonly finished: Signal<boolean>;
+  private readonly endedAt = signal(-1);
 
   /** Called once when a play-through reaches the end. */
   onEnded: (() => void) | null = null;
@@ -30,6 +38,9 @@ export class BoardPlayer {
     this.frame = computed(() => frameAt(doc(), this.timeline(), this.time()));
     this.step = computed(() => stepAtTime(this.timeline(), this.time()));
     this.atEnd = computed(() => this.time() >= this.timeline().total - 1e-3);
+    this.finished = computed(
+      () => !this.playing() && this.endedAt() >= 0 && this.time() === this.endedAt(),
+    );
   }
 
   tick(dt: number): void {
@@ -42,6 +53,7 @@ export class BoardPlayer {
         return;
       }
       this.time.set(total);
+      this.endedAt.set(total);
       this.playing.set(false);
       this.onEnded?.();
       return;
@@ -66,6 +78,11 @@ export class BoardPlayer {
   restart(): void {
     this.time.set(0);
     this.playing.set(true);
+  }
+
+  /** Hides the replay offer without moving the clock. */
+  dismissFinished(): void {
+    this.endedAt.set(-1);
   }
 
   seek(time: number): void {

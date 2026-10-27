@@ -1,3 +1,5 @@
+import { signal } from '@angular/core';
+
 import { controlThrough, curveMid, dashes, length, resample, wave } from './geometry';
 import {
   TacticDoc,
@@ -9,6 +11,7 @@ import {
   newStep,
 } from './model';
 import { frameAt, stepAtTime, timeline } from './playback';
+import { BoardPlayer } from './player';
 
 /** A board with a ball and one player over three steps. */
 function sample(): TacticDoc {
@@ -135,5 +138,39 @@ describe('normalizeDoc', () => {
     expect(repaired.steps[0].pos).toEqual({});
     expect(repaired.objects.map((o) => o.id)).toEqual(['x']);
     expect(repaired.teams.home.primary).toBeTruthy();
+  });
+});
+
+describe('board player', () => {
+  it('offers a replay only after a play-through ends', () => {
+    const doc = signal(sample());
+    const player = new BoardPlayer(doc);
+    const total = player.timeline().total;
+
+    // Scrubbing to the end is not finishing.
+    player.seek(total);
+    expect(player.atEnd()).toBe(true);
+    expect(player.finished()).toBe(false);
+
+    player.restart();
+    for (let i = 0; i < 100 && player.playing(); i++) player.tick(0.1);
+    expect(player.finished()).toBe(true);
+
+    // Anything that moves the clock, or a click on the board, takes it away.
+    player.seekStep(1);
+    expect(player.finished()).toBe(false);
+    player.play();
+    for (let i = 0; i < 100 && player.playing(); i++) player.tick(0.1);
+    player.dismissFinished();
+    expect(player.finished()).toBe(false);
+  });
+
+  it('does not finish while looping', () => {
+    const player = new BoardPlayer(signal(sample()));
+    player.loop.set(true);
+    player.play();
+    for (let i = 0; i < 100; i++) player.tick(0.1);
+    expect(player.playing()).toBe(true);
+    expect(player.finished()).toBe(false);
   });
 });

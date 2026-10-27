@@ -43,22 +43,45 @@ const VIEWS: { value: CameraView; label: string; icon: string }[] = [
   template: `
     @if (board.value(); as b) {
       <div class="stage">
-        <app-board-view [doc]="doc()" [frame]="player.frame()" [view]="view()" [tick]="tick" />
+        <app-board-view
+          [doc]="doc()"
+          [frame]="player.frame()"
+          [view]="view()"
+          [flat]="flat()"
+          [tick]="tick"
+        />
         <div class="views" role="group" aria-label="Camera">
-          @for (v of views; track v.value) {
-            <button
-              type="button"
-              [class.on]="view() === v.value"
-              [title]="v.label"
-              [attr.aria-label]="v.label"
-              (click)="view.set(v.value)"
-            >
-              <app-tactic-icon [name]="v.icon" />
-            </button>
+          <button
+            type="button"
+            class="mode"
+            [class.on]="flat()"
+            [attr.aria-pressed]="flat()"
+            title="2D board"
+            (click)="flat.set(!flat())"
+          >
+            2D
+          </button>
+          @if (!flat()) {
+            @for (v of views; track v.value) {
+              <button
+                type="button"
+                [class.on]="view() === v.value"
+                [title]="v.label"
+                [attr.aria-label]="v.label"
+                (click)="view.set(v.value)"
+              >
+                <app-tactic-icon [name]="v.icon" />
+              </button>
+            }
           }
         </div>
         @if (player.frame().note) {
           <p class="caption">{{ player.frame().note }}</p>
+        }
+        @if (player.finished()) {
+          <button type="button" class="replay" (click)="player.restart()">
+            <app-tactic-icon name="restart" /> Watch again
+          </button>
         }
         @if (!started() && doc().steps.length > 1) {
           <button
@@ -185,6 +208,7 @@ export class ArticleTactic {
   protected readonly tick = (dt: number) => this.player.tick(dt);
   protected readonly views = VIEWS;
   protected readonly view = signal<CameraView>('tactical');
+  protected readonly flat = signal(false);
   protected readonly started = signal(false);
 
   constructor() {

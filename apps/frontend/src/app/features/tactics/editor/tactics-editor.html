@@ -139,7 +139,7 @@
       <app-tool-palette />
 
       <section class="centre">
-        <div class="stage">
+        <div class="stage" (pointerdown)="player.dismissFinished()">
           <app-board-view
             [doc]="store.doc()"
             [frame]="frame()"
@@ -147,6 +147,7 @@
             [tool]="store.tool()"
             [preview]="store.preview()"
             [view]="view()"
+            [flat]="flat()"
             [tick]="tick"
             (selected)="store.selection.set($event)"
             (objectMoved)="store.moveObject($event.id, $event.at, $event.done)"
@@ -157,19 +158,42 @@
           />
 
           <div class="views" role="group" aria-label="Camera">
-            @for (v of views; track v.value) {
-              <button
-                type="button"
-                [class.on]="view() === v.value"
-                [title]="v.label"
-                [attr.aria-label]="v.label"
-                (click)="view.set(v.value)"
-              >
-                <app-tactic-icon [name]="v.icon" />
-              </button>
+            <button
+              type="button"
+              class="mode"
+              [class.on]="flat()"
+              [attr.aria-pressed]="flat()"
+              title="2D board"
+              (click)="flat.set(!flat())"
+            >
+              2D
+            </button>
+            @if (!flat()) {
+              @for (v of views; track v.value) {
+                <button
+                  type="button"
+                  [class.on]="view() === v.value"
+                  [title]="v.label"
+                  [attr.aria-label]="v.label"
+                  (click)="view.set(v.value)"
+                >
+                  <app-tactic-icon [name]="v.icon" />
+                </button>
+              }
             }
           </div>
 
+          @if (player.finished()) {
+            <!-- A click anywhere else on the stage dismisses it; not this one. -->
+            <button
+              type="button"
+              class="replay"
+              (pointerdown)="$event.stopPropagation()"
+              (click)="player.restart()"
+            >
+              <app-tactic-icon name="restart" /> Watch again
+            </button>
+          }
           @if (caption()) {
             <p class="caption">{{ caption() }}</p>
           }

@@ -134,6 +134,12 @@ import { TacticIcon } from './icon';
       border-color: var(--accent);
       color: var(--accent-ink);
     }
+    /* The generic hover tints the icon in the accent, which on this button is
+       also the fill — the icon would vanish. Brighten the fill instead. */
+    .b.play:hover:not(:disabled) {
+      color: var(--accent-ink);
+      filter: brightness(1.15);
+    }
     .track {
       position: relative;
       flex: 1 1 10rem;

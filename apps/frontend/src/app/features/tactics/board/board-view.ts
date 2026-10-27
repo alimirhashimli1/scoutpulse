@@ -17,7 +17,7 @@ import { Drawing, TacticDoc, Vec2 } from './model';
 import { Frame } from './playback';
 
 /**
- * Hosts the 3D board.
+ * Hosts the board, in 3D or as a flat 2D diagram.
  *
  * The engine is imported dynamically after the first render, so Three.js is
  * never loaded on the server — there is no WebGL there — and is only fetched
@@ -78,6 +78,8 @@ export class BoardView {
   readonly tool = input<Tool>('select');
   readonly preview = input<Drawing | null>(null);
   readonly view = input<CameraView>('tactical');
+  /** The 2D board instead of the 3D one; `view` applies again when it is off. */
+  readonly flat = input(false);
   /** Called every animation frame; playback advances its clock here. */
   readonly tick = input<((dt: number) => void) | null>(null);
 
@@ -153,6 +155,10 @@ export class BoardView {
       const view = this.view();
       if (this.ready() && this.engine && this.engine.currentView !== view)
         this.engine.setView(view);
+    });
+    effect(() => {
+      const flat = this.flat();
+      if (this.ready()) this.engine?.setFlat(flat);
     });
     effect(() => {
       const tick = this.tick();

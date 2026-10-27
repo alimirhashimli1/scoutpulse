@@ -26,6 +26,7 @@ import {
 import { Frame } from './playback';
 import {
   PLAYER_RADIUS,
+  TOKEN_RADIUS,
   appearanceKey,
   baseScale,
   buildPiece,
@@ -113,6 +114,11 @@ export class BoardEngine {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(38, 1, 0.5, 900);
+  /** The 2D board's camera: straight down, no perspective. */
+  private readonly ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.5, 900);
+  /** Half the height of the pitch the 2D camera shows at zoom 1. */
+  private orthoHalf = 40;
+  private flat = false;
   private readonly controls: OrbitControls;
   private readonly raycaster = new THREE.Raycaster();
   private readonly ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -182,6 +188,8 @@ export class BoardEngine {
     this.controls.maxPolarAngle = Math.PI / 2 - 0.06;
     this.controls.minDistance = 8;
     this.controls.maxDistance = 220;
+    this.controls.minZoom = 0.6;
+    this.controls.maxZoom = 6;
     this.controls.addEventListener('start', () => (this.tween = null));
 
     this.sun.position.set(-35, 90, 45);
@@ -249,18 +257,18 @@ export class BoardEngine {
     const alive = new Set<string>();
     for (const obj of doc.objects) {
       alive.add(obj.id);
-      const k = appearanceKey(doc, obj);
+      const k = appearanceKey(doc, obj, this.flat);
       const existing = this.pieces.get(obj.id);
       if (existing && existing.key === k) {
-        existing.group.rotation.y = -THREE.MathUtils.degToRad(obj.rotation ?? 0);
+        existing.group.rotation.y = this.turn(obj);
         continue;
       }
       if (existing) {
         this.piecesRoot.remove(existing.group);
         disposePiece(existing.group);
       }
-      const group = buildPiece(doc, obj);
-      group.rotation.y = -THREE.MathUtils.degToRad(obj.rotation ?? 0);
+      const group = buildPiece(doc, obj, this.flat);
+      group.rotation.y = this.turn(obj);
       group.visible = false;
       this.piecesRoot.add(group);
       this.pieces.set(obj.id, { key: k, group, last: existing?.last });
@@ -273,6 +281,15 @@ export class BoardEngine {
       }
     }
     this.refreshOverlays();
+  }
+
+  /**
+   * Which way a piece faces. A 2D counter is round and its name sits beneath
+   * it, so turning it would only swing the name around.
+   */
+  private turn(obj: BoardObject): number {
+    if (this.flat && obj.kind === 'player') return 0;
+    return -THREE.MathUtils.degToRad(obj.rotation ?? 0);
   }
 
   /** Draws a moment: where everything stands, and what is on the grass. */
@@ -330,6 +347,10 @@ export class BoardEngine {
 
   setView(view: CameraView, instant = false): void {
     this.view = view;
+    if (this.flat) {
+      this.frameFlat();
+      return;
+    }
     const [pos, target] = this.framing(view);
     if (instant) {
       this.camera.position.copy(pos);
@@ -347,6 +368,32 @@ export class BoardEngine {
 
   get currentView(): CameraView {
     return this.view;
+  }
+
+  /**
+   * The 2D board: looking straight down without perspective, players drawn as
+   * counters, no stands or shadows. The camera can pan and zoom but not turn,
+   * so the picture stays a diagram. Back in 3D, the chosen camera view returns.
+   */
+  setFlat(flat: boolean): void {
+    if (flat === this.flat) return;
+    this.flat = flat;
+    this.tween = null;
+    this.controls.object = flat ? this.ortho : this.camera;
+    this.controls.enableRotate = !flat;
+    this.sun.castShadow = !flat;
+    this.applyInteractivity();
+    if (this.doc) {
+      this.pitchKey = '';
+      this.setDoc(this.doc);
+    }
+    if (this.frame) this.setFrame(this.frame);
+    this.fit();
+    this.setView(this.view, true);
+  }
+
+  private get active(): THREE.Camera {
+    return this.flat ? this.ortho : this.camera;
   }
 
   dispose(): void {
@@ -383,7 +430,8 @@ export class BoardEngine {
     const board = pitch.style === 'board';
 
     this.scene.background = skyTexture(pitch.style);
-    this.scene.fog = board ? null : new THREE.Fog(night ? '#070b16' : '#c9d8e6', 160, 420);
+    this.scene.fog =
+      board || this.flat ? null : new THREE.Fog(night ? '#070b16' : '#c9d8e6', 160, 420);
 
     this.hemi.color.set(night ? '#8fb3ff' : '#e0f2fe');
     this.hemi.groundColor.set(night ? '#0b1a10' : '#2c4a2a');
@@ -428,11 +476,11 @@ export class BoardEngine {
       }
     }
 
-    if (pitch.stadium && !board) this.world.add(stadium(night));
+    if (pitch.stadium && !board && !this.flat) this.world.add(stadium(night));
   }
 
-  /** Camera position and target for a view of the current layout. */
-  private framing(view: CameraView): [THREE.Vector3, THREE.Vector3] {
+  /** The part of the pitch the current layout uses: [x0, x1, y0, y1]. */
+  private bounds(): [number, number, number, number] {
     const layout = this.doc?.pitch.layout ?? 'full';
     const bounds: Record<string, [number, number, number, number]> = {
       full: [-HALF_LENGTH - 2, HALF_LENGTH + 2, -HALF_WIDTH - 2, HALF_WIDTH + 2],
@@ -441,7 +489,37 @@ export class BoardEngine {
       box: [HALF_LENGTH - 26, HALF_LENGTH + 3, -24, 24],
       drill: [-24, 24, -17, 17],
     };
-    const [x0, x1, y0, y1] = bounds[layout] ?? bounds['full'];
+    return bounds[layout] ?? bounds['full'];
+  }
+
+  /** Fits the layout into the 2D camera, centred and unzoomed. */
+  private frameFlat(): void {
+    const [x0, x1, y0, y1] = this.bounds();
+    const cx = (x0 + x1) / 2;
+    const cy = (y0 + y1) / 2;
+    const aspect = this.camera.aspect || 1.6;
+    this.orthoHalf = Math.max((y1 - y0) / 2, (x1 - x0) / 2 / aspect) * 1.04;
+    this.ortho.zoom = 1;
+    this.fitOrtho();
+    // A hair off vertical, as for the top view, so "up" on screen is -y.
+    this.ortho.position.set(cx, 200, cy + 0.01);
+    this.controls.target.set(cx, 0, cy);
+    this.controls.update();
+  }
+
+  private fitOrtho(): void {
+    const aspect = this.camera.aspect || 1.6;
+    const h = this.orthoHalf;
+    this.ortho.left = -h * aspect;
+    this.ortho.right = h * aspect;
+    this.ortho.top = h;
+    this.ortho.bottom = -h;
+    this.ortho.updateProjectionMatrix();
+  }
+
+  /** Camera position and target for a view of the current layout. */
+  private framing(view: CameraView): [THREE.Vector3, THREE.Vector3] {
+    const [x0, x1, y0, y1] = this.bounds();
     const cx = (x0 + x1) / 2;
     const cy = (y0 + y1) / 2;
     const w = x1 - x0;
@@ -551,7 +629,7 @@ export class BoardEngine {
         this.selectionRing.visible = true;
         this.selectionRing.position.set(piece.group.position.x, 0.06, piece.group.position.z);
         this.selectionRing.scale.setScalar(
-          radiusOf(obj) * baseScale(obj?.kind ?? 'cone') * (obj?.size ?? 1),
+          radiusOf(obj, this.flat) * baseScale(obj?.kind ?? 'cone') * (obj?.size ?? 1),
         );
       }
     }
@@ -634,21 +712,29 @@ export class BoardEngine {
 
   private applyInteractivity(): void {
     const c = this.controls;
+    // In 2D nothing turns, so the button that would turn the camera pans it.
+    const look = this.flat ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
     if (this.edit.editor) {
       // Left is for editing; right orbits, wheel zooms, two fingers do both.
       c.mouseButtons = {
         LEFT: null,
         MIDDLE: THREE.MOUSE.DOLLY,
-        RIGHT: THREE.MOUSE.ROTATE,
+        RIGHT: look,
       } as unknown as typeof c.mouseButtons;
-      c.touches = { ONE: null, TWO: THREE.TOUCH.DOLLY_ROTATE } as unknown as typeof c.touches;
+      c.touches = {
+        ONE: null,
+        TWO: this.flat ? THREE.TOUCH.DOLLY_PAN : THREE.TOUCH.DOLLY_ROTATE,
+      } as unknown as typeof c.touches;
     } else {
       c.mouseButtons = {
-        LEFT: THREE.MOUSE.ROTATE,
+        LEFT: look,
         MIDDLE: THREE.MOUSE.DOLLY,
         RIGHT: THREE.MOUSE.PAN,
       };
-      c.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+      c.touches = {
+        ONE: this.flat ? THREE.TOUCH.PAN : THREE.TOUCH.ROTATE,
+        TWO: THREE.TOUCH.DOLLY_PAN,
+      };
     }
   }
 
@@ -661,7 +747,7 @@ export class BoardEngine {
   }
 
   private groundPoint(e: PointerEvent | MouseEvent): Vec2 | null {
-    this.raycaster.setFromCamera(this.pointer(e), this.camera);
+    this.raycaster.setFromCamera(this.pointer(e), this.active);
     const hit = new THREE.Vector3();
     if (!this.raycaster.ray.intersectPlane(this.ground, hit)) return null;
     return [hit.x, hit.z];
@@ -791,7 +877,7 @@ export class BoardEngine {
 
     if (!g) {
       if (this.tool === 'select') {
-        this.raycaster.setFromCamera(this.pointer(e), this.camera);
+        this.raycaster.setFromCamera(this.pointer(e), this.active);
         const over = this.hitHandle() || this.hitObject(at) || this.hitDrawing(at);
         this.canvas.style.cursor = over ? 'grab' : 'default';
       } else {
@@ -888,6 +974,7 @@ export class BoardEngine {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.fitOrtho();
   }
 
   private loop = () => {
@@ -911,7 +998,7 @@ export class BoardEngine {
         0.6 + Math.sin(t * 4) * 0.25;
     }
     // Number labels stay upright and constant on screen as the camera zooms.
-    this.renderer.render(this.scene, this.camera);
+    this.renderer.render(this.scene, this.active);
   };
 
   /** Rolls the ball by the distance it travelled since the last frame. */
@@ -934,11 +1021,11 @@ export class BoardEngine {
   }
 }
 
-function radiusOf(obj: BoardObject | undefined): number {
+function radiusOf(obj: BoardObject | undefined, flat: boolean): number {
   if (!obj) return 1;
   switch (obj.kind) {
     case 'player':
-      return PLAYER_RADIUS / 0.95;
+      return (flat ? TOKEN_RADIUS : PLAYER_RADIUS) / 0.95;
     case 'goal':
       return 4.2;
     case 'minigoal':
