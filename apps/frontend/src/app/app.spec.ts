@@ -53,6 +53,7 @@ describe('App', () => {
     expect(links).toContain('Transfers');
     expect(links).toContain('Clubs');
     expect(links).toContain('Competitions');
+    expect(links).toContain('Games');
 
     // There is no match data, so nothing may imply a standings page exists.
     expect(links).not.toContain('Table');

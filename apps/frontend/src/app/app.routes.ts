@@ -292,6 +292,14 @@ export const routes: Routes = [
     title: 'Tactics board · ScoutPulse',
   },
 
+  // --- games ---
+  // Public and account-free. The hub and each game are lazy chunks of their
+  // own; the game's dataset is fetched only once the page is open.
+  {
+    path: 'games',
+    loadChildren: () => import('./features/games/games.routes').then((m) => m.GAMES_ROUTES),
+  },
+
   // A real 404, not a redirect to the home page. Redirecting answered 200 OK
   // for every dead link, which loses the address a visitor followed and lets a
   // crawler treat an unbounded set of non-existent URLs as valid pages.

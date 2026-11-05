@@ -29,6 +29,7 @@ type Handlers struct {
 	Search      *SearchHandler
 	Tactic      *TacticHandler
 	Article     *ArticleHandler
+	Game        *GameHandler
 }
 
 // RegisterRoutes registers all API routes for the football service.
@@ -167,6 +168,13 @@ func RegisterRoutes(mux *http.ServeMux, h Handlers) {
 	protect("POST /api/v1/desk/articles/{id}/submit", h.Article.Submit)
 	protect("POST /api/v1/desk/articles/{id}/request-changes", h.Article.RequestChanges)
 	protect("POST /api/v1/desk/articles/{id}/withdraw", h.Article.Withdraw)
+
+	// --- games ---
+	// Public, like every read: a visitor plays without an account. The game
+	// logic runs in the browser; these only list the games and serve their
+	// static data, which is cached by ETag.
+	mux.HandleFunc("GET /api/v1/games", h.Game.ListGames)
+	mux.HandleFunc("GET /api/v1/games/played-for-both/dataset", h.Game.PlayedForBothDataset)
 }
 
 // Per-account write allowance: a burst of 60, then two a second. An editor

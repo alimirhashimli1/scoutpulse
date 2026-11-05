@@ -100,6 +100,14 @@ export const serverRoutes: ServerRoute[] = [
   { path: 'desk/new', renderMode: RenderMode.Client },
   { path: 'desk/:id', renderMode: RenderMode.Client },
 
+  // --- games -------------------------------------------------------------
+  //
+  // Rendered per request so the hub's cards and each game's title and rules
+  // are in the HTML for a crawler and a link preview. The game itself starts
+  // in the browser: its dataset is never fetched during a server render.
+  { path: 'games', renderMode: RenderMode.Server },
+  { path: 'games/played-for-both', renderMode: RenderMode.Server },
+
   // --- anything else is genuinely not a page ---------------------------
   //
   // Rendered, so the visitor gets the not-found page rather than a blank

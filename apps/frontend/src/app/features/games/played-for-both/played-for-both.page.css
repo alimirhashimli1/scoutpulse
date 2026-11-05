@@ -1,0 +1,241 @@
+/* The pitch borrows the platform's viridian accent for its turf and its line
+   colour for the chalk, so it follows the light and dark themes. Only the two
+   player colours are local, and both are mid-tones that read on either. */
+
+:host {
+  --pfb-p1: #d4553f;
+  --pfb-p2: #2f7fc1;
+  display: block;
+}
+
+.wrap {
+  max-width: 980px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-block: var(--space-5) var(--space-6);
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+header {
+  text-align: center;
+}
+h1 {
+  font-size: clamp(var(--text-2xl), 6vw, var(--text-4xl));
+}
+.sub {
+  margin: var(--space-2) auto 0;
+  color: var(--ink-soft);
+  max-width: 58ch;
+}
+
+.pitch {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-4);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent) 6%, transparent) 0 80px,
+      transparent 80px 160px
+    ),
+    var(--accent-soft);
+  perspective: 800px;
+}
+.pitch::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  border-left: 2px solid var(--line);
+}
+
+.vs {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  font: 700 var(--text-xl) / 1 var(--font-display);
+  color: var(--muted);
+}
+
+.side {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+  min-width: 0;
+}
+.name {
+  font: 400 clamp(var(--text-lg), 3.6vw, var(--text-2xl)) / 1.1 var(--font-display);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.pill {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 99px;
+  padding: 4px 10px;
+}
+
+.flip {
+  animation: flip 0.45s ease both;
+}
+@keyframes flip {
+  from {
+    transform: rotateY(80deg) scale(0.9);
+    opacity: 0.2;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.timer {
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.timer i {
+  display: block;
+  height: 100%;
+  background: var(--warning);
+  transform-origin: left;
+  transition: transform 0.25s linear;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+}
+.controls .btn {
+  min-height: 44px;
+}
+.btn.pt1 {
+  border-color: var(--pfb-p1);
+}
+.btn.pt2 {
+  border-color: var(--pfb-p2);
+}
+kbd {
+  font-size: 0.7rem;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
+  opacity: 0.6;
+}
+
+.notice {
+  text-align: center;
+  color: var(--warning);
+  margin-inline: auto;
+}
+.retry {
+  align-self: flex-start;
+}
+
+.settings {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-4);
+  color: var(--ink-soft);
+}
+summary {
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.opts {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+.opt {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  cursor: pointer;
+}
+.opt input {
+  margin-top: 5px;
+  accent-color: var(--accent);
+}
+.opt select {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.note {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  max-width: none;
+}
+
+@media (max-width: 560px) {
+  .pitch {
+    grid-template-columns: 1fr;
+    padding: var(--space-5) var(--space-3);
+  }
+  .pitch::before {
+    left: 0;
+    right: 0;
+    top: 50%;
+    bottom: auto;
+    border-left: 0;
+    border-top: 2px solid var(--line);
+  }
+  .vs {
+    width: 60px;
+    height: 60px;
+    font-size: var(--text-lg);
+    margin: 0 auto;
+  }
+}
+
+/* Key hints only where there is a keyboard to press them on. */
+@media (max-width: 560px), (hover: none) {
+  kbd {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flip {
+    animation: none;
+  }
+  .timer i {
+    transition: none;
+  }
+}

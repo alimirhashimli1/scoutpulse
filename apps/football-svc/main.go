@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/scoutpulse/football-svc/internal/games/playedforboth"
 	"github.com/scoutpulse/football-svc/internal/handler"
 	"github.com/scoutpulse/football-svc/internal/repository"
 	"github.com/scoutpulse/football-svc/internal/service"
@@ -119,6 +120,16 @@ func main() {
 	tacticService := service.NewTacticService(tacticRepo)
 	articleService := service.NewArticleService(articleRepo)
 
+	// The games dataset is embedded. Parse it before serving anything, so a
+	// broken file stops the boot instead of breaking the game in browsers.
+	if _, err := playedforboth.Load(); err != nil {
+		log.Fatalf("Invalid games dataset: %v", err)
+	}
+	gameHandler, err := handler.NewGameHandler(playedforboth.Raw())
+	if err != nil {
+		log.Fatalf("Failed to prepare games dataset: %v", err)
+	}
+
 	handlers := handler.Handlers{
 		League:      handler.NewLeagueHandler(leagueService),
 		Team:        handler.NewTeamHandler(teamService, playerService, coachService),
@@ -135,6 +146,7 @@ func main() {
 		Search:      handler.NewSearchHandler(searchService),
 		Tactic:      handler.NewTacticHandler(tacticService),
 		Article:     handler.NewArticleHandler(articleService),
+		Game:        gameHandler,
 	}
 
 	// Tracing is optional: with no collector configured this installs a

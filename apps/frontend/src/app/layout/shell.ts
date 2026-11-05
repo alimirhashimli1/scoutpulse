@@ -47,6 +47,7 @@ import { ThemeStore } from '../core/theme/theme';
           <a routerLink="/clubs" routerLinkActive="active">Clubs</a>
           <a routerLink="/competitions" routerLinkActive="active">Competitions</a>
           <a routerLink="/articles" routerLinkActive="active">Analysis</a>
+          <a routerLink="/games" routerLinkActive="active">Games</a>
           <!--
             Members land on the boards list; a visitor, who cannot see that
             list, goes straight to an editor they can use without an account.
@@ -193,7 +194,9 @@ import { ThemeStore } from '../core/theme/theme';
     }
     .links {
       display: flex;
-      gap: var(--space-4);
+      flex-wrap: wrap;
+      column-gap: var(--space-4);
+      row-gap: var(--space-1);
     }
     .links a {
       color: var(--ink-soft);

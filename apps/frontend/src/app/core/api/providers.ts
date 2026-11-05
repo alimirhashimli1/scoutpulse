@@ -32,8 +32,10 @@ import {
 import { HttpUserAdminRepository } from './http/identity-repositories';
 import { HttpArticleDesk, HttpArticleReader } from './http/article-repository';
 import { HttpTacticRepository } from './http/tactic-repository';
+import { HttpGameRepository } from './http/game-repository';
 import { ARTICLE_DESK, ARTICLE_READER } from './articles';
 import { TACTIC_READER, TACTIC_WRITER } from './tactics';
+import { GAME_READER } from './games';
 import { USER_ADMIN_READER, USER_ADMIN_WRITER } from './user-admin';
 
 /**
@@ -90,6 +92,10 @@ export function provideFootballApi(): Provider[] {
     { provide: ARTICLE_READER, useExisting: HttpArticleReader },
     HttpArticleDesk,
     { provide: ARTICLE_DESK, useExisting: HttpArticleDesk },
+
+    // Root-level, so the dataset it caches outlives the game page.
+    HttpGameRepository,
+    { provide: GAME_READER, useExisting: HttpGameRepository },
 
     // identity-svc, not football-svc. Kept in the same call because it is the
     // same decision — which class answers which contract — and splitting it
