@@ -20,7 +20,6 @@ import {
   formation,
   newId,
   newStep,
-  nextNumber,
   positionAt,
   positionsAt,
 } from '../board/model';
@@ -170,6 +169,47 @@ export class EditorStore {
     return this.withStep(this.doc(), this.stepIndex(), fn);
   }
 
+  /**
+   * Drawings persist: one drawn in a step is carried into every step after it
+   * under the same id, until it is deleted. So a change to a drawing applies
+   * to the current step and to each following step that still carries it,
+   * stopping at the first step where it was deleted. `fn` returning null
+   * deletes it.
+   */
+  private withDrawingForward(id: string, fn: (d: Drawing) => Drawing | null): TacticDoc {
+    const doc = this.doc();
+    const from = this.stepIndex();
+    let open = true;
+    return {
+      ...doc,
+      steps: doc.steps.map((s, i) => {
+        if (i < from || !open) return s;
+        if (!s.drawings.some((d) => d.id === id)) {
+          open = false;
+          return s;
+        }
+        return {
+          ...s,
+          drawings: s.drawings.flatMap((d) => {
+            if (d.id !== id) return [d];
+            const next = fn(d);
+            return next ? [next] : [];
+          }),
+        };
+      }),
+    };
+  }
+
+  /** Adds a drawing to the current step and every step after it. */
+  private withDrawingAdded(d: Drawing): TacticDoc {
+    const doc = this.doc();
+    const from = this.stepIndex();
+    return {
+      ...doc,
+      steps: doc.steps.map((s, i) => (i < from ? s : { ...s, drawings: [...s.drawings, d] })),
+    };
+  }
+
   // --- objects --------------------------------------------------------------
 
   place(at: Vec2): void {
@@ -178,8 +218,8 @@ export class EditorStore {
     const obj: BoardObject = { id: newId(), kind: what.kind };
     if (what.kind === 'player') {
       obj.team = what.team;
+      // Numbers are optional: a new player has none until one is typed in.
       if (what.keeper) obj.keeper = true;
-      obj.number = what.keeper ? '1' : nextNumber(doc, what.team);
     } else if (what.kind !== 'ball') {
       obj.color = EQUIPMENT_COLORS[what.kind];
     }
@@ -257,8 +297,9 @@ export class EditorStore {
     if (!obj) return;
     const at = positionAt(this.doc(), this.stepIndex(), obj.id);
     if (!at) return;
-    const copy: BoardObject = { ...obj, id: newId() };
-    if (copy.kind === 'player' && copy.team) copy.number = nextNumber(this.doc(), copy.team);
+    // A shirt number belongs to one player, so the copy does not take it.
+    const { number: _number, ...rest } = obj;
+    const copy: BoardObject = { ...rest, id: newId() };
     const doc = this.doc();
     this.apply(
       this.withStep({ ...doc, objects: [...doc.objects, copy] }, this.stepIndex(), (s) => ({
@@ -292,12 +333,8 @@ export class EditorStore {
         })),
       });
     } else {
-      this.apply(
-        this.withCurrentStep((s) => ({
-          ...s,
-          drawings: s.drawings.filter((d) => d.id !== sel.id),
-        })),
-      );
+      // Gone from this step on; earlier steps keep it.
+      this.apply(this.withDrawingForward(sel.id, () => null));
     }
     this.selection.set(null);
   }
@@ -365,7 +402,7 @@ export class EditorStore {
     if (kind === 'rect' || kind === 'ellipse') committed.fill = 0.22;
     if (kind === 'polygon') committed.fill = 0.22;
 
-    this.apply(this.withCurrentStep((s) => ({ ...s, drawings: [...s.drawings, committed] })));
+    this.apply(this.withDrawingAdded(committed));
     this.selection.set({ type: 'drawing', id: committed.id });
   }
 
@@ -379,7 +416,7 @@ export class EditorStore {
       width: DEFAULT_STROKE,
       text: 'Text',
     };
-    this.apply(this.withCurrentStep((s) => ({ ...s, drawings: [...s.drawings, d] })));
+    this.apply(this.withDrawingAdded(d));
     this.selection.set({ type: 'drawing', id: d.id });
     this.tool.set('select');
     this.focusText.set(d.id);
@@ -387,37 +424,28 @@ export class EditorStore {
 
   editDrawing(id: string, change: DrawingChange, done: boolean): void {
     this.apply(
-      this.withCurrentStep((s) => ({
-        ...s,
-        drawings: s.drawings.map((d) => {
-          if (d.id !== id) return d;
-          if ('offset' in change) {
-            const [dx, dy] = change.offset;
-            return {
-              ...d,
-              points: d.points.map(([x, y]) => [x + dx, y + dy] as Vec2),
-              control: d.control ? [d.control[0] + dx, d.control[1] + dy] : undefined,
-            };
-          }
-          if ('control' in change) {
-            const a = d.points[0];
-            const b = d.points[d.points.length - 1];
-            return { ...d, control: controlThrough(a, change.control, b) };
-          }
-          return { ...d, points: d.points.map((p, i) => (i === change.index ? change.at : p)) };
-        }),
-      })),
+      this.withDrawingForward(id, (d) => {
+        if ('offset' in change) {
+          const [dx, dy] = change.offset;
+          return {
+            ...d,
+            points: d.points.map(([x, y]) => [x + dx, y + dy] as Vec2),
+            control: d.control ? [d.control[0] + dx, d.control[1] + dy] : undefined,
+          };
+        }
+        if ('control' in change) {
+          const a = d.points[0];
+          const b = d.points[d.points.length - 1];
+          return { ...d, control: controlThrough(a, change.control, b) };
+        }
+        return { ...d, points: d.points.map((p, i) => (i === change.index ? change.at : p)) };
+      }),
       done ? 'end' : 'move',
     );
   }
 
   updateDrawing(id: string, patch: Partial<Drawing>): void {
-    this.apply(
-      this.withCurrentStep((s) => ({
-        ...s,
-        drawings: s.drawings.map((d) => (d.id === id ? clean({ ...d, ...patch }) : d)),
-      })),
-    );
+    this.apply(this.withDrawingForward(id, (d) => clean({ ...d, ...patch })));
   }
 
   // --- steps ----------------------------------------------------------------
@@ -427,12 +455,15 @@ export class EditorStore {
     if (this.selection()?.type === 'drawing') this.selection.set(null);
   }
 
-  /** Adds a step after the current one. It starts as a copy of where things stand. */
+  /**
+   * Adds a step after the current one. It starts as a copy of where things
+   * stand, and the drawings carry over until they are deleted.
+   */
   addStep(): void {
     const doc = this.doc();
     const at = this.stepIndex() + 1;
     const steps = [...doc.steps];
-    steps.splice(at, 0, newStep());
+    steps.splice(at, 0, { ...newStep(), drawings: [...doc.steps[at - 1].drawings] });
     this.apply({ ...doc, steps });
     this.stepIndex.set(at);
     if (this.selection()?.type === 'drawing') this.selection.set(null);
@@ -451,7 +482,8 @@ export class EditorStore {
       ...source,
       id: newId(),
       pos: {},
-      drawings: source.drawings.map((d) => ({ ...d, id: newId() })),
+      // Same ids: the drawings carry on into the copy rather than being new.
+      drawings: [...source.drawings],
     };
     const steps = [...doc.steps];
     steps.splice(i + 1, 0, copy);

@@ -128,6 +128,19 @@ export const PLAYER_RADIUS = 0.95;
  */
 export const TOKEN_RADIUS = 1.3;
 
+/** Height of a number or name label, in metres. Names match numbers. */
+const LABEL_SIZE = 2.5;
+
+/** A player's name, in the same type as the shirt number. */
+function nameLabel(text: string): THREE.Sprite {
+  const map = labelTexture(text, '#ffffff', 'name');
+  const img = map.image as HTMLCanvasElement;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map, depthTest: false }));
+  sprite.scale.set((LABEL_SIZE * img.width) / img.height, LABEL_SIZE, 1);
+  sprite.renderOrder = 10;
+  return sprite;
+}
+
 function player(doc: TacticDoc, obj: BoardObject): THREE.Group {
   const look = playerLook(doc, obj);
   const g = new THREE.Group();
@@ -181,21 +194,14 @@ function player(doc: TacticDoc, obj: BoardObject): THREE.Group {
         depthTest: false,
       }),
     );
-    label.scale.set(2.5, 2.5, 1);
+    label.scale.set(LABEL_SIZE, LABEL_SIZE, 1);
     label.position.y = PLAYER_HEIGHT + 0.95;
     label.renderOrder = 10;
     g.add(label);
   }
   if (obj.name) {
-    const name = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: labelTexture(obj.name, '#ffffff', 'name'),
-        depthTest: false,
-      }),
-    );
-    name.scale.set(4.4, 1.1, 1);
-    name.position.y = obj.number ? PLAYER_HEIGHT + 2.3 : PLAYER_HEIGHT + 0.95;
-    name.renderOrder = 10;
+    const name = nameLabel(obj.name);
+    name.position.y = PLAYER_HEIGHT + 0.95 + (obj.number ? LABEL_SIZE * 0.85 : 0);
     g.add(name);
   }
   return g;
@@ -235,22 +241,15 @@ function token(doc: TacticDoc, obj: BoardObject): THREE.Group {
         depthTest: false,
       }),
     );
-    label.scale.set(2.5, 2.5, 1);
+    label.scale.set(LABEL_SIZE, LABEL_SIZE, 1);
     label.position.y = 0.3;
     label.renderOrder = 10;
     g.add(label);
   }
   if (obj.name) {
-    const name = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: labelTexture(obj.name, '#ffffff', 'name'),
-        depthTest: false,
-      }),
-    );
-    name.scale.set(5.6, 1.4, 1);
+    const name = nameLabel(obj.name);
     // +z is down the screen from above, so this sits under the counter.
-    name.position.set(0, 0.3, r + 0.8);
-    name.renderOrder = 10;
+    name.position.set(0, 0.3, r + LABEL_SIZE * 0.45);
     g.add(name);
   }
   return g;

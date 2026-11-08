@@ -143,6 +143,8 @@ export class BoardEngine {
   private drawings: Drawing[] = [];
   private drawingsKey: Drawing[] | null = null;
   private drawingOpacity = 1;
+  private steady = new Set<string>();
+  private steadyKey = '';
   private edit: EditState = {
     editor: false,
     editing: false,
@@ -311,16 +313,24 @@ export class BoardEngine {
       piece.last = [at.x, at.y];
     }
 
+    const steadyKey = frame.steady?.join(',') ?? '';
+    const steadyChanged = steadyKey !== this.steadyKey;
+    if (steadyChanged) {
+      this.steadyKey = steadyKey;
+      this.steady = new Set(frame.steady ?? []);
+    }
     if (frame.drawings !== this.drawingsKey) {
       this.drawingsKey = frame.drawings;
       this.drawings = frame.drawings;
       this.drawingOpacity = frame.drawingOpacity;
       this.rebuildDrawings();
-    } else if (Math.abs(frame.drawingOpacity - this.drawingOpacity) > 0.001) {
+    } else if (steadyChanged || Math.abs(frame.drawingOpacity - this.drawingOpacity) > 0.001) {
       // During playback only the fade changes; rebuilding sixty times a second
       // would allocate geometry for nothing.
       this.drawingOpacity = frame.drawingOpacity;
-      this.drawingsRoot.children.forEach((g) => setOpacity(g, frame.drawingOpacity));
+      this.drawingsRoot.children.forEach((g) =>
+        setOpacity(g, this.opacityOf(g.userData['drawingId'] as string)),
+      );
     }
     this.rebuildSpots(frame.highlights);
     this.refreshOverlays();
@@ -562,7 +572,14 @@ export class BoardEngine {
 
   private rebuildDrawings(): void {
     this.clear(this.drawingsRoot);
-    this.drawings.forEach((d, i) => this.drawingsRoot.add(buildDrawing(d, this.drawingOpacity, i)));
+    this.drawings.forEach((d, i) =>
+      this.drawingsRoot.add(buildDrawing(d, this.opacityOf(d.id), i)),
+    );
+  }
+
+  /** A drawing carried over from the step before stays solid; others fade. */
+  private opacityOf(id: string): number {
+    return this.steady.has(id) ? 1 : this.drawingOpacity;
   }
 
   private spotsKey = '';

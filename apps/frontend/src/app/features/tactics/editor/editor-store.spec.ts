@@ -17,10 +17,56 @@ describe('EditorStore', () => {
     return store.selection()!.id;
   }
 
-  it('numbers players as they are placed', () => {
-    placePlayer([0, 0]);
+  it('places players without a number until one is given', () => {
+    const id = placePlayer([0, 0]);
     placePlayer([5, 0]);
-    expect(store.doc().objects.map((o) => o.number)).toEqual(['1', '2']);
+    expect(store.doc().objects.map((o) => o.number)).toEqual([undefined, undefined]);
+    store.updateObject(id, { number: '9' });
+    expect(store.doc().objects[0].number).toBe('9');
+    store.updateObject(id, { number: '' });
+    expect('number' in store.doc().objects[0]).toBe(false);
+  });
+
+  function drawArrow(): string {
+    store.tool.set('arrow');
+    store.stroke(
+      [
+        [0, 0],
+        [10, 0],
+      ],
+      true,
+    );
+    return store.selection()!.id;
+  }
+
+  it('keeps a drawing in the steps after it until it is deleted', () => {
+    const arrow = drawArrow();
+    store.addStep();
+    store.addStep();
+    expect(store.doc().steps.map((s) => s.drawings.map((d) => d.id))).toEqual([
+      [arrow],
+      [arrow],
+      [arrow],
+    ]);
+
+    store.goToStep(1);
+    store.updateDrawing(arrow, { color: '#facc15' });
+    expect(store.doc().steps.map((s) => s.drawings[0].color)).toEqual([
+      '#ffffff',
+      '#facc15',
+      '#facc15',
+    ]);
+
+    store.selection.set({ type: 'drawing', id: arrow });
+    store.deleteSelection();
+    expect(store.doc().steps.map((s) => s.drawings.length)).toEqual([1, 0, 0]);
+  });
+
+  it('adds a new drawing to the steps that already follow', () => {
+    store.addStep();
+    store.goToStep(0);
+    drawArrow();
+    expect(store.doc().steps.map((s) => s.drawings.length)).toEqual([1, 1]);
   });
 
   it('records a whole drag as one undo step', () => {
@@ -54,7 +100,7 @@ describe('EditorStore', () => {
     expect(positionAt(store.doc(), 1, id)).toEqual([10, 0]);
   });
 
-  it('duplicates a step after itself, with its own copies of the drawings', () => {
+  it('duplicates a step after itself, carrying its drawings on', () => {
     const id = placePlayer([0, 0]);
     store.addStep();
     store.moveObject(id, [10, 0], true);
@@ -76,7 +122,7 @@ describe('EditorStore', () => {
     expect(store.stepIndex()).toBe(2);
     expect(copy).toMatchObject({ note: 'Switch play', hold: 2, pos: {} });
     expect(copy.drawings).toHaveLength(1);
-    expect(copy.drawings[0].id).not.toBe(original.drawings[0].id);
+    expect(copy.drawings[0].id).toBe(original.drawings[0].id);
     expect(copy.id).not.toBe(original.id);
     expect(positionAt(store.doc(), 2, id)).toEqual([10, 0]);
     store.undo();

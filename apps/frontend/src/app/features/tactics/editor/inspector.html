@@ -20,6 +20,7 @@
         <input
           type="text"
           maxlength="3"
+          placeholder="Optional"
           [value]="o.number ?? ''"
           (input)="store.updateObject(o.id, { number: value($event) })"
         />

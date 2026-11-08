@@ -165,24 +165,31 @@ export function kitTexture(primary: string, secondary: string, pattern: KitPatte
   });
 }
 
-/** A shirt number or a name, with an outline so it reads on any grass. */
+/**
+ * A shirt number or a name, with an outline so it reads on any grass. Both
+ * use the same type size; a name's canvas is as wide as its text, so read the
+ * aspect from `image.width / image.height` when sizing the sprite.
+ */
 export function labelTexture(text: string, fill: string, kind: 'number' | 'name'): THREE.Texture {
   return cached(`label:${kind}:${fill}:${text}`, () => {
-    const W = kind === 'number' ? 128 : 512;
     const H = 128;
+    const font = `800 84px system-ui, -apple-system, 'Segoe UI', sans-serif`;
+    let W = 128;
+    if (kind === 'name') {
+      const [, m] = canvas(1, 1);
+      m.font = font;
+      W = Math.min(1024, Math.max(128, Math.ceil(m.measureText(text).width + 32)));
+    }
     const [c, g] = canvas(W, H);
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.font =
-      kind === 'number'
-        ? `800 84px system-ui, -apple-system, 'Segoe UI', sans-serif`
-        : `700 64px system-ui, -apple-system, 'Segoe UI', sans-serif`;
+    g.font = font;
     g.lineJoin = 'round';
-    g.lineWidth = kind === 'number' ? 14 : 12;
+    g.lineWidth = 14;
     g.strokeStyle = 'rgba(10,14,18,0.85)';
-    g.strokeText(text, W / 2, H / 2 + 4);
+    g.strokeText(text, W / 2, H / 2 + 4, W - 16);
     g.fillStyle = fill;
-    g.fillText(text, W / 2, H / 2 + 4);
+    g.fillText(text, W / 2, H / 2 + 4, W - 16);
     return texture(c);
   });
 }

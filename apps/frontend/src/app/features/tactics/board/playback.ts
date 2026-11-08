@@ -61,6 +61,11 @@ export interface Frame {
   placements: Map<string, Placement>;
   drawings: Drawing[];
   drawingOpacity: number;
+  /**
+   * Drawings carried over between the two steps either side of this moment.
+   * They stay fully visible rather than fading with the rest.
+   */
+  steady?: string[];
   highlights: string[];
   note: string;
 }
@@ -85,6 +90,7 @@ export function frameAt(doc: TacticDoc, line: Timeline, time: number): Frame {
       // Fade the drawings in at the start of the hold, so arrows arrive after
       // the players do rather than popping in under them.
       drawingOpacity: step === 0 ? 1 : Math.min(1, elapsed / 0.3),
+      steady: shared(doc, step - 1, step),
       highlights: doc.steps[step]?.highlight ?? [],
       note: doc.steps[step]?.note ?? '',
     };
@@ -135,9 +141,19 @@ export function frameAt(doc: TacticDoc, line: Timeline, time: number): Frame {
     // while it happens and fade as it completes.
     drawings: doc.steps[into - 1]?.drawings ?? [],
     drawingOpacity: 1 - easeInOut(p),
+    steady: shared(doc, into - 1, into),
     highlights: target.highlight ?? [],
     note: target.note,
   };
+}
+
+/** Ids of drawings present in both steps. */
+function shared(doc: TacticDoc, a: number, b: number): string[] {
+  const before = doc.steps[a]?.drawings;
+  const after = doc.steps[b]?.drawings;
+  if (!before?.length || !after?.length) return [];
+  const ids = new Set(before.map((d) => d.id));
+  return after.filter((d) => ids.has(d.id)).map((d) => d.id);
 }
 
 /** Every object standing still at a step. */
