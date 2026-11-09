@@ -160,7 +160,11 @@ export function drawingPath(d: Drawing): Vec2[] {
 }
 
 /** Builds the meshes for one drawing. */
-export function buildDrawing(d: Drawing, opacity = 1, layer = 0): THREE.Group {
+/**
+ * `goalUp`: the camera looks along the pitch with the +x goal at the top of
+ * the screen, so text is turned to read across the screen.
+ */
+export function buildDrawing(d: Drawing, opacity = 1, layer = 0, goalUp = false): THREE.Group {
   const g = new THREE.Group();
   g.userData['drawingId'] = d.id;
   const lift = LIFT + layer * 0.002;
@@ -176,7 +180,7 @@ export function buildDrawing(d: Drawing, opacity = 1, layer = 0): THREE.Group {
       new THREE.PlaneGeometry(height * aspect, height),
       new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
     );
-    plane.rotation.x = -Math.PI / 2;
+    plane.rotation.set(-Math.PI / 2, 0, goalUp ? -Math.PI / 2 : 0);
     plane.position.set(at[0], lift + 0.01, at[1]);
     g.add(plane);
     tag(g, d.id);

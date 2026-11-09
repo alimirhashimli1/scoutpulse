@@ -254,6 +254,7 @@ export class BoardEngine {
       this.pitchKey = key;
       this.buildWorld(doc.pitch);
       this.setView(this.view, true);
+      this.rebuildDrawings();
     }
 
     const alive = new Set<string>();
@@ -290,7 +291,7 @@ export class BoardEngine {
    * it, so turning it would only swing the name around.
    */
   private turn(obj: BoardObject): number {
-    if (this.flat && obj.kind === 'player') return 0;
+    if (this.flat && obj.kind === 'player') return this.goalUp ? -Math.PI / 2 : 0;
     return -THREE.MathUtils.degToRad(obj.rotation ?? 0);
   }
 
@@ -345,7 +346,7 @@ export class BoardEngine {
   /** A drawing in progress, shown before it is committed. */
   setPreview(drawing: Drawing | null): void {
     this.clear(this.previewRoot);
-    if (drawing) this.previewRoot.add(buildDrawing(drawing, 0.85, 50));
+    if (drawing) this.previewRoot.add(buildDrawing(drawing, 0.85, 50, this.goalUp));
   }
 
   /** Abandons an in-progress polygon or stroke. */
@@ -496,6 +497,12 @@ export class BoardEngine {
     }
   }
 
+  /** An end of the pitch (half, third, box), shown with its goal at the top. */
+  private get goalUp(): boolean {
+    const layout = this.doc?.pitch.layout ?? 'full';
+    return layout === 'half' || layout === 'third' || layout === 'box';
+  }
+
   /** The part of the pitch the current layout uses: [x0, x1, y0, y1]. */
   private bounds(): [number, number, number, number] {
     const layout = this.doc?.pitch.layout ?? 'full';
@@ -515,11 +522,16 @@ export class BoardEngine {
     const cx = (x0 + x1) / 2;
     const cy = (y0 + y1) / 2;
     const aspect = this.camera.aspect || 1.6;
-    this.orthoHalf = Math.max((y1 - y0) / 2, (x1 - x0) / 2 / aspect) * 1.04;
+    const up = this.goalUp;
+    // With the goal at the top, the pitch's length runs up the screen.
+    const [across, along] = up ? [y1 - y0, x1 - x0] : [x1 - x0, y1 - y0];
+    this.orthoHalf = Math.max(along / 2, across / 2 / aspect) * 1.04;
     this.ortho.zoom = 1;
     this.fitOrtho();
-    // A hair off vertical, as for the top view, so "up" on screen is -y.
-    this.ortho.position.set(cx, 200, cy + 0.01);
+    // A hair off vertical, as for the top view, which sets which way is up on
+    // screen: -y normally, the +x goal for an end-of-pitch layout.
+    if (up) this.ortho.position.set(cx - 0.01, 200, cy);
+    else this.ortho.position.set(cx, 200, cy + 0.01);
     this.controls.target.set(cx, 0, cy);
     this.controls.update();
   }
@@ -546,6 +558,20 @@ export class BoardEngine {
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect);
     const fitTop = Math.max(d / 2 / Math.tan(vfov / 2), w / 2 / Math.tan(hfov / 2));
     const target = new THREE.Vector3(cx, 0, cy);
+
+    // An end of the pitch is seen from behind the halfway line, its goal at
+    // the top, as a coach draws it: the pitch's width then fills a wide
+    // screen, where seen side-on it would leave a gap past the goal.
+    if (this.goalUp && (view === 'top' || view === 'tactical')) {
+      const fit = Math.max(w / 2 / Math.tan(vfov / 2), d / 2 / Math.tan(hfov / 2));
+      if (view === 'top') return [new THREE.Vector3(cx - 0.01, fit * 1.04, cy), target];
+      const dist = fit * 1.08;
+      const angle = THREE.MathUtils.degToRad(58);
+      return [
+        new THREE.Vector3(cx - Math.cos(angle) * dist, Math.sin(angle) * dist, cy),
+        target,
+      ];
+    }
 
     switch (view) {
       case 'top':
@@ -580,7 +606,7 @@ export class BoardEngine {
   private rebuildDrawings(): void {
     this.clear(this.drawingsRoot);
     this.drawings.forEach((d, i) =>
-      this.drawingsRoot.add(buildDrawing(d, this.opacityOf(d.id), i)),
+      this.drawingsRoot.add(buildDrawing(d, this.opacityOf(d.id), i, this.goalUp)),
     );
   }
 
@@ -740,9 +766,10 @@ export class BoardEngine {
     const look = this.flat ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
     if (this.edit.editor) {
       // Left is for editing; right orbits, wheel zooms, two fingers do both.
+      // Middle-drag (or Shift + right-drag) slides the view; the wheel zooms.
       c.mouseButtons = {
         LEFT: null,
-        MIDDLE: THREE.MOUSE.DOLLY,
+        MIDDLE: THREE.MOUSE.PAN,
         RIGHT: look,
       } as unknown as typeof c.mouseButtons;
       c.touches = {
