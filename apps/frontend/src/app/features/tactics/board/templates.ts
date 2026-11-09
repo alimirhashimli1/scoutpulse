@@ -22,6 +22,15 @@ export const TEMPLATES: Record<string, BoardTemplate> = {
       'Blue: 4 players, attack the goal. Plus a keeper.',
     doc: pressingDrill1,
   },
+  'wing-cross-dummy-1': {
+    title: 'Wing cross and dummy - 1',
+    description:
+      'Three players: central midfielder, left winger and centre forward. The midfielder ' +
+      'first makes a recovery sprint to raise his pulse, then has to combine on tired legs. ' +
+      'A long ball to the winger, a run down the line, a pull-back from the byline, a dummy ' +
+      'from the centre forward and a late finish from the midfielder.',
+    doc: wingCrossDummy1,
+  },
 };
 
 /**
@@ -211,6 +220,172 @@ function pressingDrill1(): TacticDoc {
       { id: 'gk', kind: 'player', team: 'third', keeper: true, number: 'GK' },
       ...reds.map((id) => ({ id, kind: 'player' as const, team: 'home' as const })),
       ...blues.map((id) => ({ id, kind: 'player' as const, team: 'away' as const })),
+      { id: 'ball', kind: 'ball' },
+    ],
+    steps,
+  };
+}
+
+function wingCrossDummy1(): TacticDoc {
+  const YELLOW = '#facc15';
+  const LABEL = '#f1f5f9';
+
+  // What stays on the grass the whole drill.
+  const fixed: Drawing[] = [
+    {
+      id: 'lane',
+      kind: 'rect',
+      points: [at(-34, 0), at(-24, 38)],
+      color: YELLOW,
+      width: 0.26,
+      fill: 0.08,
+    },
+    {
+      id: 'lanelabel',
+      kind: 'text',
+      points: [at(-29, 40)],
+      text: 'wing lane',
+      color: LABEL,
+      width: 0.18,
+    },
+    {
+      id: 'sprintlabel',
+      kind: 'text',
+      points: [at(9, 48.5)],
+      text: 'recovery sprint',
+      color: LABEL,
+      width: 0.18,
+    },
+  ];
+
+  const banner = (id: string, text: string, where: Vec2): Drawing => ({
+    id,
+    kind: 'text',
+    points: [where],
+    text,
+    color: '#ffffff',
+    width: 0.6,
+  });
+
+  const step = (
+    n: number,
+    note: string,
+    pos: Record<string, Vec2>,
+    more: Partial<Step> = {},
+    extra: Drawing[] = [],
+  ): Step => ({
+    id: `s${n}`,
+    duration: 1.8,
+    hold: 2.6,
+    note,
+    pos,
+    ...more,
+    drawings: [...fixed, ...extra],
+  });
+
+  const steps: Step[] = [
+    step(
+      1,
+      'Three players: the centre forward (9) has the ball, the central midfielder (8) stands ' +
+        'behind him and the left winger (11) waits wide on the left.',
+      {
+        cone: at(0, 48.5),
+        cf: at(0, 28),
+        ball: at(0.8, 28.6),
+        cm: at(0, 38),
+        lw: at(-27, 36),
+      },
+    ),
+    step(
+      2,
+      'The challenge first: the midfielder makes a recovery run, a full sprint back round the ' +
+        'cone toward halfway. His pulse goes up.',
+      { cm: at(-0.8, 47.6) },
+      { duration: 2.2 },
+      [banner('banner-pulse', 'PULSE UP', at(0, 42.5))],
+    ),
+    step(
+      3,
+      'He turns and sprints straight back toward the centre forward, still breathing hard.',
+      { cm: at(1.5, 33.2) },
+      { duration: 2.2 },
+    ),
+    step(
+      4,
+      'The centre forward plays the ball into his feet as he arrives. Tired legs make the ' +
+        'first touch and the pass back much harder.',
+      { ball: at(1.4, 32.4) },
+      { duration: 1.2 },
+    ),
+    step(
+      5,
+      'One touch back to the centre forward. No time to rest.',
+      { ball: at(-1.2, 27.4), cf: at(-1.8, 27) },
+      { duration: 1.2 },
+    ),
+    step(
+      6,
+      'The centre forward sends a long ball in the air to the left winger, already running ' +
+        'down the line. Then both central players run to the goal.',
+      {
+        ball: at(-29, 23.2),
+        lw: at(-29.2, 24),
+        cf: at(-2.5, 22),
+        cm: at(1, 30),
+      },
+      { duration: 2, air: ['ball'] },
+    ),
+    step(
+      7,
+      'The winger carries the ball down the very edge of the pitch to the last line. The ' +
+        'centre forward attacks the near post area; the midfielder follows a few metres behind.',
+      {
+        lw: at(-30, 3.2),
+        ball: at(-29.4, 2.6),
+        cf: at(-5, 13.5),
+        cm: at(1, 21),
+      },
+      { duration: 2.4 },
+    ),
+    step(
+      8,
+      'From the byline the winger pulls the ball back into the centre. The centre forward ' +
+        'runs at it as if to shoot...',
+      {
+        ball: at(-4, 10.6),
+        cf: at(-3.4, 11.4),
+        cm: at(2, 16.5),
+        lw: at(-28.5, 3.8),
+      },
+      { duration: 1.3 },
+    ),
+    step(
+      9,
+      '...and lets it run through on purpose: a dummy. In a match his run drags the defenders ' +
+        'with him while the ball rolls on to the midfielder arriving late.',
+      { ball: at(2.8, 14.6), cf: at(-1.5, 7), cm: at(3.2, 15.4) },
+      { duration: 1.1 },
+      [banner('banner-dummy', 'DUMMY', at(14, 20))],
+    ),
+    step(
+      10,
+      'The midfielder finishes first time. Swap roles and start again, then run it from the ' +
+        'right wing.',
+      { ball: at(2, -0.8) },
+      { duration: 0.8 },
+      [banner('banner-goal', 'GOAL', at(0, 22))],
+    ),
+  ];
+
+  return {
+    v: 1,
+    pitch: { layout: 'half', markings: 'standard', style: 'day', stadium: false },
+    teams: structuredClone(DEFAULT_KITS),
+    objects: [
+      { id: 'cone', kind: 'cone', color: '#ff7a1a' },
+      { id: 'cm', kind: 'player', team: 'home', number: '8', name: 'CM' },
+      { id: 'lw', kind: 'player', team: 'home', number: '11', name: 'LW' },
+      { id: 'cf', kind: 'player', team: 'home', number: '9', name: 'CF' },
       { id: 'ball', kind: 'ball' },
     ],
     steps,
