@@ -382,7 +382,7 @@ export class BoardEngine {
 
   /**
    * The 2D board: looking straight down without perspective, players drawn as
-   * counters, no stands or shadows. The camera can pan and zoom but not turn,
+   * counters, no shadows. The camera can pan and zoom but not turn,
    * so the picture stays a diagram. Back in 3D, the chosen camera view returns.
    */
   setFlat(flat: boolean): void {
@@ -439,9 +439,11 @@ export class BoardEngine {
     const night = pitch.style === 'night';
     const board = pitch.style === 'board';
 
-    this.scene.background = skyTexture(pitch.style);
-    this.scene.fog =
-      board || this.flat ? null : new THREE.Fog(night ? '#070b16' : '#c9d8e6', 160, 420);
+    const env = ENVIRONMENTS[pitch.style] ?? ENVIRONMENTS.day;
+    this.scene.background = new THREE.Color(env.background);
+    // Fog in the background colour, so the ground fades into it with no
+    // horizon line: the pitch reads as standing on something, not floating.
+    this.scene.fog = this.flat ? null : new THREE.Fog(env.background, 170, 460);
 
     this.hemi.color.set(night ? '#8fb3ff' : '#e0f2fe');
     this.hemi.groundColor.set(night ? '#0b1a10' : '#2c4a2a');
@@ -460,10 +462,13 @@ export class BoardEngine {
     grass.receiveShadow = true;
     this.world.add(grass);
 
+    // The surround: darker turf under and around the pitch, shading off into
+    // the background. Far larger than the fog distance, so its edge is never
+    // seen.
     const apron = new THREE.Mesh(
-      new THREE.PlaneGeometry(600, 600),
+      new THREE.PlaneGeometry(1600, 1600),
       new THREE.MeshStandardMaterial({
-        color: board ? '#14231c' : night ? '#10161c' : '#5b6670',
+        map: surroundTexture(env.surround, env.background),
         roughness: 1,
       }),
     );
@@ -471,6 +476,10 @@ export class BoardEngine {
     apron.position.y = -0.05;
     apron.receiveShadow = true;
     this.world.add(apron);
+
+    // A slim kerb around the playing area gives the pitch a clean, finished
+    // edge against the surround.
+    if (!this.flat) this.world.add(kerb(totalL, totalW, env.kerb));
 
     const lineColor = board ? '#f1f5f9' : '#ffffff';
     this.world.add(buildMarkings(pitch.markings, lineColor, board ? 0.75 : 0.92));
@@ -485,8 +494,6 @@ export class BoardEngine {
         this.world.add(g);
       }
     }
-
-    if (pitch.stadium && !board && !this.flat) this.world.add(stadium(night));
   }
 
   /** The part of the pitch the current layout uses: [x0, x1, y0, y1]. */
@@ -545,7 +552,7 @@ export class BoardEngine {
         // A hair off vertical, so orbiting from here has a direction to go.
         return [new THREE.Vector3(cx, fitTop * 1.04, cy + 0.01), target];
       case 'broadcast': {
-        const dist = Math.max(fitTop * 0.98, 40);
+        const dist = Math.max(fitTop * 0.9, 40);
         const angle = THREE.MathUtils.degToRad(24);
         return [
           new THREE.Vector3(cx, Math.sin(angle) * dist, cy + Math.cos(angle) * dist),
@@ -561,7 +568,7 @@ export class BoardEngine {
         ];
       }
       default: {
-        const dist = fitTop * 1.12;
+        const dist = fitTop * 1.02;
         const angle = THREE.MathUtils.degToRad(56);
         return [new THREE.Vector3(cx, Math.sin(angle) * dist, cy + Math.cos(angle) * dist), target];
       }
@@ -1066,116 +1073,61 @@ function handle(at: Vec2, data: Handle, color = '#ffffff'): THREE.Mesh {
   return m;
 }
 
-/** The sky behind everything: a vertical gradient painted once per style. */
-function skyTexture(style: PitchSettings['style']): THREE.Texture {
+/**
+ * The colours around the pitch for each style. Neutral and dark, as in a
+ * broadcast analysis studio, so the pitch and the players carry the picture.
+ */
+const ENVIRONMENTS: Record<
+  PitchSettings['style'],
+  { background: string; surround: string; kerb: string }
+> = {
+  day: { background: '#18221d', surround: '#2b4a30', kerb: '#e8eef2' },
+  night: { background: '#05080c', surround: '#11231a', kerb: '#9aa7b4' },
+  board: { background: '#0c1712', surround: '#142a1f', kerb: '#cbd5e1' },
+};
+
+/**
+ * The ground around the pitch: the surround colour in the middle, shading
+ * radially into the background so there is no visible edge.
+ */
+function surroundTexture(inner: string, outer: string): THREE.Texture {
+  const S = 512;
   const c = document.createElement('canvas');
-  c.width = 4;
-  c.height = 256;
+  c.width = S;
+  c.height = S;
   const g = c.getContext('2d')!;
-  const grad = g.createLinearGradient(0, 0, 0, 256);
-  if (style === 'night') {
-    grad.addColorStop(0, '#02040a');
-    grad.addColorStop(0.6, '#0b1430');
-    grad.addColorStop(1, '#1b2747');
-  } else if (style === 'board') {
-    grad.addColorStop(0, '#0f1f18');
-    grad.addColorStop(1, '#183126');
-  } else {
-    grad.addColorStop(0, '#5b9bd5');
-    grad.addColorStop(0.55, '#a9cbe8');
-    grad.addColorStop(1, '#e3edf5');
-  }
+  const grad = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  // The plane is 1600 m across; the pitch is about 120 m of it.
+  grad.addColorStop(0, inner);
+  grad.addColorStop(0.1, inner);
+  grad.addColorStop(0.3, outer);
+  grad.addColorStop(1, outer);
   g.fillStyle = grad;
-  g.fillRect(0, 0, 4, 256);
+  g.fillRect(0, 0, S, S);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
 
-/**
- * Low stands on all four sides and, at night, floodlight towers. Simple
- * blocks, but they are what make the tilted views read as a stadium rather
- * than a green rectangle floating in the sky.
- */
-function stadium(night: boolean): THREE.Group {
+/** A low kerb around the runoff: four thin strips. */
+function kerb(length: number, width: number, color: string): THREE.Group {
   const g = new THREE.Group();
-  const concrete = new THREE.MeshStandardMaterial({
-    color: night ? '#2a313a' : '#9aa5b1',
-    roughness: 0.9,
-  });
-  const seats = [
-    new THREE.MeshStandardMaterial({ color: night ? '#1e3a5f' : '#1e40af', roughness: 0.7 }),
-    new THREE.MeshStandardMaterial({ color: night ? '#24476f' : '#2563eb', roughness: 0.7 }),
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.55 });
+  const t = 0.35;
+  const h = 0.12;
+  const strips: [number, number, number, number][] = [
+    [length + t * 2, t, 0, -(width / 2 + t / 2)],
+    [length + t * 2, t, 0, width / 2 + t / 2],
+    [t, width, -(length / 2 + t / 2), 0],
+    [t, width, length / 2 + t / 2, 0],
   ];
-  const edgeL = HALF_LENGTH + RUNOFF + 2;
-  const edgeW = HALF_WIDTH + RUNOFF + 2;
-  const tiers = 7;
-
-  const side = (length: number, depthAxis: 'x' | 'z', sign: number, offset: number) => {
-    for (let i = 0; i < tiers; i++) {
-      const h = 1.1 + i * 1.25;
-      const geo =
-        depthAxis === 'z'
-          ? new THREE.BoxGeometry(length, h, 2.2)
-          : new THREE.BoxGeometry(2.2, h, length);
-      const block = new THREE.Mesh(geo, i % 2 ? seats[0] : seats[1]);
-      const out = offset + 1.1 + i * 2.2;
-      if (depthAxis === 'z') block.position.set(0, h / 2, sign * out);
-      else block.position.set(sign * out, h / 2, 0);
-      block.receiveShadow = true;
-      block.castShadow = i === tiers - 1;
-      g.add(block);
-    }
-    const wallH = 1.2 + tiers * 1.25 + 2.5;
-    const back =
-      depthAxis === 'z'
-        ? new THREE.BoxGeometry(length + 4, wallH, 1)
-        : new THREE.BoxGeometry(1, wallH, length + 4);
-    const wall = new THREE.Mesh(back, concrete);
-    const out = offset + 1.1 + tiers * 2.2 + 0.5;
-    if (depthAxis === 'z') wall.position.set(0, wallH / 2, sign * out);
-    else wall.position.set(sign * out, wallH / 2, 0);
-    g.add(wall);
-  };
-  // No stand on the near (+z) side: every preset camera looks from there, and
-  // a stand would sit between it and the pitch. The far stand runs past the
-  // ends so it closes the corners behind the end stands.
-  const depth = tiers * 2.2 + 1.1;
-  side((edgeL + depth) * 2, 'z', -1, edgeW);
-  side(edgeW * 2, 'x', 1, edgeL);
-  side(edgeW * 2, 'x', -1, edgeL);
-
-  // Advertising boards along the far touchline.
-  const boardMat = new THREE.MeshStandardMaterial({
-    color: night ? '#0ea5e9' : '#0f766e',
-    emissive: night ? '#0369a1' : '#000000',
-    emissiveIntensity: night ? 0.6 : 0,
-    roughness: 0.4,
-  });
-  const ad = new THREE.Mesh(new THREE.BoxGeometry(HALF_LENGTH * 1.7, 0.9, 0.15), boardMat);
-  ad.position.set(0, 0.45, -(HALF_WIDTH + 3.2));
-  ad.castShadow = true;
-  g.add(ad);
-
-  if (night) {
-    const lamp = new THREE.MeshStandardMaterial({
-      color: '#ffffff',
-      emissive: '#fff8dc',
-      emissiveIntensity: 2.2,
-    });
-    const mast = new THREE.MeshStandardMaterial({ color: '#4b5563', roughness: 0.6 });
-    for (const sx of [-1, 1]) {
-      for (const sz of [-1, 1]) {
-        const x = sx * (edgeL + 14);
-        const z = sz * (edgeW + 14);
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 42, 10), mast);
-        pole.position.set(x, 21, z);
-        const panel = new THREE.Mesh(new THREE.BoxGeometry(7, 4, 0.6), lamp);
-        panel.position.set(x, 43, z);
-        panel.lookAt(0, 0, 0);
-        g.add(pole, panel);
-      }
-    }
+  for (const [w, d, x, z] of strips) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, h / 2 - 0.02, z);
+    m.receiveShadow = true;
+    m.userData['static'] = true;
+    g.add(m);
   }
   return g;
 }
+

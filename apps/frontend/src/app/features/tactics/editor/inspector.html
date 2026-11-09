@@ -316,15 +316,6 @@
       }
     </div>
   </div>
-  <label class="check">
-    <input
-      type="checkbox"
-      [checked]="store.doc().pitch.stadium"
-      (change)="store.setPitch({ stadium: $any($event.target).checked })"
-    />
-    Stadium around the pitch
-  </label>
-
   <h4 class="sub">Teams</h4>
   <div class="seg tabs">
     @for (t of teamIds; track t) {
