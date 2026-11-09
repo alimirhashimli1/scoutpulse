@@ -23,6 +23,7 @@ import { BoardView } from '../board/board-view';
 import type { CameraView, EditState } from '../board/engine';
 import { TacticDoc, normalizeDoc } from '../board/model';
 import { BoardPlayer, recordVideo, videoExtension } from '../board/player';
+import { TEMPLATES } from '../board/templates';
 import { TacticIcon } from '../ui/icon';
 import { PlaybackBar } from '../ui/playback-bar';
 import { EditorStore } from './editor-store';
@@ -63,6 +64,8 @@ const VIEWS: { value: CameraView; label: string; icon: string }[] = [
 export class TacticsEditor implements OnInit {
   /** Present when editing a saved board; absent for a new one. */
   readonly slug = input<string>();
+  /** A ready-made board to start from, by key: `/tactics/new?template=…`. */
+  readonly template = input<string>();
 
   protected readonly store = inject(EditorStore);
   protected readonly session = inject(SessionStore);
@@ -176,7 +179,18 @@ export class TacticsEditor implements OnInit {
       await this.load(slug);
       return;
     }
-    this.restoreDraft();
+    if (this.restoreDraft()) return;
+    this.startFromTemplate();
+  }
+
+  private startFromTemplate(): void {
+    const t = TEMPLATES[this.template() ?? ''];
+    if (!t) return;
+    this.title.set(t.title);
+    this.description.set(t.description);
+    this.store.load(t.doc());
+    // Not saved yet: it is only a starting point until Save is pressed.
+    this.store.dirty.set(true);
   }
 
   private async load(slug: string): Promise<void> {
@@ -200,11 +214,12 @@ export class TacticsEditor implements OnInit {
     }
   }
 
-  private restoreDraft(): void {
-    if (!this.isBrowser) return;
+  /** Puts back a board that went through sign-in. True if there was one. */
+  private restoreDraft(): boolean {
+    if (!this.isBrowser) return false;
     try {
       const raw = sessionStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
+      if (!raw) return false;
       sessionStorage.removeItem(DRAFT_KEY);
       const draft = JSON.parse(raw) as { title?: string; description?: string; doc?: unknown };
       this.title.set(draft.title ?? '');
@@ -212,9 +227,11 @@ export class TacticsEditor implements OnInit {
       this.store.load(normalizeDoc(draft.doc));
       // Not saved yet: it came through sign-in precisely to be saved.
       this.store.dirty.set(true);
+      return true;
     } catch {
       // Storage blocked or the draft unreadable: start blank, as on any visit.
     }
+    return false;
   }
 
   // --- saving -------------------------------------------------------------

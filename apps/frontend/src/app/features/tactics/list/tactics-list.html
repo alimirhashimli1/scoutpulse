@@ -7,7 +7,12 @@
         its own link that anyone you send it to can watch without an account.
       </p>
     </div>
-    <a class="btn primary" routerLink="/tactics/new"><app-tactic-icon name="plus" /> New board</a>
+    <div class="start">
+      <a class="btn" routerLink="/tactics/new" [queryParams]="{ template: 'pressing-drill-1' }"
+        >Pressing drill - 1</a
+      >
+      <a class="btn primary" routerLink="/tactics/new"><app-tactic-icon name="plus" /> New board</a>
+    </div>
   </header>
 
   @if (session.isAdmin()) {
