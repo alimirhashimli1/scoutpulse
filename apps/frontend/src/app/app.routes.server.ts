@@ -27,6 +27,7 @@ export const serverRoutes: ServerRoute[] = [
   // indexed.
   { path: '', renderMode: RenderMode.Server },
   { path: 'transfers', renderMode: RenderMode.Server },
+  { path: 'news', renderMode: RenderMode.Server },
   { path: 'players/:id', renderMode: RenderMode.Server },
   { path: 'clubs', renderMode: RenderMode.Server },
   { path: 'competitions', renderMode: RenderMode.Server },
@@ -75,6 +76,7 @@ export const serverRoutes: ServerRoute[] = [
   { path: 'verify-email', renderMode: RenderMode.Client },
   { path: 'account', renderMode: RenderMode.Client },
   { path: 'admin/users', renderMode: RenderMode.Client },
+  { path: 'admin/news', renderMode: RenderMode.Client },
   { path: 'admin/clubs/:id/editors', renderMode: RenderMode.Client },
 
   // --- tactics boards ----------------------------------------------------

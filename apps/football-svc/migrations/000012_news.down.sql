@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS news_usage;
+DROP TABLE IF EXISTS news_runs;
+DROP TABLE IF EXISTS news_items;
+DROP TABLE IF EXISTS news_stories;

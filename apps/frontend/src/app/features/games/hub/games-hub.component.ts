@@ -6,7 +6,6 @@ import { ssrResource } from '../../../core/api/ssr-resource';
 import { Seo } from '../../../core/seo/seo';
 import { ErrorState, Loading } from '../../../shared/ui/states';
 import { GamesI18n } from '../games-i18n';
-import { GamesLangToggle } from '../lang-toggle';
 
 /**
  * The games section: a card per game, from the server's catalog so a new
@@ -15,7 +14,7 @@ import { GamesLangToggle } from '../lang-toggle';
 @Component({
   selector: 'app-games-hub',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, Loading, ErrorState, GamesLangToggle],
+  imports: [RouterLink, Loading, ErrorState],
   template: `
     <section class="page hub" [attr.lang]="i18n.lang()">
       <header class="head">
@@ -23,7 +22,6 @@ import { GamesLangToggle } from '../lang-toggle';
           <h1>{{ t().gamesTitle }}</h1>
           <p class="lede">{{ t().gamesLede }}</p>
         </div>
-        <app-games-lang-toggle />
       </header>
 
       @if (games.value(); as list) {

@@ -27,9 +27,17 @@ const leaveEditor = (component: { canLeave?: () => boolean } | null) =>
  */
 export const routes: Routes = [
   {
+    // The home page is the transfer feed with the top headlines above it;
+    // /transfers is the same feed without them.
     path: '',
     loadComponent: () => import('./features/transfers/transfer-feed').then((m) => m.TransferFeed),
+    data: { home: true },
     title: 'Transfers · ScoutPulse',
+  },
+  {
+    path: 'news',
+    loadComponent: () => import('./features/news/news-page').then((m) => m.NewsPage),
+    title: 'Football News · ScoutPulse',
   },
   {
     path: 'transfers',
@@ -210,6 +218,12 @@ export const routes: Routes = [
     loadComponent: () => import('./features/account/account-page').then((m) => m.AccountPage),
     canActivate: [authGuard],
     title: 'Account · ScoutPulse',
+  },
+  {
+    path: 'admin/news',
+    loadComponent: () => import('./features/admin/news-admin').then((m) => m.NewsAdmin),
+    canActivate: [adminGuard],
+    title: 'News admin · ScoutPulse',
   },
   {
     path: 'admin/users',

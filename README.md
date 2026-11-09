@@ -167,6 +167,12 @@ CRUD on `/api/v1/{leagues,seasons,teams,coaches,players,transfers}`, plus:
 `GET /api/v1/players` filters on `free_agent`, `position`, `team_id`,
 `nationality`, `min_value_minor`, `max_value_minor`.
 
+| `GET /api/v1/news` | Published football news, pinned first, then newest. Filter: `category` |
+| `GET /api/v1/news/top` | Up to 5 top stories of the last 24 hours |
+| `GET /api/v1/admin/news` | Every scored story, recent runs, sources (admin) |
+| `PATCH /api/v1/admin/news/{id}` | `{hidden, pinned}` (admin) |
+| `POST /api/v1/admin/news/run` | Run the news job now (admin) |
+
 **Paging.** Lists accept `limit` (default 25, max 100) and `offset`, and return
 an envelope:
 
@@ -185,6 +191,77 @@ binary floating point cannot represent decimal currency exactly.
 
 Every response carries `X-Request-ID`; an inbound one is preserved, so a call
 chain across services shares a single id in the logs and traces.
+
+## Football News
+
+ScoutPulse collects football headlines, groups reports of the same story,
+scores each one for how much a scout would care, and publishes the best. They
+appear at `/news` (with category filters) and as **Top Headlines** on the home
+page. Administrators moderate them at `/admin/news`.
+
+**What runs, and where.** A job inside football-svc, every 30 minutes:
+
+1. Fetch every source that is enabled **and** verified for commercial use (15 s
+   timeout each; one failing source does not stop the run).
+2. Normalise: tracking parameters stripped, duplicates removed by canonical URL,
+   items older than 36 hours ignored.
+3. Group items about the same story by headline similarity.
+4. Score 1-10 with Cloudflare Workers AI, in batches of 15. If the AI is not
+   configured, fails, returns invalid JSON, or the day's Neuron budget is spent,
+   the rule-based scorer (keywords, outlet count, recency) takes over.
+5. Publish stories scoring 7 or more, at most 10 a day.
+6. Prune: only the newest **100** published stories are kept (pinned ones
+   aside); older ones are deleted with their items. Unpublished candidates go
+   after 72 hours, and the run log after 14 days.
+
+Only one run happens at a time, across every instance, and a repeated run
+changes nothing. Each run is logged with its source failures, Neurons used and
+published count, and appears in the admin view. The public endpoints are cached
+for a minute in memory and send `Cache-Control: public, max-age=60, s-maxage=120`.
+
+**What is stored and shown.** The original headline, a summary of at most 40
+words written by the AI from the feed's title and description, the source name,
+the time, the category and a link to the original. Never the article text, never
+the feed's images (a category icon stands in), and article pages are never
+fetched. Feed text is treated as untrusted data: the model is told never to
+follow instructions inside it, and its reply is validated against a fixed shape.
+Stories scored by the rules have no summary, because rules cannot write original
+prose.
+
+**Sources.** The registry is `apps/football-svc/internal/news/sources.go`.
+Both entries ship with `CommercialUseVerified: false`, so out of the box the job
+fetches nothing. The service prints each source and its terms link at startup,
+and the admin view lists them.
+
+| Source | Terms to check |
+|---|---|
+| BBC Sport football RSS: `https://feeds.bbci.co.uk/sport/football/rss.xml` | https://www.bbc.co.uk/usingthebbc/terms/can-i-use-bbc-content-on-my-website |
+| NewsData.io (free plan, ~12 h delayed, supporting coverage only) | https://newsdata.io/terms-and-condition |
+
+To enable one: read its terms; **only if they allow use on a commercial site**,
+set `CommercialUseVerified: true` for it in `sources.go` and deploy. Google News
+RSS, NewsAPI.org, GNews and The Guardian's free API must not be added: their
+free terms rule out commercial use.
+
+**Setup.** Apply `apps/football-svc/migrations/000012_news.up.sql` (on Supabase,
+by hand in the SQL editor). Then, optionally, on the football-svc service:
+
+| Variable | Purpose |
+|---|---|
+| `NEWSDATA_API_KEY` | NewsData.io key. One credit per run; capped at 150/day (`NEWSDATA_DAILY_CREDITS`, max 180) |
+| `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | Workers AI. Token needs Workers AI permissions only |
+| `CLOUDFLARE_AI_MODEL` | Defaults to `@cf/meta/llama-3.1-8b-instruct-fp8-fast` |
+| `NEWS_AI_DAILY_NEURONS` | Daily AI budget, default 8000, never above 9000 |
+| `NEWS_ENABLED` | `false` stops the scheduled job |
+
+**Cost.** $0 as configured: the job runs inside the existing service, NewsData
+stays inside its free 200 credits, and Workers AI stays under the free 10,000
+Neurons a day (48 runs use a few thousand at most). Keep the Cloudflare account
+on the Free plan, which refuses work past the allowance instead of billing it.
+
+**Run it locally.** `make up`, sign in as an administrator, open `/admin/news`
+and press **Run now**. With no verified source the run reports that it skipped;
+set a source to verified locally to watch stories arrive.
 
 ## Status
 

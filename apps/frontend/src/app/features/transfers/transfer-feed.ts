@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   inject,
+  input,
   resource,
   signal,
 } from '@angular/core';
@@ -20,6 +21,7 @@ import { Seo } from '../../core/seo/seo';
 import { MoneyPipe } from '../../shared/pipes/money-pipe';
 import { Paginator } from '../../shared/pagination/paginator';
 import { Empty, ErrorState, Loading } from '../../shared/ui/states';
+import { TopHeadlines } from '../news/top-headlines';
 
 const TYPES: { value: TransferType | ''; label: string }[] = [
   { value: '', label: 'All moves' },
@@ -41,9 +43,12 @@ const TYPES: { value: TransferType | ''; label: string }[] = [
 @Component({
   selector: 'app-transfer-feed',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DatePipe, MoneyPipe, Paginator, Loading, Empty, ErrorState],
+  imports: [RouterLink, DatePipe, MoneyPipe, Paginator, Loading, Empty, ErrorState, TopHeadlines],
   template: `
     <main class="page feed">
+      @if (home()) {
+        <app-top-headlines />
+      }
       <header>
         <h1>Transfers</h1>
         <p class="standfirst">Every recorded move, newest first.</p>
@@ -193,6 +198,9 @@ const TYPES: { value: TransferType | ''; label: string }[] = [
   `,
 })
 export class TransferFeed {
+  /** Set by the '' route's data: only the home page carries the headlines. */
+  readonly home = input(false);
+
   private readonly reader = inject(TRANSFER_READER);
   private readonly lookup = inject(LookupStore);
   private readonly players = inject(PlayerNames);

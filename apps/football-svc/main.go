@@ -6,9 +6,12 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/scoutpulse/football-svc/internal/games/playedforboth"
 	"github.com/scoutpulse/football-svc/internal/handler"
+	"github.com/scoutpulse/football-svc/internal/news"
 	"github.com/scoutpulse/football-svc/internal/repository"
 	"github.com/scoutpulse/football-svc/internal/service"
 	"github.com/scoutpulse/libs/auth"
@@ -130,6 +133,8 @@ func main() {
 		log.Fatalf("Failed to prepare games dataset: %v", err)
 	}
 
+	newsService := setupNews(ctx, repository.NewNewsRepository(database), logger)
+
 	handlers := handler.Handlers{
 		League:      handler.NewLeagueHandler(leagueService),
 		Team:        handler.NewTeamHandler(teamService, playerService, coachService),
@@ -147,6 +152,7 @@ func main() {
 		Tactic:      handler.NewTacticHandler(tacticService),
 		Article:     handler.NewArticleHandler(articleService),
 		Game:        gameHandler,
+		News:        handler.NewNewsHandler(newsService),
 	}
 
 	// Tracing is optional: with no collector configured this installs a
@@ -172,4 +178,59 @@ func main() {
 	if err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
+}
+
+// setupNews builds the news pipeline from the environment and, unless
+// NEWS_ENABLED is "false", schedules it. Every key is optional: with none set
+// the job runs on rules alone, and with no verified source it fetches nothing.
+func setupNews(ctx context.Context, store *repository.NewsRepository, logger *slog.Logger) *news.Service {
+	news.LogRegistry(logger, news.Registry)
+
+	client := &http.Client{Timeout: 20 * time.Second}
+	envInt := func(name string, def, ceiling int) int {
+		n, err := strconv.Atoi(os.Getenv(name))
+		if err != nil || n <= 0 {
+			n = def
+		}
+		return min(n, ceiling)
+	}
+
+	credits := &news.Budget{
+		Store: store, Meter: news.MeterNewsDataCredits,
+		Limit: envInt("NEWSDATA_DAILY_CREDITS", news.DefaultNewsDataCredits, news.MaxNewsDataCreditsPerDay),
+	}
+	fetchers := news.Fetchers{
+		news.SourceRSS:      news.RSSFetcher{Client: client},
+		news.SourceNewsData: news.NewsDataFetcher{Client: client, APIKey: os.Getenv("NEWSDATA_API_KEY"), Credits: credits},
+	}
+
+	pipeline := &news.Pipeline{
+		Store: store, Sources: news.Registry, Fetcher: fetchers, Logger: logger,
+	}
+	accountID, token := os.Getenv("CLOUDFLARE_ACCOUNT_ID"), os.Getenv("CLOUDFLARE_API_TOKEN")
+	if accountID != "" && token != "" {
+		pipeline.AI = &news.WorkersAI{
+			AccountID: accountID, Token: token, Model: os.Getenv("CLOUDFLARE_AI_MODEL"),
+			Client: &http.Client{Timeout: 60 * time.Second},
+			Budget: &news.Budget{
+				Store: store, Meter: news.MeterNeurons,
+				Limit: envInt("NEWS_AI_DAILY_NEURONS", news.DefaultNeuronsPerDay, news.MaxNeuronsPerDay),
+			},
+		}
+		logger.Info("news: scoring with Workers AI")
+	} else {
+		logger.Info("news: no Cloudflare credentials, scoring with rules only")
+	}
+
+	service := &news.Service{Store: store, Pipeline: pipeline}
+	if os.Getenv("NEWS_ENABLED") == "false" {
+		logger.Info("news: scheduled job disabled by NEWS_ENABLED=false")
+		return service
+	}
+	interval := news.DefaultInterval
+	if d, err := time.ParseDuration(os.Getenv("NEWS_INTERVAL")); err == nil && d >= 5*time.Minute {
+		interval = d
+	}
+	news.StartScheduler(ctx, pipeline, interval, logger)
+	return service
 }

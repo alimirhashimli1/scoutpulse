@@ -54,6 +54,9 @@ describe('App', () => {
     expect(links).toContain('Clubs');
     expect(links).toContain('Competitions');
     expect(links).toContain('Games');
+    expect(links).toContain('News');
+    const news = root.querySelector('nav a[href="/news"]');
+    expect(news?.textContent?.trim()).toBe('News');
 
     // There is no match data, so nothing may imply a standings page exists.
     expect(links).not.toContain('Table');

@@ -273,6 +273,10 @@ func TestFootballServiceIntegration(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("news pipeline against Postgres", func(t *testing.T) {
+		newsAgainstPostgres(t, ctx, db)
+	})
+
 	t.Run("articles round-trip through Postgres", func(t *testing.T) {
 		articlesAgainstPostgres(t, ctx, db)
 	})

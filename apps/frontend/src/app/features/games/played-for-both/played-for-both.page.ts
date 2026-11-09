@@ -4,7 +4,6 @@ import { RouterLink } from '@angular/router';
 import { Seo } from '../../../core/seo/seo';
 import { ErrorState, Loading } from '../../../shared/ui/states';
 import { GamesI18n } from '../games-i18n';
-import { GamesLangToggle } from '../lang-toggle';
 import { AnswerList } from './components/answer-list.component';
 import { LeaguePicker } from './components/league-picker.component';
 import { Scoreboard } from './components/scoreboard.component';
@@ -20,23 +19,13 @@ import { PlayedForBothStore, TimerSeconds } from './played-for-both.store';
 @Component({
   selector: 'app-played-for-both',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    RouterLink,
-    Loading,
-    ErrorState,
-    Scoreboard,
-    TeamEmblem,
-    AnswerList,
-    LeaguePicker,
-    GamesLangToggle,
-  ],
+  imports: [RouterLink, Loading, ErrorState, Scoreboard, TeamEmblem, AnswerList, LeaguePicker],
   providers: [PlayedForBothStore],
   host: { '(document:keydown)': 'onKey($event)' },
   template: `
     <div class="page wrap" [attr.lang]="i18n.lang()">
       <div class="crumbs">
         <a routerLink="/games">← {{ t().backToGames }}</a>
-        <app-games-lang-toggle />
       </div>
 
       <app-pfb-scoreboard

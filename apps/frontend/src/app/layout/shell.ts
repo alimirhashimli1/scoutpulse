@@ -44,6 +44,7 @@ import { ThemeStore } from '../core/theme/theme';
 
         <nav class="links">
           <a routerLink="/transfers" routerLinkActive="active">Transfers</a>
+          <a routerLink="/news" routerLinkActive="active">News</a>
           <a routerLink="/clubs" routerLinkActive="active">Clubs</a>
           <a routerLink="/competitions" routerLinkActive="active">Competitions</a>
           <a routerLink="/articles" routerLinkActive="active">Analysis</a>
@@ -81,6 +82,7 @@ import { ThemeStore } from '../core/theme/theme';
               <a routerLink="/desk" routerLinkActive="active">Desk</a>
             }
             @if (session.isAdmin()) {
+              <a routerLink="/admin/news" routerLinkActive="active">News admin</a>
               <a routerLink="/admin/users" routerLinkActive="active">Users</a>
             }
             <a class="who" routerLink="/account" routerLinkActive="active">

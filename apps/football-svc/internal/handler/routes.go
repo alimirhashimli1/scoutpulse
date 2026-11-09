@@ -30,6 +30,7 @@ type Handlers struct {
 	Tactic      *TacticHandler
 	Article     *ArticleHandler
 	Game        *GameHandler
+	News        *NewsHandler
 }
 
 // RegisterRoutes registers all API routes for the football service.
@@ -175,6 +176,17 @@ func RegisterRoutes(mux *http.ServeMux, h Handlers) {
 	// static data, which is cached by ETag.
 	mux.HandleFunc("GET /api/v1/games", h.Game.ListGames)
 	mux.HandleFunc("GET /api/v1/games/played-for-both/dataset", h.Game.PlayedForBothDataset)
+
+	// --- football news ---
+	// The feed and the top headlines are public and briefly cached. The rest
+	// is moderation, for administrators only (checked in the service).
+	if h.News != nil {
+		mux.HandleFunc("GET /api/v1/news", h.News.List)
+		mux.HandleFunc("GET /api/v1/news/top", h.News.Top)
+		protect("GET /api/v1/admin/news", h.News.AdminList)
+		protect("PATCH /api/v1/admin/news/{id}", h.News.Update)
+		protect("POST /api/v1/admin/news/run", h.News.Run)
+	}
 }
 
 // Per-account write allowance: a burst of 60, then two a second. An editor

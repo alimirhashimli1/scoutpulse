@@ -4,7 +4,6 @@ import { provideRouter } from '@angular/router';
 import { GAME_READER, GameReader } from '../../../core/api/games';
 import { PlayedForBothWire } from '../../../core/models/games';
 import { SITE_URL } from '../../../core/tokens/site-url';
-import { GAME_LANG_STORAGE_KEY } from '../games-i18n';
 import { PlayedForBothPage } from './played-for-both.page';
 
 /** Two leagues, four clubs, two nations: enough for every pair to have an answer. */
@@ -32,11 +31,6 @@ const WIRE: PlayedForBothWire = {
 
 describe('PlayedForBothPage', () => {
   beforeEach(() => {
-    try {
-      localStorage.setItem(GAME_LANG_STORAGE_KEY, 'en');
-    } catch {
-      /* not needed if storage is unavailable */
-    }
     const reader: GameReader = {
       list: () => Promise.resolve([]),
       playedForBothDataset: () => Promise.resolve(WIRE),
@@ -138,25 +132,5 @@ describe('PlayedForBothPage', () => {
     input.dispatchEvent(new Event('input'));
     await fixture.whenStable();
     expect(button('+1 Ada')).toBeTruthy();
-  });
-
-  it('switches to German, renaming only default player names', async () => {
-    const { fixture, root, button, text, click } = await setup();
-    const second = root.querySelectorAll<HTMLInputElement>('app-pfb-scoreboard input')[1];
-    second.value = 'Ada';
-    second.dispatchEvent(new Event('input'));
-    await fixture.whenStable();
-
-    const de = Array.from(
-      root.querySelectorAll<HTMLButtonElement>('app-games-lang-toggle button'),
-    ).find((b) => b.textContent?.trim() === 'DE')!;
-    await click(de);
-
-    expect(button('Spiel starten')).toBeTruthy();
-    expect(button('+1 Spieler 1')).toBeTruthy();
-    expect(button('+1 Ada')).toBeTruthy();
-    expect(text('.round')).toBe('Runde 1');
-    expect(text('.pitch')).toContain('Unbekanntes Team');
-    expect(root.querySelector('.wrap')?.getAttribute('lang')).toBe('de');
   });
 });

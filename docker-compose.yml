@@ -183,6 +183,11 @@ services:
       - NATS_URL=nats://nats:4222
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:4200}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      # Football news. All optional; see "Football News" in the README.
+      - NEWS_ENABLED=${NEWS_ENABLED:-true}
+      - NEWSDATA_API_KEY=${NEWSDATA_API_KEY:-}
+      - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID:-}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
     depends_on:
       postgres: {condition: service_healthy}
       migrate-football: {condition: service_completed_successfully}
