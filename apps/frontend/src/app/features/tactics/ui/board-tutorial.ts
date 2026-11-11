@@ -26,8 +26,8 @@ export interface TutorialScene {
   fingers?: 1 | 2;
 }
 
-/** Seconds each scene runs; the CSS animations share this length. */
-const SCENE_SECONDS = 3.2;
+/** Seconds for one loop of a scene's animation; the CSS shares this length. */
+const SCENE_SECONDS = 7;
 
 const FULL_SCREEN = 'Press Full screen for the biggest pitch.';
 
@@ -149,8 +149,9 @@ function markSeen(mode: TutorialMode): void {
 }
 
 /**
- * A short animated walk through the controls, played the first time someone
- * opens a board and again from its help button.
+ * A short animated walk through the controls, shown the first time someone
+ * opens a board and again from its help button. Each scene loops until Next
+ * is pressed, so the reader sets the pace.
  *
  * Drawn in CSS rather than shipped as a video: it weighs nothing, and each
  * scene can show the real gesture for a mouse or for a touch screen.
@@ -167,7 +168,6 @@ export class BoardTutorial {
   readonly done = output<void>();
 
   private readonly touch = !!globalThis.matchMedia?.('(pointer: coarse)').matches;
-  private readonly still = !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   protected readonly usesTouch = this.touch;
   protected readonly seconds = SCENE_SECONDS;
 
@@ -182,13 +182,6 @@ export class BoardTutorial {
     effect(() => {
       const el = this.dialog()?.nativeElement;
       if (el && !el.open) el.showModal?.();
-    });
-    // It plays by itself, and waits on the last scene for the button.
-    effect((onCleanup) => {
-      if (this.still || this.last()) return;
-      const next = this.index() + 1;
-      const timer = setTimeout(() => this.index.set(next), SCENE_SECONDS * 1000);
-      onCleanup(() => clearTimeout(timer));
     });
   }
 

@@ -114,10 +114,10 @@
   background: #1d4ed8;
 }
 [data-scene='place'] .pointer {
-  animation: to-pitch var(--scene) ease-in-out both;
+  animation: to-pitch var(--scene) ease-in-out infinite;
 }
 [data-scene='place'] .added {
-  animation: pop var(--scene) step-end both;
+  animation: pop var(--scene) step-end infinite;
 }
 @keyframes to-pitch {
   0%, 25% { left: 7%; top: 48%; }
@@ -130,10 +130,10 @@
 
 /* Drag a piece. */
 [data-scene='move'] .pointer {
-  animation: drag-hand var(--scene) ease-in-out both;
+  animation: drag-hand var(--scene) ease-in-out infinite;
 }
 [data-scene='move'] .piece {
-  animation: drag-piece var(--scene) ease-in-out both;
+  animation: drag-piece var(--scene) ease-in-out infinite;
 }
 @keyframes drag-hand {
   0%, 20% { left: 42%; top: 53%; }
@@ -146,10 +146,10 @@
 
 /* Turn the camera. */
 [data-scene='turn'] .world {
-  animation: turn var(--scene) ease-in-out both;
+  animation: turn var(--scene) ease-in-out infinite;
 }
 [data-scene='turn'] .pointer {
-  animation: sweep var(--scene) ease-in-out both;
+  animation: sweep var(--scene) ease-in-out infinite;
 }
 [data-scene='turn'] .two {
   margin-left: 1.4rem;
@@ -166,13 +166,13 @@
 
 /* Zoom. */
 [data-scene='zoom'] .world {
-  animation: zoom var(--scene) ease-in-out both;
+  animation: zoom var(--scene) ease-in-out infinite;
 }
 [data-scene='zoom'] .one {
-  animation: pinch-a var(--scene) ease-in-out both;
+  animation: pinch-a var(--scene) ease-in-out infinite;
 }
 [data-scene='zoom'] .two {
-  animation: pinch-b var(--scene) ease-in-out both;
+  animation: pinch-b var(--scene) ease-in-out infinite;
 }
 [data-scene='zoom'] .wheel {
   animation: roll calc(var(--scene) / 4) linear infinite;
@@ -195,10 +195,10 @@
 
 /* Slide the view. */
 [data-scene='pan'] .world {
-  animation: pan var(--scene) ease-in-out both;
+  animation: pan var(--scene) ease-in-out infinite;
 }
 [data-scene='pan'] .pointer {
-  animation: pan-hand var(--scene) ease-in-out both;
+  animation: pan-hand var(--scene) ease-in-out infinite;
 }
 [data-scene='pan'] .two {
   margin-left: 1.4rem;
@@ -224,14 +224,14 @@
   border-radius: 50%;
   background: rgb(10 14 18 / 60%);
   color: #fff;
-  animation: fade var(--scene) step-end both;
+  animation: fade var(--scene) step-end infinite;
 }
 [data-scene='play'] .pointer {
   left: 56%;
   top: 56%;
 }
 [data-scene='play'] .piece {
-  animation: run var(--scene) ease-in-out both;
+  animation: run var(--scene) ease-in-out infinite;
 }
 @keyframes fade {
   0% { opacity: 1; }

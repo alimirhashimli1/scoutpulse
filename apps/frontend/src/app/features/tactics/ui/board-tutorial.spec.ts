@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { vi } from 'vitest';
 
 import { BoardTutorial, tutorialScenes, tutorialSeen } from './board-tutorial';
 
@@ -47,6 +48,18 @@ describe('BoardTutorial', () => {
     expect(finished).toBe(true);
     expect(tutorialSeen('edit')).toBe(true);
     expect(tutorialSeen('watch')).toBe(false);
+  });
+
+  it('stays on a scene until Next is pressed', () => {
+    vi.useFakeTimers();
+    try {
+      const { fixture, root } = open();
+      vi.advanceTimersByTime(120_000);
+      fixture.detectChanges();
+      expect(root.querySelector('.count')?.textContent).toContain('1 of');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('walks through the scenes and ends on Start', () => {

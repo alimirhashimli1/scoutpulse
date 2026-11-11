@@ -63,21 +63,14 @@ footer {
   width: 0;
   background: var(--accent);
 }
-.progress .past i {
-  width: 100%;
-}
+.progress .past i,
 .progress .now i {
-  animation: fill var(--scene) linear forwards;
-}
-@keyframes fill {
-  to {
-    width: 100%;
-  }
+  width: 100%;
 }
 
 /* Full screen. */
 [data-scene='full'] .world {
-  animation: grow var(--scene) ease-in-out both;
+  animation: grow var(--scene) ease-in-out infinite;
 }
 [data-scene='full'] .full-mark {
   display: inline-flex;
@@ -91,14 +84,14 @@ footer {
   color: var(--accent-ink);
   font-size: var(--text-xs);
   font-weight: 700;
-  animation: pressed var(--scene) step-end both;
+  animation: pressed var(--scene) step-end infinite;
 }
 [data-scene='full'] .full-mark app-tactic-icon {
   width: 0.9rem;
   height: 0.9rem;
 }
 [data-scene='full'] .pointer {
-  animation: press var(--scene) ease-in-out both;
+  animation: press var(--scene) ease-in-out infinite;
 }
 @keyframes pressed {
   0% { opacity: 1; }
@@ -125,11 +118,5 @@ footer {
   }
   p {
     min-height: 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .progress .now i {
-    animation: none;
-    width: 100%;
   }
 }
