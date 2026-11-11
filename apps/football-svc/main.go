@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/scoutpulse/football-svc/internal/games/playedforboth"
+	"github.com/scoutpulse/football-svc/internal/games/rooms"
 	"github.com/scoutpulse/football-svc/internal/handler"
 	"github.com/scoutpulse/football-svc/internal/news"
 	"github.com/scoutpulse/football-svc/internal/repository"
@@ -125,13 +126,21 @@ func main() {
 
 	// The games dataset is embedded. Parse it before serving anything, so a
 	// broken file stops the boot instead of breaking the game in browsers.
-	if _, err := playedforboth.Load(); err != nil {
+	dataset, err := playedforboth.Load()
+	if err != nil {
 		log.Fatalf("Invalid games dataset: %v", err)
 	}
-	gameHandler, err := handler.NewGameHandler(playedforboth.Raw())
+	served, err := playedforboth.Served()
 	if err != nil {
 		log.Fatalf("Failed to prepare games dataset: %v", err)
 	}
+	gameHandler, err := handler.NewGameHandler(served)
+	if err != nil {
+		log.Fatalf("Failed to prepare games dataset: %v", err)
+	}
+	// Online rooms live in this process: see internal/games/rooms.
+	roomHub := rooms.NewHub(playedforboth.NewIndex(dataset))
+	go roomHub.Run()
 
 	newsService := setupNews(ctx, repository.NewNewsRepository(database), logger)
 
@@ -152,6 +161,7 @@ func main() {
 		Tactic:      handler.NewTacticHandler(tacticService),
 		Article:     handler.NewArticleHandler(articleService),
 		Game:        gameHandler,
+		GameRoom:    handler.NewGameRoomHandler(roomHub),
 		News:        handler.NewNewsHandler(newsService),
 	}
 
@@ -174,6 +184,8 @@ func main() {
 			observability.Metrics(serviceName),
 		},
 		OnShutdown: []func(context.Context) error{shutdownTracing},
+		// Ends the online games streams, which would hold the drain open.
+		OnDrain: []func(){roomHub.Close},
 	})
 	if err != nil {
 		log.Fatalf("Server error: %v", err)

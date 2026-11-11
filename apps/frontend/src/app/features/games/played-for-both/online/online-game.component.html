@@ -1,0 +1,230 @@
+@if (store.room(); as room) {
+  <div class="bar">
+    <div class="code">
+      <span class="label">{{ t().roomCode }}</span>
+      <strong class="tabular" data-testid="room-code">{{ room.code }}</strong>
+    </div>
+    <div class="bar-actions">
+      <button type="button" class="btn" (click)="copyLink()">
+        {{ copied() ? t().copied : t().copyLink }}
+      </button>
+      <button type="button" class="btn" (click)="store.leave()">{{ t().leave }}</button>
+    </div>
+  </div>
+
+  @if (store.connection() === 'reconnecting') {
+    <p class="notice" role="status">{{ t().reconnecting }}</p>
+  }
+
+  <ol class="players" [attr.aria-label]="t().players">
+    @for (p of store.standings(); track p.id) {
+      <li [class.me]="p.id === store.seat()?.playerId" [class.away]="!p.online">
+        <span class="who">
+          {{ p.name }}
+          @if (p.id === store.seat()?.playerId) {
+            <small>{{ t().you }}</small>
+          }
+          @if (p.id === room.host) {
+            <small class="host">{{ t().hostTag }}</small>
+          }
+          @if (!p.online) {
+            <small>{{ t().offline }}</small>
+          }
+        </span>
+        <span class="score tabular">{{ p.score }}</span>
+      </li>
+    }
+  </ol>
+
+  @switch (room.phase) {
+    @case ('lobby') {
+      <section class="panel lobby">
+        <p class="share">{{ t().shareHint }}</p>
+        <ng-container *ngTemplateOutlet="settings" />
+        @if (store.isHost()) {
+          <button
+            type="button"
+            class="btn primary big"
+            [disabled]="store.onlineCount() < 2"
+            (click)="store.start()"
+          >
+            {{ t().start }}
+          </button>
+          @if (store.onlineCount() < 2) {
+            <p class="hint">{{ t().needTwo }}</p>
+          }
+        } @else {
+          <p class="hint">{{ t().waitingHost(store.hostName()) }}</p>
+        }
+      </section>
+    }
+    @case ('finished') {
+      <section class="panel finished" aria-live="polite">
+        <p class="champion">🏆 {{ store.championName() }}</p>
+        @if (store.verdict(); as v) {
+          <p class="verdict" [class.mine]="v.mine">{{ v.text }}</p>
+        }
+        <ng-container *ngTemplateOutlet="settings" />
+        @if (store.isHost()) {
+          <button type="button" class="btn primary big" (click)="store.start()">
+            {{ t().playAgain }}
+          </button>
+        } @else {
+          <p class="hint">{{ t().waitingHost(store.hostName()) }}</p>
+        }
+      </section>
+      @if (store.answer(); as answer) {
+        <app-pfb-answer-list [answer]="answer" />
+      }
+    }
+    @default {
+      <p class="round">
+        {{ t().round(room.round) }}
+        @if (room.settings.target) {
+          · {{ t().firstTo }} {{ t().pointsN(room.settings.target) }}
+        }
+      </p>
+      <app-pfb-pitch [sides]="store.sides()" [drawId]="store.drawId()" [compact]="true" />
+
+      @if (room.phase === 'playing') {
+        <div
+          class="timer"
+          role="progressbar"
+          [attr.aria-label]="t().timeLeft"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          [attr.aria-valuenow]="timerPercent()"
+        >
+          <i [style.transform]="'scaleX(' + store.timeLeft() + ')'"></i>
+        </div>
+
+        <form class="guess" (submit)="send($event)">
+          <label for="pfb-guess">{{ t().guessLabel }}</label>
+          <div class="field">
+            <input
+              #box
+              id="pfb-guess"
+              name="guess"
+              autocomplete="off"
+              autocapitalize="words"
+              spellcheck="false"
+              enterkeyhint="send"
+              maxlength="60"
+              [placeholder]="t().guessPlaceholder"
+              [class.shake]="store.feedback()?.kind === 'wrong'"
+              [attr.data-shake]="store.feedback()?.id"
+            />
+            <button type="submit" class="btn primary">{{ t().send }}</button>
+          </div>
+          <p class="feedback" role="status">
+            @switch (store.feedback()?.kind) {
+              @case ('wrong') {
+                {{ t().wrong }}
+              }
+              @case ('late') {
+                {{ t().late }}
+              }
+            }
+          </p>
+        </form>
+      } @else {
+        @if (store.verdict(); as v) {
+          <p class="verdict big" [class.mine]="v.mine" role="status">{{ v.text }}</p>
+        }
+        <p class="hint center">{{ t().nextSoon }}</p>
+      }
+
+      @if (store.isHost()) {
+        <div class="host-actions">
+          <button type="button" class="btn" (click)="store.next()">
+            {{ room.phase === 'playing' ? t().skip : t().nextNow }}
+          </button>
+          <button type="button" class="btn" (click)="store.stop()">{{ t().endGame }}</button>
+        </div>
+      }
+
+      @if (store.answer(); as answer) {
+        <app-pfb-answer-list [answer]="answer" />
+      }
+    }
+  }
+
+  <ng-template #settings>
+    <div class="settings">
+      <app-pfb-difficulty
+        [value]="room.settings.level"
+        [disabled]="!store.isHost()"
+        (pick)="configureLevel($event)"
+      />
+      <div class="selects">
+        <label>
+          <span>{{ t().timer }}</span>
+          <select [disabled]="!store.isHost()" (change)="configureTimer($event)">
+            @for (s of timers; track s) {
+              <option [value]="s" [selected]="room.settings.timer === s">{{ s }} s</option>
+            }
+          </select>
+        </label>
+        <label>
+          <span>{{ t().firstTo }}</span>
+          <select [disabled]="!store.isHost()" (change)="configureTarget($event)">
+            @for (n of targets; track n) {
+              <option [value]="n" [selected]="room.settings.target === n">
+                {{ n ? t().pointsN(n) : t().noLimit }}
+              </option>
+            }
+          </select>
+        </label>
+      </div>
+      @if (!store.isHost()) {
+        <p class="hint">{{ t().hostOnly }}</p>
+      }
+    </div>
+  </ng-template>
+} @else {
+  <section class="panel entry">
+    <p class="intro">{{ t().onlineIntro }}</p>
+    <label class="name">
+      <span>{{ t().yourName }}</span>
+      <input
+        [value]="store.name()"
+        maxlength="20"
+        autocomplete="nickname"
+        (input)="store.setName($any($event.target).value)"
+      />
+    </label>
+    <button
+      type="button"
+      class="btn primary big"
+      [disabled]="store.busy()"
+      (click)="store.create()"
+    >
+      {{ t().createRoom }}
+    </button>
+    <div class="or" aria-hidden="true">
+      <span>{{ t().orJoin }}</span>
+    </div>
+    <form class="join" (submit)="joinRoom($event, code.value)">
+      <label for="pfb-room">{{ t().roomCode }}</label>
+      <div class="field">
+        <input
+          #code
+          id="pfb-room"
+          name="room"
+          class="tabular"
+          [value]="initialCode()"
+          maxlength="5"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          placeholder="ABCDE"
+        />
+        <button type="submit" class="btn" [disabled]="store.busy()">{{ t().join }}</button>
+      </div>
+    </form>
+  </section>
+}
+
+@if (store.error(); as error) {
+  <p class="error" role="alert">{{ error }}</p>
+}

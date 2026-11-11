@@ -10,45 +10,34 @@ import {
 } from '@angular/core';
 
 import { GAME_READER } from '../../../core/api/games';
-import { GAME_STRINGS, GameLang, GamesI18n, clubName, nationName } from '../games-i18n';
+import { LevelCode } from '../../../core/models/games';
+import { GAME_STRINGS, GameLang, GamesI18n } from '../games-i18n';
 import {
   Draw,
   GameIndex,
-  Player,
   Rng,
   TOP5,
   buildIndex,
+  buildLevelPool,
   buildPairPool,
+  drawFromLevel,
   drawPair,
   enabledClubs,
-  isClub,
-  matches,
+  findLevel,
   pushRecent,
-  shortCode,
 } from './played-for-both.engine';
+import { AnswerView, SideView, answerView, sideView } from './played-for-both.view';
+
+export type { AnswerView, SideView } from './played-for-both.view';
+export { SHOWN_ANSWERS } from './played-for-both.view';
 
 export const LEAGUES_STORAGE_KEY = 'scoutpulse.games.played-for-both.leagues';
-
-/** How many answer chips to show before "+N more". */
-export const SHOWN_ANSWERS = 40;
+export const DIFFICULTY_STORAGE_KEY = 'scoutpulse.games.played-for-both.difficulty';
 
 export type TimerSeconds = 0 | 20 | 30 | 60;
 
-/** One side of the pitch, ready to render. */
-export interface SideView {
-  kind: 'club' | 'nation';
-  label: string;
-  /** "Club · England" or "National team". */
-  pill: string;
-  /** For clubs. */
-  code?: string;
-  colour1?: string;
-  colour2?: string;
-  /** For nations: the flag-icons code. */
-  flag?: string;
-  /** Accessible name of the badge or flag. */
-  alt: string;
-}
+/** A level, or the hand-picked leagues and options of the settings panel. */
+export type Difficulty = LevelCode | 'custom';
 
 export interface LeagueOption {
   code: string;
@@ -56,13 +45,6 @@ export interface LeagueOption {
   name: string;
   clubs: number;
   on: boolean;
-}
-
-export interface AnswerView {
-  shown: Player[];
-  more: number;
-  /** The "no known answer" message, when there are none. */
-  none: string | null;
 }
 
 /**
@@ -96,6 +78,27 @@ export class PlayedForBothStore {
   readonly famousOnly = signal(true);
   readonly allowNations = signal(true);
   readonly timerSeconds = signal<TimerSeconds>(30);
+  /** As chosen. */
+  readonly difficulty = signal<Difficulty>('medium');
+
+  /** The level in force: none for custom, or when the data has no levels. */
+  readonly level = computed(() => {
+    const ix = this.index();
+    const d = this.difficulty();
+    return ix && d !== 'custom' ? (findLevel(ix, d) ?? null) : null;
+  });
+
+  /** What the picker shows as selected. */
+  readonly effectiveDifficulty = computed<Difficulty>(() => this.level()?.code ?? 'custom');
+
+  /** Whether the dataset offers levels at all. */
+  readonly hasLevels = computed(() => (this.index()?.levels.length ?? 0) > 0);
+
+  private readonly levelPool = computed(() => {
+    const ix = this.index();
+    const level = this.level();
+    return ix && level ? buildLevelPool(ix, level) : null;
+  });
 
   private readonly clubs = computed(() => {
     const ix = this.index();
@@ -152,21 +155,16 @@ export class PlayedForBothStore {
     const ix = this.index();
     const p = this.pair();
     if (!ix || !p) return null;
-    return [this.side(ix, p.left), this.side(ix, p.right)];
+    const t = this.i18n.t();
+    const lang = this.i18n.lang();
+    return [sideView(ix, p.left, t, lang), sideView(ix, p.right, t, lang)];
   });
 
   readonly answer = computed<AnswerView | null>(() => {
     const ix = this.index();
     const p = this.pair();
     if (!ix || !p || !this.revealed()) return null;
-    const list = matches(ix, p.left, p.right);
-    return {
-      shown: list.slice(0, SHOWN_ANSWERS),
-      more: Math.max(0, list.length - SHOWN_ANSWERS),
-      none: list.length
-        ? null
-        : this.i18n.t().none(this.label(ix, p.left), this.label(ix, p.right)),
-    };
+    return answerView(ix, p.left, p.right, this.i18n.t(), this.i18n.lang());
   });
 
   readonly leagueOptions = computed<LeagueOption[]>(() => {
@@ -215,6 +213,7 @@ export class PlayedForBothStore {
       const wire = await this.reader.playedForBothDataset();
       const ix = buildIndex(wire);
       this.leagues.set(this.storedLeagues(ix));
+      this.difficulty.set(this.storedDifficulty());
       this.index.set(ix);
       this.loadState.set('ready');
     } catch {
@@ -261,17 +260,20 @@ export class PlayedForBothStore {
   private next(): void {
     const ix = this.index();
     if (!ix) return;
-    const draw = drawPair(
-      ix,
-      {
-        clubs: this.clubs(),
-        pool: this.pool(),
-        knownOnly: this.knownOnly(),
-        allowNations: this.allowNations(),
-        recent: this.recent,
-      },
-      this.rng,
-    );
+    const levelPool = this.levelPool();
+    const draw = levelPool
+      ? drawFromLevel(levelPool, this.recent, this.rng)
+      : drawPair(
+          ix,
+          {
+            clubs: this.clubs(),
+            pool: this.pool(),
+            knownOnly: this.knownOnly(),
+            allowNations: this.allowNations(),
+            recent: this.recent,
+          },
+          this.rng,
+        );
     if (!draw) {
       this.needLeague.set(true);
       return;
@@ -306,6 +308,12 @@ export class PlayedForBothStore {
     this.setLeagues(new Set());
   }
 
+  /** Applies from the next pair, like the league settings. */
+  setDifficulty(difficulty: Difficulty): void {
+    this.difficulty.set(difficulty);
+    this.store(DIFFICULTY_STORAGE_KEY, difficulty);
+  }
+
   setTimer(seconds: TimerSeconds): void {
     this.timerSeconds.set(seconds);
     if (this.pair() && !this.revealed()) this.startTimer();
@@ -314,14 +322,25 @@ export class PlayedForBothStore {
 
   private setLeagues(leagues: ReadonlySet<string>): void {
     this.leagues.set(leagues);
+    this.store(LEAGUES_STORAGE_KEY, JSON.stringify([...leagues]));
+  }
+
+  private store(key: string, value: string): void {
     try {
-      this.document.defaultView?.localStorage.setItem(
-        LEAGUES_STORAGE_KEY,
-        JSON.stringify([...leagues]),
-      );
+      this.document.defaultView?.localStorage.setItem(key, value);
     } catch {
-      // Storage blocked: the selection holds for this visit only.
+      // Storage blocked: the choice holds for this visit only.
     }
+  }
+
+  private storedDifficulty(): Difficulty {
+    try {
+      const raw = this.document.defaultView?.localStorage.getItem(DIFFICULTY_STORAGE_KEY);
+      if (raw === 'easy' || raw === 'medium' || raw === 'hard' || raw === 'custom') return raw;
+    } catch {
+      // Unreadable or blocked: the default.
+    }
+    return 'medium';
   }
 
   private storedLeagues(ix: GameIndex): ReadonlySet<string> {
@@ -358,38 +377,5 @@ export class PlayedForBothStore {
   private stopTimer(): void {
     if (this.timerId !== null) clearInterval(this.timerId);
     this.timerId = null;
-  }
-
-  // --- views ------------------------------------------------------------------
-
-  private label(ix: GameIndex, e: number): string {
-    const lang = this.i18n.lang();
-    return isClub(ix, e)
-      ? clubName(ix.clubs[e], lang)
-      : nationName(ix.nations[e - ix.clubCount], lang);
-  }
-
-  private side(ix: GameIndex, e: number): SideView {
-    const t = this.i18n.t();
-    const label = this.label(ix, e);
-    if (isClub(ix, e)) {
-      const c = ix.clubs[e];
-      return {
-        kind: 'club',
-        label,
-        pill: `${t.club} · ${t.country(ix.leagues[c.league].country)}`,
-        code: shortCode(c),
-        colour1: c.colour1,
-        colour2: c.colour2,
-        alt: t.badgeOf(label),
-      };
-    }
-    return {
-      kind: 'nation',
-      label,
-      pill: t.nation,
-      flag: ix.nations[e - ix.clubCount].flag,
-      alt: t.flagOf(label),
-    };
   }
 }

@@ -4,6 +4,9 @@ import { GameReader } from '../games';
 import { GameSummary, PlayedForBothWire } from '../../models/games';
 import { HttpRepository } from './http-repository';
 
+/** Bumped when the dataset gains or loses a field. */
+const DATASET_SHAPE = 2;
+
 @Injectable()
 export class HttpGameRepository extends HttpRepository implements GameReader {
   protected readonly base = this.api.football;
@@ -22,8 +25,12 @@ export class HttpGameRepository extends HttpRepository implements GameReader {
 
   playedForBothDataset(): Promise<PlayedForBothWire> {
     if (!this.dataset) {
+      // `v` names the shape of the file, not its contents: a browser keeps
+      // the file for a day without asking, so a copy from before the
+      // difficulty levels were added would otherwise outlive the deploy.
       this.dataset = this.getOne<PlayedForBothWire>(
         this.url('games', 'played-for-both', 'dataset'),
+        { v: DATASET_SHAPE },
       ).catch((err: unknown) => {
         this.dataset = null;
         throw err;

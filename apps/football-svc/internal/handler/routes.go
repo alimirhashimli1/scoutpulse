@@ -30,6 +30,7 @@ type Handlers struct {
 	Tactic      *TacticHandler
 	Article     *ArticleHandler
 	Game        *GameHandler
+	GameRoom    *GameRoomHandler
 	News        *NewsHandler
 }
 
@@ -176,6 +177,11 @@ func RegisterRoutes(mux *http.ServeMux, h Handlers) {
 	// static data, which is cached by ETag.
 	mux.HandleFunc("GET /api/v1/games", h.Game.ListGames)
 	mux.HandleFunc("GET /api/v1/games/played-for-both/dataset", h.Game.PlayedForBothDataset)
+	// Online rooms: no account either. A room is in memory, joined by its
+	// code; each player holds the token their seat came with.
+	if h.GameRoom != nil {
+		h.GameRoom.register(mux)
+	}
 
 	// --- football news ---
 	// The feed and the top headlines are public and briefly cached. The rest

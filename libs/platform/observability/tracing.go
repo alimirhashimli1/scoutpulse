@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -116,9 +117,12 @@ func Tracing(serviceName string) server.Middleware {
 				return r.Method
 			}),
 			// The scrape endpoint would otherwise produce a span on every
-			// scrape interval, forever.
+			// scrape interval, forever. An event stream is skipped too: a
+			// span as long as the connection says nothing, and the tracer's
+			// writer wrapper would hide the deadlines the stream must lift.
 			otelhttp.WithFilter(func(r *http.Request) bool {
-				return r.URL.Path != MetricsPath && r.URL.Path != "/health"
+				return r.URL.Path != MetricsPath && r.URL.Path != "/health" &&
+					!strings.Contains(r.Header.Get("Accept"), "text/event-stream")
 			}),
 		)
 	}

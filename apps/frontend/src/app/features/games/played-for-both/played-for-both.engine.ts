@@ -1,4 +1,4 @@
-import { PlayedForBothWire } from '../../../core/models/games';
+import { LevelCode, LevelWire, PlayedForBothWire } from '../../../core/models/games';
 
 /**
  * The rules of "Who Played For Both?", as pure functions.
@@ -52,6 +52,8 @@ export interface GameIndex {
   byEntity: number[][];
   /** League index → how many clubs it has, for the settings panel. */
   clubsPerLeague: number[];
+  /** The difficulty levels, easiest first; empty from an old cached file. */
+  levels: LevelWire[];
 }
 
 export type Rng = () => number;
@@ -100,7 +102,8 @@ export function buildIndex(wire: PlayedForBothWire): GameIndex {
   const clubsPerLeague = leagues.map(() => 0);
   for (const c of clubs) clubsPerLeague[c.league]++;
 
-  return { leagues, clubs, nations, players, clubCount, byEntity, clubsPerLeague };
+  const levels = wire.levels ?? [];
+  return { leagues, clubs, nations, players, clubCount, byEntity, clubsPerLeague, levels };
 }
 
 // --- entities and pairs -------------------------------------------------------
@@ -165,6 +168,76 @@ export function buildPairPool(ix: GameIndex, opts: PoolOptions): number[] {
     }
   }
   return [...set];
+}
+
+/** Every pair a difficulty level can draw, each with a known answer. */
+export interface LevelPool {
+  /** Pairs of teams the level puts in play. */
+  core: number[];
+  /** A club in play against a smaller club; drawn `widerChance` of the time. */
+  wider: number[];
+  widerChance: number;
+}
+
+/**
+ * The pairs of a level. The same rules as BuildPool in the service
+ * (playedforboth/game.go), so a same-screen game and an online room agree on
+ * what each level means: built from the players' side, never nation against
+ * nation, never one team twice.
+ */
+export function buildLevelPool(ix: GameIndex, level: LevelWire): LevelPool {
+  const has = (list: string[] | null, v: string) => !list?.length || list.includes(v);
+  const leagueOf = (c: number) => ix.leagues[ix.clubs[c].league].code;
+  const inPlay = ix.clubs.map((c, i) =>
+    level.clubs?.length ? level.clubs.includes(c.id) : has(level.leagues, leagueOf(i)),
+  );
+  const wider = ix.clubs.map(
+    (_, i) => level.widerChance > 0 && !inPlay[i] && has(level.widerLeagues, leagueOf(i)),
+  );
+  const nationOk = (e: number | undefined) =>
+    e !== undefined && has(level.nations, ix.nations[e - ix.clubCount].fifa);
+
+  const core = new Set<number>();
+  const wide = new Set<number>();
+  for (const p of ix.players) {
+    if (level.famousOnly && !p.famous) continue;
+    const mine = p.entities.filter((e) => isClub(ix, e) && inPlay[e]);
+    const small = p.entities.filter((e) => isClub(ix, e) && wider[e]);
+    const nation = p.entities.find((e) => !isClub(ix, e));
+    for (let i = 0; i < mine.length; i++) {
+      for (let j = i + 1; j < mine.length; j++) {
+        if (mine[i] !== mine[j]) core.add(pairKey(mine[i], mine[j]));
+      }
+      if (nationOk(nation)) core.add(pairKey(mine[i], nation!));
+      for (const b of small) wide.add(pairKey(mine[i], b));
+    }
+  }
+  return { core: [...core], wider: [...wide], widerChance: level.widerChance };
+}
+
+/** A level by its code, if the dataset has it. */
+export function findLevel(ix: GameIndex, code: LevelCode): LevelWire | undefined {
+  return ix.levels.find((l) => l.code === code);
+}
+
+/** One pair from a level, avoiding the recent ones as drawPair does. */
+export function drawFromLevel(
+  pool: LevelPool,
+  recent: readonly number[],
+  rng: Rng = Math.random,
+): Draw | null {
+  if (!pool.core.length && !pool.wider.length) return null;
+  const seen = new Set(recent);
+  let key = 0;
+  for (let tries = 0; tries < MAX_TRIES; tries++) {
+    const list =
+      pool.wider.length && (!pool.core.length || rng() < pool.widerChance) ? pool.wider : pool.core;
+    key = pick(list, rng);
+    if (!seen.has(key)) break;
+  }
+  let [left, right] = splitKey(key);
+  if (rng() < 0.5) [left, right] = [right, left];
+  return { key, left, right };
 }
 
 export interface DrawOptions {

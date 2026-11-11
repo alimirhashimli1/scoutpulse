@@ -47,6 +47,10 @@ type Options struct {
 	// OnShutdown runs after in-flight requests drain, for flushing
 	// telemetry and closing connections.
 	OnShutdown []func(context.Context) error
+	// OnDrain runs as soon as shutdown begins, before the drain. For
+	// long-lived streams: they never finish on their own, so they must be
+	// told to end or the drain waits out its whole timeout.
+	OnDrain []func()
 }
 
 // Run starts an HTTP server on addr with the standard middleware chain and
@@ -96,6 +100,10 @@ func RunWithOptions(name, addr string, h http.Handler, opts Options) error {
 		ReadTimeout:       ReadTimeout,
 		WriteTimeout:      WriteTimeout,
 		IdleTimeout:       IdleTimeout,
+	}
+
+	for _, fn := range opts.OnDrain {
+		srv.RegisterOnShutdown(fn)
 	}
 
 	// Shut down on the signals a container runtime actually sends.
