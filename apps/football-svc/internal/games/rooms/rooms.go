@@ -28,8 +28,8 @@ import (
 )
 
 const (
-	// MaxPlayers in one room.
-	MaxPlayers = 8
+	// MaxPlayers in one room: a class or a party.
+	MaxPlayers = 30
 	// MaxRooms open at once, so a script cannot fill the memory.
 	MaxRooms = 1000
 	// MaxNameLength in runes.

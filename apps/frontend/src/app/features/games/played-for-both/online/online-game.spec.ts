@@ -260,4 +260,22 @@ describe('OnlineGame', () => {
       vi.useRealTimers();
     }
   });
+
+  it('lists a room of thirty as a compact ranked table', async () => {
+    sessionStorage.setItem(SEAT_STORAGE_KEY, JSON.stringify(seat));
+    const { push, root } = await setup();
+    const players = Array.from({ length: 30 }, (_, i) => ({
+      id: 'p' + (i + 1),
+      name: 'Player ' + (i + 1),
+      score: i === 17 ? 4 : 0,
+      online: true,
+    }));
+    await push(snapshot({ players }));
+    const list = root.querySelector('.players')!;
+    expect(list.classList).toContain('many');
+    const rows = list.querySelectorAll('li');
+    expect(rows).toHaveLength(30);
+    expect(rows[0].textContent).toContain('Player 18');
+    expect(rows[0].querySelector('.rank')?.textContent).toBe('1');
+  });
 });

@@ -23,6 +23,8 @@ import (
 type GameRoomHandler struct {
 	hub *rooms.Hub
 	// seats limits rooms opened and joined per address; a room is memory.
+	// The burst covers a full room joining at once from one network: a
+	// party or a class on the same Wi-Fi shares one public address.
 	seats *server.RateLimit
 	// streamLife ends a stream after a while, so that no connection is
 	// open forever; the browser reconnects at once and lands on the newest
@@ -35,7 +37,7 @@ type GameRoomHandler struct {
 func NewGameRoomHandler(hub *rooms.Hub) *GameRoomHandler {
 	return &GameRoomHandler{
 		hub:        hub,
-		seats:      server.NewRateLimit(0.2, 10),
+		seats:      server.NewRateLimit(0.5, rooms.MaxPlayers+10),
 		streamLife: 10 * time.Minute,
 		heartbeat:  10 * time.Second,
 	}

@@ -16,25 +16,11 @@
     <p class="notice" role="status">{{ t().reconnecting }}</p>
   }
 
-  <ol class="players" [attr.aria-label]="t().players">
-    @for (p of store.standings(); track p.id) {
-      <li [class.me]="p.id === store.seat()?.playerId" [class.away]="!p.online">
-        <span class="who">
-          {{ p.name }}
-          @if (p.id === store.seat()?.playerId) {
-            <small>{{ t().you }}</small>
-          }
-          @if (p.id === room.host) {
-            <small class="host">{{ t().hostTag }}</small>
-          }
-          @if (!p.online) {
-            <small>{{ t().offline }}</small>
-          }
-        </span>
-        <span class="score tabular">{{ p.score }}</span>
-      </li>
-    }
-  </ol>
+  <app-pfb-room-players
+    [players]="store.standings()"
+    [host]="room.host"
+    [me]="store.seat()?.playerId ?? ''"
+  />
 
   @switch (room.phase) {
     @case ('lobby') {

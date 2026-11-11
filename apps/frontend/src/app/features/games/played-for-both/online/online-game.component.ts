@@ -20,6 +20,7 @@ import { Pitch } from '../components/pitch.component';
 import { Difficulty } from '../played-for-both.store';
 import { GameIndex } from '../played-for-both.engine';
 import { OnlineGameStore } from './online-game.store';
+import { RoomPlayers } from './room-players.component';
 
 /**
  * The online game: create or join a room, then race the others to type a
@@ -28,7 +29,7 @@ import { OnlineGameStore } from './online-game.store';
 @Component({
   selector: 'app-pfb-online',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgTemplateOutlet, Pitch, AnswerList, DifficultyPicker],
+  imports: [NgTemplateOutlet, Pitch, AnswerList, DifficultyPicker, RoomPlayers],
   providers: [OnlineGameStore],
   templateUrl: './online-game.component.html',
   styleUrl: './online-game.component.css',

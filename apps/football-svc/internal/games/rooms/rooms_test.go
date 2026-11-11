@@ -354,3 +354,63 @@ func TestPollingKeepsAPlayerOnline(t *testing.T) {
 	}
 	assert.Equal(t, host.PlayerID, r.Snapshot().Host)
 }
+
+// A full room, everyone streaming, everyone answering at once: exactly one
+// point is given, and every stream sees who took it.
+func TestThirtyPlayersRaceForOnePoint(t *testing.T) {
+	h, _ := newHub(t)
+	host, err := h.Create("Host")
+	require.NoError(t, err)
+	r, err := h.Room(host.Code)
+	require.NoError(t, err)
+	seats := []Seat{host}
+	for i := 1; i < MaxPlayers; i++ {
+		s, err := r.Join("Player")
+		require.NoError(t, err)
+		seats = append(seats, s)
+	}
+	_, err = r.Join("one too many")
+	assert.Equal(t, apperr.KindConflict, apperr.KindOf(err))
+
+	latest := make([]func() Snapshot, len(seats))
+	for i, s := range seats {
+		l, cancel := watch(t, r, s.Token)
+		defer cancel()
+		latest[i] = l
+	}
+	require.NoError(t, r.Start(host.Token))
+	answer := answerFor(r)
+
+	var wg sync.WaitGroup
+	wins := make(chan string, len(seats))
+	for _, s := range seats {
+		wg.Add(1)
+		go func(s Seat) {
+			defer wg.Done()
+			res, err := r.Guess(s.Token, answer)
+			if err == nil && res.Correct {
+				wins <- s.PlayerID
+			}
+		}(s)
+	}
+	wg.Wait()
+	close(wins)
+	var winners []string
+	for w := range wins {
+		winners = append(winners, w)
+	}
+	require.Len(t, winners, 1)
+
+	total := 0
+	for _, p := range r.Snapshot().Players {
+		total += p.Score
+	}
+	assert.Equal(t, 1, total)
+	assert.Len(t, r.Snapshot().Players, MaxPlayers)
+	for _, l := range latest {
+		s := l()
+		require.NotNil(t, s.Win)
+		assert.Equal(t, winners[0], s.Win.PlayerID)
+		assert.Equal(t, MaxPlayers, len(s.Players))
+	}
+}

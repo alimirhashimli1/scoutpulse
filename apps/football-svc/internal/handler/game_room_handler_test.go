@@ -165,3 +165,14 @@ func TestRoomStreamNeedsASeat(t *testing.T) {
 	_ = res.Body.Close()
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 }
+
+// A party on one Wi-Fi shares one address: the whole room must get in.
+func TestAFullRoomCanJoinFromOneAddress(t *testing.T) {
+	srv, _ := roomServer(t)
+	host := seat(t, postJSON(t, srv.URL+roomsBase, map[string]string{"name": "Host"}))
+	for i := 1; i < rooms.MaxPlayers; i++ {
+		seat(t, postJSON(t, srv.URL+roomsBase+"/"+host.Code+"/players", map[string]string{"name": "Guest"}))
+	}
+	full := postJSON(t, srv.URL+roomsBase+"/"+host.Code+"/players", map[string]string{"name": "Late"})
+	assert.Equal(t, http.StatusConflict, full.StatusCode)
+}
