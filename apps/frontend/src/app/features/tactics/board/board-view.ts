@@ -179,4 +179,9 @@ export class BoardView {
   cancelGesture(): void {
     this.engine?.cancelGesture();
   }
+
+  /** The frame is about to change shape; fit the pitch to the new one. */
+  refit(): void {
+    this.engine?.refit();
+  }
 }

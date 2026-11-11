@@ -110,32 +110,3 @@ h5 {
 .widths button.on {
   border-color: var(--accent);
 }
-
-@media (max-width: 56rem) {
-  :host {
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-    align-items: flex-start;
-    gap: var(--space-3);
-  }
-  h5 {
-    display: none;
-  }
-  .group,
-  .grid {
-    display: flex;
-    flex-direction: row;
-  }
-  .tool.icon-only {
-    width: 2.4rem;
-  }
-  .swatches {
-    grid-template-columns: repeat(8, 1.4rem);
-  }
-  .widths {
-    display: none;
-  }
-}

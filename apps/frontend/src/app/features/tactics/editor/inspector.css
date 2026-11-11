@@ -105,6 +105,22 @@ kbd {
   background: var(--accent);
   color: var(--accent-ink);
 }
+.tabs {
+  flex-wrap: wrap;
+}
+.tabs button {
+  flex: 1 1 30%;
+  white-space: nowrap;
+}
+.paint {
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.chip.wide {
+  justify-content: center;
+  border-radius: var(--radius);
+}
 .dot {
   width: 0.6rem;
   height: 0.6rem;

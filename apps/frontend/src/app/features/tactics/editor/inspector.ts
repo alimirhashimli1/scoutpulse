@@ -17,6 +17,7 @@ import {
   PitchMarkings,
   PitchStyle,
   StrokeStyle,
+  TEAM_IDS,
   TeamId,
   playerLook,
 } from '../board/model';
@@ -41,7 +42,7 @@ export class Inspector {
   protected readonly store = inject(EditorStore);
   protected readonly patterns = KIT_PATTERNS;
   protected readonly formations = FORMATION_NAMES;
-  protected readonly teamIds: TeamId[] = ['home', 'away', 'third'];
+  protected readonly teamIds = TEAM_IDS;
 
   protected readonly layouts: { value: PitchLayout; label: string }[] = [
     { value: 'full', label: 'Full pitch' },
@@ -69,6 +70,7 @@ export class Inspector {
   protected readonly kitTab = signal<TeamId>('home');
   protected readonly formationName = signal('4-3-3');
   protected readonly formationTeam = signal<TeamId>('home');
+  protected readonly paintKeepers = signal(false);
 
   protected readonly obj = this.store.selectedObject;
   protected readonly drawing = this.store.selectedDrawing;
@@ -124,6 +126,13 @@ export class Inspector {
     const o = this.obj();
     const v = this.value(e);
     if (o) this.store.updateObject(o.id, { pattern: v ? (v as KitPattern) : undefined });
+  }
+
+  /** Gives this player's whole team the colour this player is wearing. */
+  protected matchTeamToPlayer(): void {
+    const o = this.obj();
+    const look = this.look();
+    if (o && look) this.store.paintTeam(o.team ?? 'home', look.primary, false);
   }
 
   protected addFormation(side: 'left' | 'right'): void {

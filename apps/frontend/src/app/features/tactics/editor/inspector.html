@@ -67,6 +67,12 @@
       />
     </div>
 
+    @if (!o.keeper) {
+      <button type="button" class="chip wide" (click)="matchTeamToPlayer()">
+        Make all {{ store.doc().teams[o.team ?? 'home'].name }} players this colour
+      </button>
+    }
+
     <details [open]="!!o.color">
       <summary>This player's own colours</summary>
       <p class="hint">
@@ -270,6 +276,9 @@
     </button>
   }
   <div class="actions">
+    <button type="button" class="btn" (click)="store.duplicateSelection()">
+      <app-tactic-icon name="copy" /> Duplicate
+    </button>
     <button type="button" class="btn danger" (click)="store.deleteSelection()">
       <app-tactic-icon name="trash" /> Delete
     </button>
@@ -326,6 +335,23 @@
     }
   </div>
   @let kit = store.doc().teams[kitTab()];
+  <div class="f paint">
+    <span>All {{ kit.name }} players in one colour</span>
+    <app-color-pick
+      [value]="kit.pattern === 'solid' ? kit.primary : null"
+      [label]="'Colour for all ' + kit.name + ' players'"
+      (picked)="$event && store.paintTeam(kitTab(), $event, paintKeepers())"
+    />
+    <label class="check">
+      <input
+        type="checkbox"
+        [checked]="paintKeepers()"
+        (change)="paintKeepers.set($any($event.target).checked)"
+      />
+      Goalkeepers too
+    </label>
+    <p class="hint">Replaces any shirts, patterns and bibs set on single players.</p>
+  </div>
   <label class="f">
     <span>Name</span>
     <input
@@ -418,6 +444,7 @@
 
   <p class="hint tips">
     Pick a tool on the left and click the pitch. Right-drag (or two fingers) turns the camera,
-    middle-drag slides it, the wheel zooms. <kbd>Del</kbd> removes, <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes.
+    middle-drag slides it, the wheel zooms. <kbd>Del</kbd> removes, <kbd>Ctrl</kbd>+<kbd>Z</kbd>
+    undoes, <kbd>Ctrl</kbd>+<kbd>C</kbd> and <kbd>Ctrl</kbd>+<kbd>V</kbd> copy and paste.
   </p>
 }

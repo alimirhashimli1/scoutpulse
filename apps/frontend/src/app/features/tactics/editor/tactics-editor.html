@@ -10,7 +10,15 @@
     </p>
   </div>
 } @else {
-  <div class="studio" [class.busy]="loading()">
+  <div
+    #studio
+    class="studio"
+    [class.busy]="loading()"
+    [class.full]="fs.active()"
+    [class.drawers]="drawers()"
+    [class.left-open]="drawers() && leftOpen()"
+    [class.right-open]="drawers() && rightOpen()"
+  >
     <header class="top">
       <a class="back" [routerLink]="canSave() ? '/tactics' : '/'" title="Back">←</a>
       <div class="naming">
@@ -75,7 +83,8 @@
         title="Record a play-through and download it"
         (click)="downloadVideo()"
       >
-        <app-tactic-icon name="download" /> {{ recording() ? 'Recording…' : 'Video' }}
+        <app-tactic-icon name="download" />
+        <span class="video-word">{{ recording() ? 'Recording…' : 'Video' }}</span>
       </button>
       @if (canSave()) {
         <button
@@ -87,7 +96,9 @@
           {{ savedSlug() ? 'Save' : 'Save board' }}
         </button>
       } @else {
-        <button type="button" class="btn primary" (click)="signInToSave()">Sign in to save</button>
+        <button type="button" class="btn primary" (click)="signInToSave()">
+          <span class="video-word">Sign in to save</span><span class="save-word">Save</span>
+        </button>
       }
     </header>
 
@@ -107,11 +118,14 @@
 
     @if (!canSave()) {
       <p class="banner">
-        You're not signed in. You can build and play this board, but it isn't saved, and refreshing
-        the page will lose it.
-        <button type="button" class="link" (click)="signInToSave()">
-          Sign in to save and share it</button
-        >.
+        <span class="long">
+          You're not signed in. You can build and play this board, but it isn't saved, and
+          refreshing the page will lose it.
+          <button type="button" class="link" (click)="signInToSave()">
+            Sign in to save and share it</button
+          >.
+        </span>
+        <span class="short">Not signed in, so refreshing loses this board.</span>
       </p>
     }
     @if (saveError()) {
@@ -136,7 +150,15 @@
     }
 
     <div class="body">
-      <app-tool-palette />
+      <app-drawer
+        side="left"
+        label="Tools"
+        [enabled]="drawers()"
+        [(open)]="leftOpen"
+        (openChange)="soloDrawer($event, rightOpen)"
+      >
+        <app-tool-palette />
+      </app-drawer>
 
       <section class="centre">
         <div class="stage" (pointerdown)="player.dismissFinished()">
@@ -156,6 +178,50 @@
             (placed)="store.tool() === 'text' ? store.placeText($event) : store.place($event)"
             (stroked)="store.stroke($event.points, $event.done)"
           />
+
+          <div class="corner">
+            <button
+              type="button"
+              class="fs-btn"
+              [title]="fs.active() ? 'Leave full screen (F)' : 'Full screen (F)'"
+              (click)="fs.toggle()"
+            >
+              <app-tactic-icon [name]="fs.active() ? 'shrink' : 'expand'" />
+              {{ fs.active() ? 'Exit' : 'Full screen' }}
+            </button>
+            @if (fs.active()) {
+              <div class="views static" role="group" aria-label="History">
+                <button
+                  type="button"
+                  title="Undo (Ctrl+Z)"
+                  aria-label="Undo"
+                  [disabled]="!store.canUndo()"
+                  (click)="store.undo()"
+                >
+                  <app-tactic-icon name="undo" />
+                </button>
+                <button
+                  type="button"
+                  title="Redo (Ctrl+Shift+Z)"
+                  aria-label="Redo"
+                  [disabled]="!store.canRedo()"
+                  (click)="store.redo()"
+                >
+                  <app-tactic-icon name="redo" />
+                </button>
+              </div>
+            }
+          </div>
+          @if (drawers() && toolLabel(); as label) {
+            <button
+              type="button"
+              class="tool-chip"
+              title="Back to moving pieces"
+              (click)="store.tool.set('select')"
+            >
+              {{ label }} <app-tactic-icon name="close" />
+            </button>
+          }
 
           <div class="views" role="group" aria-label="Camera">
             <button
@@ -181,6 +247,14 @@
                 </button>
               }
             }
+            <button
+              type="button"
+              title="How the board works"
+              aria-label="How the board works"
+              (click)="tutorialOpen.set(true)"
+            >
+              <app-tactic-icon name="help" />
+            </button>
           </div>
 
           @if (player.finished()) {
@@ -195,7 +269,27 @@
             </button>
           }
           @if (caption()) {
-            <p class="caption">{{ caption() }}</p>
+            <app-clamp-text class="caption" [text]="caption()" />
+          }
+          @if (drawers()) {
+            <div class="dock-toggle">
+              @if (!dockOpen()) {
+                <button
+                  type="button"
+                  [attr.aria-label]="player.playing() ? 'Pause' : 'Play'"
+                  (click)="player.toggle()"
+                >
+                  <app-tactic-icon [name]="player.playing() ? 'pause' : 'play'" />
+                </button>
+              }
+              <button
+                type="button"
+                [attr.aria-expanded]="dockOpen()"
+                (click)="dockOpen.set(!dockOpen())"
+              >
+                Steps <app-tactic-icon [name]="dockOpen() ? 'down' : 'up'" />
+              </button>
+            </div>
           }
           @if (store.tool() === 'polygon') {
             <p class="tip">
@@ -207,6 +301,7 @@
           }
         </div>
 
+        <div class="dock" [class.closed]="drawers() && !dockOpen()">
         <div class="steps">
           <div class="chips" role="tablist" aria-label="Steps">
             @for (s of store.doc().steps; track s.id; let i = $index) {
@@ -241,8 +336,19 @@
             </button>
           </div>
 
+          @if (drawers()) {
+            <button
+              type="button"
+              class="btn quiet details-toggle"
+              [attr.aria-expanded]="stepDetails()"
+              (click)="stepDetails.set(!stepDetails())"
+            >
+              Details
+            </button>
+          }
+
           @let step = store.step();
-          <div class="step-props">
+          <div class="step-props" [class.folded]="drawers() && !stepDetails()">
             <label>
               <span>Move</span>
               <input
@@ -319,9 +425,23 @@
         </div>
 
         <app-playback-bar class="playback" [player]="player" [locked]="recording()" />
+        </div>
       </section>
 
-      <app-inspector />
+      <app-drawer
+        side="right"
+        [label]="store.selection() ? 'Edit' : 'Pitch'"
+        [enabled]="drawers()"
+        [attention]="!!store.selection() && !rightOpen()"
+        [(open)]="rightOpen"
+        (openChange)="soloDrawer($event, leftOpen)"
+      >
+        <app-inspector />
+      </app-drawer>
     </div>
+
+    @if (tutorialOpen()) {
+      <app-board-tutorial mode="edit" (done)="tutorialOpen.set(false)" />
+    }
   </div>
 }

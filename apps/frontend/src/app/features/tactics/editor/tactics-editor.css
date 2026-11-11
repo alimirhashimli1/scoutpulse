@@ -247,23 +247,3 @@
     grid-template-columns: 10rem minmax(0, 1fr) 15rem;
   }
 }
-@media (max-width: 56rem) {
-  .studio {
-    height: auto;
-  }
-  .body {
-    display: flex;
-    flex-direction: column;
-  }
-  .stage {
-    flex: none;
-    height: 62vh;
-  }
-  app-inspector {
-    border-left: 0;
-    border-top: 1px solid var(--line);
-  }
-  .status {
-    display: none;
-  }
-}

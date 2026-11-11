@@ -28,8 +28,8 @@ export const DEFAULT_STROKE = 0.32;
 
 export type Vec2 = [number, number];
 
-export type TeamId = 'home' | 'away' | 'third';
-export const TEAM_IDS: readonly TeamId[] = ['home', 'away', 'third'];
+export type TeamId = 'home' | 'away' | 'third' | 'neutral2' | 'neutral3';
+export const TEAM_IDS: readonly TeamId[] = ['home', 'away', 'third', 'neutral2', 'neutral3'];
 
 export type KitPattern = 'solid' | 'stripes' | 'hoops' | 'halves' | 'sash';
 export const KIT_PATTERNS: readonly KitPattern[] = ['solid', 'stripes', 'hoops', 'halves', 'sash'];
@@ -184,6 +184,22 @@ export const DEFAULT_KITS: Record<TeamId, Kit> = {
     numbers: '#111827',
     keeper: '#a855f7',
   },
+  neutral2: {
+    name: 'Neutral 2',
+    primary: '#ec4899',
+    secondary: '#ffffff',
+    pattern: 'solid',
+    numbers: '#ffffff',
+    keeper: '#14b8a6',
+  },
+  neutral3: {
+    name: 'Neutral 3',
+    primary: '#22d3ee',
+    secondary: '#0f172a',
+    pattern: 'solid',
+    numbers: '#0f172a',
+    keeper: '#f97316',
+  },
 };
 
 /** Default colour of each piece of equipment when placed. */
@@ -288,6 +304,14 @@ export function playerLook(doc: TacticDoc, obj: BoardObject) {
     pattern: obj.pattern ?? (obj.keeper ? 'solid' : kit.pattern),
     numbers: kit.numbers,
   };
+}
+
+/** Black or white, whichever reads better on a shirt of this colour. */
+export function readableOn(color: string): string {
+  const n = parseInt(color.replace('#', ''), 16);
+  if (Number.isNaN(n)) return '#ffffff';
+  const luma = 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+  return luma > 150 ? '#111827' : '#ffffff';
 }
 
 /** The next free shirt number in a team. */

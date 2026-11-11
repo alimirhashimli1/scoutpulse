@@ -150,7 +150,7 @@ describe('NewsPage', () => {
     );
     const root = await render(NewsPage, { category: 'injuries' });
     expect(calls[0]).toEqual({ category: 'injuries', limit: 20 });
-    expect(root.querySelector('app-empty')?.textContent).toContain('No Injuries stories');
+    expect(root.querySelector('app-empty')?.textContent).toContain('No stories in Injuries');
     expect(root.querySelector('.filters a.active')?.textContent?.trim()).toBe('Injuries');
   });
 

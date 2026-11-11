@@ -1,0 +1,135 @@
+dialog {
+  width: min(26rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 1rem);
+  overflow-y: auto;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 45%);
+}
+dialog::backdrop {
+  background: rgb(5 8 12 / 65%);
+}
+h2 {
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: var(--text-xl);
+}
+p {
+  margin: 0;
+  max-width: none;
+  min-height: 2.6em;
+  color: var(--ink-soft);
+}
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.count {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.skip {
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.btn {
+  padding: var(--space-2) var(--space-5);
+}
+.progress {
+  display: flex;
+  gap: 4px;
+  margin-top: var(--space-3);
+}
+.progress span {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.progress i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+}
+.progress .past i {
+  width: 100%;
+}
+.progress .now i {
+  animation: fill var(--scene) linear forwards;
+}
+@keyframes fill {
+  to {
+    width: 100%;
+  }
+}
+
+/* Full screen. */
+[data-scene='full'] .world {
+  animation: grow var(--scene) ease-in-out both;
+}
+[data-scene='full'] .full-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  left: 18%;
+  top: 18%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  animation: pressed var(--scene) step-end both;
+}
+[data-scene='full'] .full-mark app-tactic-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+[data-scene='full'] .pointer {
+  animation: press var(--scene) ease-in-out both;
+}
+@keyframes pressed {
+  0% { opacity: 1; }
+  30%, 100% { opacity: 0; }
+}
+@keyframes grow {
+  0%, 28% { inset: 15%; }
+  60%, 100% { inset: 0; }
+}
+@keyframes press {
+  0% { left: 60%; top: 62%; opacity: 1; }
+  28% { left: 26%; top: 24%; opacity: 1; }
+  45%, 100% { left: 26%; top: 24%; opacity: 0; }
+}
+
+/* Short screens: a phone on its side still has to show the buttons. */
+@media (max-height: 26rem) {
+  dialog {
+    width: min(36rem, calc(100vw - 2rem));
+    padding: var(--space-3);
+  }
+  .demo {
+    max-height: 9rem;
+  }
+  p {
+    min-height: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress .now i {
+    animation: none;
+    width: 100%;
+  }
+}

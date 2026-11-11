@@ -139,6 +139,13 @@ describe('normalizeDoc', () => {
     expect(repaired.objects.map((o) => o.id)).toEqual(['x']);
     expect(repaired.teams.home.primary).toBeTruthy();
   });
+
+  it('gives a board saved before the extra neutrals existed their kits', () => {
+    const old = normalizeDoc({ teams: { home: { name: 'Reds' } } });
+    expect(old.teams.home.name).toBe('Reds');
+    expect(old.teams.neutral2.primary).toBeTruthy();
+    expect(old.teams.neutral3.primary).toBeTruthy();
+  });
 });
 
 describe('board player', () => {

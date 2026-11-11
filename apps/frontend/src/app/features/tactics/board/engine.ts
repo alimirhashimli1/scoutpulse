@@ -106,6 +106,9 @@ type Gesture =
 
 const ACCENT = '#38bdf8';
 
+/** A frame narrower than this, width over height, shows the pitch upright. */
+const PORTRAIT_BELOW = 0.85;
+
 export class BoardEngine {
   readonly canvas: HTMLCanvasElement;
   handlers: EngineHandlers = {};
@@ -162,6 +165,12 @@ export class BoardEngine {
     t: number;
   } | null = null;
   private view: CameraView = 'tactical';
+  /** The viewer has moved the camera, so a resize must not undo their framing. */
+  private cameraMoved = false;
+  /** Fingers on the screen, so a pinch is not mistaken for an edit. */
+  private readonly fingers = new Set<number>();
+  /** A tap that places something, held until the finger lifts as a single tap. */
+  private pendingTap: { pointer: number; at: Vec2 } | null = null;
 
   /** Called every animation frame with seconds elapsed; playback hangs off it. */
   onTick: ((dt: number) => void) | null = null;
@@ -192,7 +201,10 @@ export class BoardEngine {
     this.controls.maxDistance = 220;
     this.controls.minZoom = 0.6;
     this.controls.maxZoom = 6;
-    this.controls.addEventListener('start', () => (this.tween = null));
+    this.controls.addEventListener('start', () => {
+      this.tween = null;
+      this.cameraMoved = true;
+    });
 
     this.sun.position.set(-35, 90, 45);
     this.sun.castShadow = true;
@@ -356,8 +368,14 @@ export class BoardEngine {
     this.setPreview(null);
   }
 
+  /** The next resize fits the pitch afresh: the frame is about to change shape. */
+  refit(): void {
+    this.cameraMoved = false;
+  }
+
   setView(view: CameraView, instant = false): void {
     this.view = view;
+    this.cameraMoved = false;
     if (this.flat) {
       this.frameFlat();
       return;
@@ -497,10 +515,18 @@ export class BoardEngine {
     }
   }
 
-  /** An end of the pitch (half, third, box), shown with its goal at the top. */
+  /**
+   * The pitch runs up the screen, with a goal at the top: always for an end of
+   * the pitch (half, third, box), and on a tall frame, such as a phone held
+   * upright, where a pitch lying sideways would be a thin strip.
+   */
   private get goalUp(): boolean {
     const layout = this.doc?.pitch.layout ?? 'full';
-    return layout === 'half' || layout === 'third' || layout === 'box';
+    return layout === 'half' || layout === 'third' || layout === 'box' || this.portrait;
+  }
+
+  private get portrait(): boolean {
+    return this.camera.aspect < PORTRAIT_BELOW;
   }
 
   /** The part of the pitch the current layout uses: [x0, x1, y0, y1]. */
@@ -562,11 +588,14 @@ export class BoardEngine {
     // An end of the pitch is seen from behind the halfway line, its goal at
     // the top, as a coach draws it: the pitch's width then fills a wide
     // screen, where seen side-on it would leave a gap past the goal.
-    if (this.goalUp && (view === 'top' || view === 'tactical')) {
+    // Upright, a broadcast camera is the same idea from lower down: side-on it
+    // would have to back away until the pitch was a sliver.
+    const upright = this.portrait && view === 'broadcast';
+    if (this.goalUp && (view === 'top' || view === 'tactical' || upright)) {
       const fit = Math.max(w / 2 / Math.tan(vfov / 2), d / 2 / Math.tan(hfov / 2));
       if (view === 'top') return [new THREE.Vector3(cx - 0.01, fit * 1.04, cy), target];
-      const dist = fit * 1.08;
-      const angle = THREE.MathUtils.degToRad(58);
+      const dist = fit * (upright ? 1.02 : 1.08);
+      const angle = THREE.MathUtils.degToRad(upright ? 42 : 58);
       return [
         new THREE.Vector3(cx - Math.cos(angle) * dist, Math.sin(angle) * dist, cy),
         target,
@@ -586,7 +615,8 @@ export class BoardEngine {
         ];
       }
       case 'behind': {
-        const dist = Math.max(fitTop * 0.9, 36);
+        const fit = this.portrait ? d / 2 / Math.tan(hfov / 2) : fitTop;
+        const dist = Math.max(fit * 0.9, 36);
         const angle = THREE.MathUtils.degToRad(26);
         return [
           new THREE.Vector3(x0 - Math.cos(angle) * dist * 0.75, Math.sin(angle) * dist, cy),
@@ -862,29 +892,58 @@ export class BoardEngine {
     return null;
   }
 
+  /** A click or tap that adds something: a piece, a label, a polygon corner. */
+  private tap(at: Vec2): void {
+    if (this.tool === 'place' || this.tool === 'text') {
+      this.handlers.place?.(clampToArea(at));
+      return;
+    }
+    const first = this.polygon[0];
+    if (first && this.polygon.length >= 3 && Math.hypot(at[0] - first[0], at[1] - first[1]) < 1.5) {
+      this.finishPolygon();
+    } else {
+      this.polygon.push(clampToArea(at));
+      this.handlers.stroke?.([...this.polygon], false);
+    }
+  }
+
+  /**
+   * A second finger came down, so this is a pinch or a turn of the camera, and
+   * whatever the first finger started must not count as an edit.
+   */
+  private yieldToCamera(): void {
+    this.pendingTap = null;
+    const g = this.gesture;
+    this.gesture = null;
+    if (!g) return;
+    // Close a drag already under way, so it stays one undo entry.
+    if (g.kind === 'object' && g.moved && this.doc) {
+      const at = positionAt(this.doc, this.edit.step, g.id);
+      if (at) this.handlers.moveObject?.(g.id, at, true);
+    } else if (g.kind === 'drawing' && g.moved) {
+      this.handlers.editDrawing?.(g.id, { offset: [0, 0] }, true);
+    } else if (g.kind === 'stroke') {
+      this.handlers.stroke?.(g.points.slice(0, 1), false);
+    }
+  }
+
   private readonly onPointerDown = (e: PointerEvent) => {
+    if (e.pointerType === 'touch') {
+      this.fingers.add(e.pointerId);
+      if (this.fingers.size > 1) {
+        this.yieldToCamera();
+        return;
+      }
+    }
     if (!this.edit.editing || e.button !== 0) return;
     const at = this.groundPoint(e);
     if (!at) return;
     this.canvas.setPointerCapture(e.pointerId);
 
-    if (this.tool === 'place' || this.tool === 'text') {
-      this.handlers.place?.(clampToArea(at));
-      return;
-    }
-
-    if (this.tool === 'polygon') {
-      const first = this.polygon[0];
-      if (
-        first &&
-        this.polygon.length >= 3 &&
-        Math.hypot(at[0] - first[0], at[1] - first[1]) < 1.5
-      ) {
-        this.finishPolygon();
-      } else {
-        this.polygon.push(clampToArea(at));
-        this.handlers.stroke?.([...this.polygon], false);
-      }
+    if (this.tool === 'place' || this.tool === 'text' || this.tool === 'polygon') {
+      // A finger may be the first of two, so a touch waits to see.
+      if (e.pointerType === 'touch') this.pendingTap = { pointer: e.pointerId, at };
+      else this.tap(at);
       return;
     }
 
@@ -975,6 +1034,11 @@ export class BoardEngine {
   };
 
   private readonly onPointerUp = (e: PointerEvent) => {
+    this.fingers.delete(e.pointerId);
+    const tap = this.pendingTap;
+    this.pendingTap = null;
+    if (tap?.pointer === e.pointerId && e.type === 'pointerup' && this.edit.editing)
+      this.tap(tap.at);
     const g = this.gesture;
     this.gesture = null;
     if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
@@ -1023,9 +1087,20 @@ export class BoardEngine {
     const w = Math.max(1, this.host.clientWidth);
     const h = Math.max(1, this.host.clientHeight);
     this.renderer.setSize(w, h, false);
+    const before = this.camera.aspect;
+    const wasPortrait = this.portrait;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.fitOrtho();
+    // Turning a phone, or going full screen, changes which way the pitch runs
+    // and what fits, so the pieces and drawings that follow it are redone.
+    if (this.portrait !== wasPortrait && this.doc) {
+      this.pitchKey = '';
+      this.setDoc(this.doc);
+      if (this.frame) this.setFrame(this.frame);
+    }
+    if (Math.abs(this.camera.aspect - before) > 0.01 && !this.cameraMoved)
+      this.setView(this.view, true);
   }
 
   private loop = () => {

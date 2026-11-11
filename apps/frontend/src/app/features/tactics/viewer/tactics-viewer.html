@@ -24,10 +24,11 @@
       </div>
     </header>
     @if (b.description) {
-      <p class="description">{{ b.description }}</p>
+      <app-clamp-text class="description" [text]="b.description" [lines]="3" />
     }
 
-    <div class="stage" #stage>
+    <div class="theatre" #theatre [class.full]="fs.active()">
+    <div class="stage">
       <app-board-view
         [doc]="doc()"
         [frame]="player.frame()"
@@ -35,6 +36,18 @@
         [flat]="flat()"
         [tick]="tick"
       />
+
+      <div class="corner">
+        <button
+          type="button"
+          class="fs-btn"
+          [title]="fs.active() ? 'Leave full screen (F)' : 'Full screen (F)'"
+          (click)="fs.toggle()"
+        >
+          <app-tactic-icon [name]="fs.active() ? 'shrink' : 'expand'" />
+          {{ fs.active() ? 'Exit' : 'Full screen' }}
+        </button>
+      </div>
 
       <div class="views" role="group" aria-label="Camera">
         <button
@@ -62,16 +75,16 @@
         }
         <button
           type="button"
-          title="Full screen (F)"
-          aria-label="Full screen"
-          (click)="fullscreen()"
+          title="How the board works"
+          aria-label="How the board works"
+          (click)="tutorialOpen.set(true)"
         >
-          <app-tactic-icon name="expand" />
+          <app-tactic-icon name="help" />
         </button>
       </div>
 
       @if (player.frame().note) {
-        <p class="caption">{{ player.frame().note }}</p>
+        <app-clamp-text class="caption" [text]="player.frame().note" />
       }
       @if (player.finished()) {
         <button type="button" class="replay" (click)="player.restart()">
@@ -86,6 +99,10 @@
     </div>
 
     <app-playback-bar [player]="player" [locked]="recording()" />
+    @if (tutorialOpen()) {
+      <app-board-tutorial mode="watch" (done)="tutorialOpen.set(false)" />
+    }
+    </div>
     <p class="help muted">
       {{ flat() ? 'Drag to move the board' : 'Drag to turn the camera' }}, scroll or pinch to zoom.
       Space plays and pauses; the arrow keys step.

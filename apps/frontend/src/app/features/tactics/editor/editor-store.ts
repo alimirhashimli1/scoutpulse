@@ -16,12 +16,14 @@ import {
   TacticDoc,
   TeamId,
   Vec2,
+  clampToArea,
   emptyDoc,
   formation,
   newId,
   newStep,
   positionAt,
   positionsAt,
+  readableOn,
 } from '../board/model';
 import { Frame, still } from '../board/playback';
 
@@ -37,6 +39,18 @@ export interface Pen {
 }
 
 const HISTORY_LIMIT = 100;
+
+/** What Ctrl+C holds. Kept here, so it survives moving between steps. */
+type Clip =
+  { type: 'object'; object: BoardObject; at: Vec2 } | { type: 'drawing'; drawing: Drawing };
+
+/** How far a copy lands from its original, in metres: visibly beside it. */
+const COPY_OFFSETS: readonly Vec2[] = [
+  [3, 2],
+  [-3, 2],
+  [3, -2],
+  [-3, -2],
+];
 
 /**
  * The editor's state.
@@ -64,6 +78,7 @@ export class EditorStore {
   private readonly undoStack = signal<TacticDoc[]>([]);
   private readonly redoStack = signal<TacticDoc[]>([]);
   private gestureOpen = false;
+  private clip: Clip | null = null;
   /** A text drawing just placed, whose content the inspector should focus. */
   readonly focusText = signal<string | null>(null);
 
@@ -293,21 +308,68 @@ export class EditorStore {
   }
 
   duplicateSelection(): void {
+    const clip = this.currentClip();
+    if (clip) this.insert(clip);
+  }
+
+  /** Ctrl+C. False when nothing is selected, so the browser can copy instead. */
+  copySelection(): boolean {
+    const clip = this.currentClip();
+    if (!clip) return false;
+    this.clip = clip;
+    return true;
+  }
+
+  /**
+   * Ctrl+V. Each paste lands a little further from the last, so pasting three
+   * times gives three separate pieces rather than a stack of them.
+   */
+  paste(): boolean {
+    if (!this.clip) return false;
+    this.clip = this.insert(this.clip);
+    return true;
+  }
+
+  private currentClip(): Clip | null {
     const obj = this.selectedObject();
-    if (!obj) return;
-    const at = positionAt(this.doc(), this.stepIndex(), obj.id);
-    if (!at) return;
+    if (obj) {
+      const at = positionAt(this.doc(), this.stepIndex(), obj.id);
+      return at ? { type: 'object', object: obj, at } : null;
+    }
+    const drawing = this.selectedDrawing();
+    return drawing ? { type: 'drawing', drawing } : null;
+  }
+
+  /** Adds a copy beside the original, selects it, and returns it as a clip. */
+  private insert(clip: Clip): Clip {
+    this.tool.set('select');
+    if (clip.type === 'drawing') {
+      const { drawing } = clip;
+      const [dx, dy] = offsetInside(drawing.points);
+      const copy: Drawing = {
+        ...drawing,
+        id: newId(),
+        points: drawing.points.map(([x, y]) => [x + dx, y + dy] as Vec2),
+      };
+      if (drawing.control) copy.control = [drawing.control[0] + dx, drawing.control[1] + dy];
+      this.apply(this.withDrawingAdded(copy));
+      this.selection.set({ type: 'drawing', id: copy.id });
+      return { type: 'drawing', drawing: copy };
+    }
+    const [dx, dy] = offsetInside([clip.at]);
+    const at: Vec2 = [clip.at[0] + dx, clip.at[1] + dy];
     // A shirt number belongs to one player, so the copy does not take it.
-    const { number: _number, ...rest } = obj;
+    const { number: _number, ...rest } = clip.object;
     const copy: BoardObject = { ...rest, id: newId() };
     const doc = this.doc();
     this.apply(
       this.withStep({ ...doc, objects: [...doc.objects, copy] }, this.stepIndex(), (s) => ({
         ...s,
-        pos: { ...s.pos, [copy.id]: [at[0] + 3, at[1] + 2] },
+        pos: { ...s.pos, [copy.id]: at },
       })),
     );
     this.selection.set({ type: 'object', id: copy.id });
+    return { type: 'object', object: copy, at };
   }
 
   deleteSelection(): void {
@@ -558,12 +620,47 @@ export class EditorStore {
     this.apply({ ...doc, teams: { ...doc.teams, [team]: { ...doc.teams[team], ...patch } } });
   }
 
+  /**
+   * Puts a whole team in one plain colour, overriding anything individual: a
+   * player's own shirt, trim, pattern or bib would otherwise keep them apart.
+   * Goalkeepers wear their own colour unless `keepers` says otherwise.
+   */
+  paintTeam(team: TeamId, color: string, keepers: boolean): void {
+    const doc = this.doc();
+    const kit: Kit = {
+      ...doc.teams[team],
+      primary: color,
+      pattern: 'solid',
+      numbers: readableOn(color),
+    };
+    if (keepers) kit.keeper = color;
+    this.apply({
+      ...doc,
+      teams: { ...doc.teams, [team]: kit },
+      objects: doc.objects.map((o) => {
+        if (o.kind !== 'player' || (o.team ?? 'home') !== team || (o.keeper && !keepers)) return o;
+        const { color: _c, color2: _c2, pattern: _p, bib: _b, ...plain } = o;
+        return plain;
+      }),
+    });
+  }
+
   clearBoard(): void {
     const doc = this.doc();
     this.apply({ ...doc, objects: [], steps: [newStep()] });
     this.stepIndex.set(0);
     this.selection.set(null);
   }
+}
+
+/** The first copy offset that keeps every point on the playing area. */
+function offsetInside(points: Vec2[]): Vec2 {
+  const fits = ([dx, dy]: Vec2) =>
+    points.every(([x, y]) => {
+      const [cx, cy] = clampToArea([x + dx, y + dy]);
+      return cx === x + dx && cy === y + dy;
+    });
+  return COPY_OFFSETS.find(fits) ?? COPY_OFFSETS[3];
 }
 
 /** Drops keys explicitly set to undefined, so they are not saved as nulls. */

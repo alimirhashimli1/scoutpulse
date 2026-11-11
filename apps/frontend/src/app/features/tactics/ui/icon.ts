@@ -51,6 +51,10 @@ const ICONS: Record<string, string> = {
   link: '<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>',
   download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  shrink: '<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 115 .9c-.6 1.2-2.5 1.6-2.5 3.4"/><path d="M12 17.2v.1"/>',
+  up: '<path d="M6 15l6-6 6 6"/>',
+  down: '<path d="M6 9l6 6 6-6"/>',
   camTop:
     '<rect x="5" y="5" width="14" height="14" rx="1"/><path d="M12 5v14M5 12h14" opacity=".5"/>',
   camTilt: '<path d="M7 7h10l4 12H3z"/><path d="M12 7v12" opacity=".5"/>',

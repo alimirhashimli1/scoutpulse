@@ -2,8 +2,12 @@ import {
   ChangeDetectionStrategy,
   Component,
   DOCUMENT,
+  DestroyRef,
+  ElementRef,
   OnInit,
   PLATFORM_ID,
+  WritableSignal,
+  afterNextRender,
   computed,
   effect,
   inject,
@@ -24,8 +28,12 @@ import type { CameraView, EditState } from '../board/engine';
 import { TacticDoc, normalizeDoc } from '../board/model';
 import { BoardPlayer, recordVideo, videoExtension } from '../board/player';
 import { TEMPLATES } from '../board/templates';
+import { BoardTutorial, tutorialSeen } from '../ui/board-tutorial';
+import { ClampText } from '../ui/clamp-text';
+import { BoardFullscreen, mediaQuery } from '../ui/fullscreen';
 import { TacticIcon } from '../ui/icon';
 import { PlaybackBar } from '../ui/playback-bar';
+import { Drawer } from './drawer';
 import { EditorStore } from './editor-store';
 import { Inspector } from './inspector';
 import { ToolPalette } from './tool-palette';
@@ -52,12 +60,23 @@ const VIEWS: { value: CameraView; label: string; icon: string }[] = [
 @Component({
   selector: 'app-tactics-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, BoardView, ToolPalette, Inspector, PlaybackBar, TacticIcon],
+  imports: [
+    RouterLink,
+    BoardView,
+    ToolPalette,
+    Inspector,
+    PlaybackBar,
+    TacticIcon,
+    Drawer,
+    ClampText,
+    BoardTutorial,
+  ],
   providers: [EditorStore],
   templateUrl: './tactics-editor.html',
-  styleUrls: ['./tactics-editor.css', '../ui/stage.css'],
+  styleUrls: ['./tactics-editor.css', './studio-layout.css', '../ui/stage.css'],
   host: {
     '(document:keydown)': 'onKey($event)',
+    '(document:fullscreenchange)': 'fs.sync()',
     '(window:beforeunload)': 'onBeforeUnload($event)',
   },
 })
@@ -93,6 +112,33 @@ export class TacticsEditor implements OnInit {
   protected readonly player = new BoardPlayer(this.store.doc);
   protected readonly tick = (dt: number) => this.player.tick(dt);
   private readonly board = viewChild(BoardView);
+  private readonly studio = viewChild<ElementRef<HTMLElement>>('studio');
+
+  protected readonly fs = new BoardFullscreen(
+    this.document,
+    () => this.studio()?.nativeElement,
+    () => this.board()?.refit(),
+  );
+  /** A screen too small for three columns: a phone, either way up. */
+  private readonly small = mediaQuery('(max-width: 56rem), (max-height: 32rem)');
+  private readonly short = mediaQuery('(max-height: 30rem)');
+  /** The side panels slide over the board instead of standing beside it. */
+  protected readonly drawers = computed(() => this.fs.active() || this.small());
+  protected readonly leftOpen = signal(false);
+  protected readonly rightOpen = signal(false);
+  protected readonly dockOpen = signal(true);
+  protected readonly stepDetails = signal(false);
+  protected readonly tutorialOpen = signal(false);
+
+  /** What a tap on the pitch will add; null when it moves pieces. */
+  protected readonly toolLabel = computed(() => {
+    const tool = this.store.tool();
+    if (tool === 'select') return null;
+    if (tool !== 'place') return tool;
+    const what = this.store.placing();
+    if (what.kind !== 'player') return what.kind;
+    return `${this.store.doc().teams[what.team].name} ${what.keeper ? 'goalkeeper' : 'player'}`;
+  });
 
   /** Standing on a step, rather than playing or scrubbed between two. */
   protected readonly atRest = computed(() => {
@@ -129,6 +175,26 @@ export class TacticsEditor implements OnInit {
       description: 'Draw and animate drills, shapes and match analysis on a 3D pitch.',
       path: '/tactics/new',
       noindex: true,
+    });
+
+    inject(DestroyRef).onDestroy(() => this.fs.release());
+    afterNextRender(() => {
+      if (!tutorialSeen('edit')) this.tutorialOpen.set(true);
+    });
+    // The panels start out of the way where they would cover the board.
+    effect(() => {
+      const open = !this.small();
+      this.drawers();
+      this.leftOpen.set(open);
+      this.rightOpen.set(open);
+    });
+    effect(() => this.dockOpen.set(!this.short()));
+    // On a small screen, picking a tool gets the panel out of the way of the
+    // pitch it is about to be used on.
+    effect(() => {
+      this.store.tool();
+      this.store.placing();
+      if (untracked(this.small)) this.leftOpen.set(false);
     });
 
     // Keep the editor's step and the playback clock on the same step. A step
@@ -232,6 +298,11 @@ export class TacticsEditor implements OnInit {
       // Storage blocked or the draft unreadable: start blank, as on any visit.
     }
     return false;
+  }
+
+  /** A phone upright has room for one panel at a time. */
+  protected soloDrawer(opened: boolean, other: WritableSignal<boolean>): void {
+    if (opened && globalThis.innerWidth < 640) other.set(false);
   }
 
   // --- saving -------------------------------------------------------------
@@ -411,6 +482,14 @@ export class TacticsEditor implements OnInit {
     } else if (mod && key === 'd') {
       e.preventDefault();
       this.store.duplicateSelection();
+    } else if (mod && key === 'c') {
+      if (this.store.copySelection()) e.preventDefault();
+    } else if (mod && key === 'v') {
+      if (this.atRest() && !this.recording() && this.store.paste()) e.preventDefault();
+    } else if (mod) {
+      // Leave every other browser shortcut alone.
+    } else if (key === 'f') {
+      this.fs.toggle();
     } else if (key === 'delete' || key === 'backspace') {
       if (this.store.selection()) {
         e.preventDefault();
@@ -420,15 +499,16 @@ export class TacticsEditor implements OnInit {
       this.board()?.cancelGesture();
       this.store.preview.set(null);
       if (this.store.tool() !== 'select') this.store.tool.set('select');
-      else this.store.selection.set(null);
+      else if (this.store.selection()) this.store.selection.set(null);
+      else this.fs.exit();
     } else if (key === ' ') {
       e.preventDefault();
       this.player.toggle();
     } else if (key === 'v') {
       this.store.tool.set('select');
-    } else if (key === 'arrowright' && !mod) {
+    } else if (key === 'arrowright') {
       this.goToStep(this.store.stepIndex() + 1);
-    } else if (key === 'arrowleft' && !mod) {
+    } else if (key === 'arrowleft') {
       this.goToStep(this.store.stepIndex() - 1);
     }
   }

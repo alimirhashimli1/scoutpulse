@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 
-import { DrawingKind, EquipmentKind, PALETTE, StrokeStyle, TeamId } from '../board/model';
+import { DrawingKind, EquipmentKind, PALETTE, StrokeStyle, TEAM_IDS, TeamId } from '../board/model';
 import { TacticIcon } from '../ui/icon';
 import { EditorStore, Placeable } from './editor-store';
 
@@ -162,7 +162,7 @@ export class ToolPalette {
   protected readonly teams = computed(() => {
     const kits = this.store.doc().teams;
     const out: (PaletteTool & { color: string; edge: string; short: string })[] = [];
-    for (const team of ['home', 'away', 'third'] as TeamId[]) {
+    for (const team of TEAM_IDS) {
       const kit = kits[team];
       out.push({
         key: `player:${team}:`,

@@ -212,6 +212,7 @@ function pressingDrill1(): TacticDoc {
     v: 1,
     pitch: { layout: 'third', markings: 'standard', style: 'day', stadium: false },
     teams: {
+      ...DEFAULT_KITS,
       home: { ...DEFAULT_KITS.home, name: 'Red', primary: RED },
       away: { ...DEFAULT_KITS.away, name: 'Blue', primary: BLUE },
       third: { ...DEFAULT_KITS.third, name: 'Keeper', keeper: ORANGE, numbers: '#ffffff' },

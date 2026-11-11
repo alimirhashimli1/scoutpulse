@@ -1,0 +1,66 @@
+<!-- Key presses stay in here, or the board behind would act on them too. -->
+<dialog
+  #dialog
+  aria-labelledby="tutorial-title"
+  [style.--scene]="seconds + 's'"
+  (cancel)="$event.preventDefault(); finish()"
+  (keydown)="$event.stopPropagation()"
+>
+  <!-- Rebuilt for each scene, which restarts its animations from the top. -->
+  @for (s of [scene()]; track s.animation) {
+    <div class="demo" [attr.data-scene]="s.animation" aria-hidden="true">
+      <div class="world">
+        <svg viewBox="0 0 320 180">
+          <rect class="grass" width="320" height="180" />
+          <g class="lines">
+            <rect x="16" y="14" width="288" height="152" />
+            <path d="M160 14v152M16 54h44v72H16M304 54h-44v72h44" />
+            <circle cx="160" cy="90" r="24" />
+          </g>
+          <circle class="dot home" cx="110" cy="62" r="8" />
+          <circle class="dot home" cx="84" cy="122" r="8" />
+          <circle class="dot away" cx="232" cy="118" r="8" />
+          <circle class="dot piece" cx="130" cy="96" r="9" />
+          <circle class="dot added" cx="196" cy="58" r="9" />
+        </svg>
+      </div>
+      <span class="palette"><i></i><i></i><i></i></span>
+      <span class="play-mark"><app-tactic-icon name="play" /></span>
+      <span class="full-mark"><app-tactic-icon name="expand" /> Full screen</span>
+
+      @if (usesTouch) {
+        <span class="pointer finger one"></span>
+        @if (s.fingers === 2) {
+          <span class="pointer finger two"></span>
+        }
+      } @else {
+        <svg class="pointer arrow" viewBox="0 0 24 24">
+          <path d="M5 2l14 11-6.4 1 3.6 7-3 1.5-3.5-7L5 20z" />
+        </svg>
+        <svg class="mouse" viewBox="0 0 40 60" [attr.data-press]="s.press">
+          <rect class="body" x="3" y="3" width="34" height="54" rx="16" />
+          <path class="left" d="M20 3C10 3 3 10 3 19v7h17z" />
+          <path class="right" d="M20 3c10 0 17 7 17 16v7H20z" />
+          <rect class="wheel" x="17" y="11" width="6" height="12" rx="3" />
+        </svg>
+      }
+    </div>
+  }
+
+  <div class="progress" aria-hidden="true">
+    @for (s of scenes(); track s.animation; let i = $index) {
+      <span [class.past]="i < index()" [class.now]="i === index()"><i></i></span>
+    }
+  </div>
+
+  <h2 id="tutorial-title">{{ scene().title }}</h2>
+  <p aria-live="polite">{{ scene().text }}</p>
+
+  <footer>
+    <button type="button" class="skip" (click)="finish()">Skip</button>
+    <span class="count">{{ index() + 1 }} of {{ scenes().length }}</span>
+    <button type="button" class="btn primary" (click)="next()">
+      {{ last() ? 'Start' : 'Next' }}
+    </button>
+  </footer>
+</dialog>

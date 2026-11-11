@@ -2,7 +2,9 @@ import {
   ChangeDetectionStrategy,
   Component,
   DOCUMENT,
+  DestroyRef,
   ElementRef,
+  afterNextRender,
   computed,
   effect,
   inject,
@@ -23,6 +25,9 @@ import { BoardView } from '../board/board-view';
 import type { CameraView } from '../board/engine';
 import { emptyDoc, normalizeDoc } from '../board/model';
 import { BoardPlayer, recordVideo, videoExtension } from '../board/player';
+import { BoardTutorial, tutorialSeen } from '../ui/board-tutorial';
+import { ClampText } from '../ui/clamp-text';
+import { BoardFullscreen } from '../ui/fullscreen';
 import { TacticIcon } from '../ui/icon';
 import { PlaybackBar } from '../ui/playback-bar';
 
@@ -44,10 +49,20 @@ const VIEWS: { value: CameraView; label: string; icon: string }[] = [
 @Component({
   selector: 'app-tactics-viewer',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DatePipe, BoardView, PlaybackBar, TacticIcon, Loading, ErrorState],
+  imports: [
+    RouterLink,
+    DatePipe,
+    BoardView,
+    PlaybackBar,
+    TacticIcon,
+    Loading,
+    ErrorState,
+    ClampText,
+    BoardTutorial,
+  ],
   templateUrl: './tactics-viewer.html',
   styleUrls: ['./tactics-viewer.css', '../ui/stage.css'],
-  host: { '(document:keydown)': 'onKey($event)' },
+  host: { '(document:keydown)': 'onKey($event)', '(document:fullscreenchange)': 'fs.sync()' },
 })
 export class TacticsViewer {
   readonly slug = input.required<string>();
@@ -83,11 +98,22 @@ export class TacticsViewer {
     return e instanceof ApiError && e.code === 'not_found';
   });
 
-  private readonly stage = viewChild<ElementRef<HTMLElement>>('stage');
+  private readonly theatre = viewChild<ElementRef<HTMLElement>>('theatre');
   private readonly boardView = viewChild(BoardView);
+
+  protected readonly fs = new BoardFullscreen(
+    this.document,
+    () => this.theatre()?.nativeElement,
+    () => this.boardView()?.refit(),
+  );
+  protected readonly tutorialOpen = signal(false);
 
   constructor() {
     const seo = inject(Seo);
+    inject(DestroyRef).onDestroy(() => this.fs.release());
+    afterNextRender(() => {
+      if (!tutorialSeen('watch')) this.tutorialOpen.set(true);
+    });
     effect(() => {
       const b = this.board.value();
       seo.describe({
@@ -125,13 +151,6 @@ export class TacticsViewer {
     }
   }
 
-  protected fullscreen(): void {
-    const el = this.stage()?.nativeElement;
-    if (!el) return;
-    if (this.document.fullscreenElement) void this.document.exitFullscreen();
-    else void el.requestFullscreen?.();
-  }
-
   protected async downloadVideo(): Promise<void> {
     const canvas = this.boardView()?.canvas();
     if (!canvas || this.recording()) return;
@@ -166,7 +185,7 @@ export class TacticsViewer {
       this.player.pause();
       this.player.seekStep(this.player.step() - 1);
     } else if (e.key.toLowerCase() === 'f') {
-      this.fullscreen();
+      this.fs.toggle();
     }
   }
 }

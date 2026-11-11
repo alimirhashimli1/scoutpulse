@@ -1,0 +1,253 @@
+/* The little animated pitch. Every scene runs for --scene, set in the template. */
+.demo {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: #18221d;
+  perspective: 500px;
+}
+.world {
+  position: absolute;
+  inset: 8%;
+  transform-origin: center;
+}
+.world svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.grass {
+  fill: #3a8a47;
+}
+.lines {
+  fill: none;
+  stroke: rgb(255 255 255 / 80%);
+  stroke-width: 2;
+}
+.dot {
+  stroke: #fff;
+  stroke-width: 2;
+}
+.home,
+.piece {
+  fill: #c8102e;
+}
+.away {
+  fill: #1d4ed8;
+}
+.added {
+  fill: #facc15;
+  opacity: 0;
+}
+.pointer {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+}
+.arrow {
+  width: 1.6rem;
+  height: 1.6rem;
+  fill: #fff;
+  stroke: #111;
+  stroke-width: 1.4;
+}
+.finger {
+  width: 1.7rem;
+  height: 1.7rem;
+  margin: -0.85rem 0 0 -0.85rem;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: rgb(255 255 255 / 35%);
+}
+.mouse {
+  position: absolute;
+  right: 3%;
+  bottom: 5%;
+  z-index: 2;
+  width: 1.9rem;
+  height: 2.85rem;
+}
+.mouse .body,
+.mouse .left,
+.mouse .right,
+.mouse .wheel {
+  fill: #e2e8f0;
+  stroke: #334155;
+  stroke-width: 2;
+}
+.mouse[data-press='left'] .left,
+.mouse[data-press='right'] .right,
+.mouse[data-press='wheel'] .wheel {
+  fill: #f59e0b;
+}
+.palette,
+.play-mark,
+.full-mark {
+  display: none;
+  position: absolute;
+  z-index: 1;
+}
+
+/* Pick a tool, then click the pitch. */
+[data-scene='place'] .palette {
+  display: grid;
+  gap: 4px;
+  left: 3%;
+  top: 22%;
+  padding: 4px;
+  border-radius: 4px;
+  background: #e2e8f0;
+}
+.palette i {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  background: #facc15;
+}
+.palette i:nth-child(1) {
+  background: #c8102e;
+}
+.palette i:nth-child(2) {
+  background: #1d4ed8;
+}
+[data-scene='place'] .pointer {
+  animation: to-pitch var(--scene) ease-in-out both;
+}
+[data-scene='place'] .added {
+  animation: pop var(--scene) step-end both;
+}
+@keyframes to-pitch {
+  0%, 25% { left: 7%; top: 48%; }
+  70%, 100% { left: 60%; top: 34%; }
+}
+@keyframes pop {
+  0% { opacity: 0; }
+  72%, 100% { opacity: 1; }
+}
+
+/* Drag a piece. */
+[data-scene='move'] .pointer {
+  animation: drag-hand var(--scene) ease-in-out both;
+}
+[data-scene='move'] .piece {
+  animation: drag-piece var(--scene) ease-in-out both;
+}
+@keyframes drag-hand {
+  0%, 20% { left: 42%; top: 53%; }
+  85%, 100% { left: 66%; top: 28%; }
+}
+@keyframes drag-piece {
+  0%, 20% { transform: translate(0, 0); }
+  85%, 100% { transform: translate(78px, -50px); }
+}
+
+/* Turn the camera. */
+[data-scene='turn'] .world {
+  animation: turn var(--scene) ease-in-out both;
+}
+[data-scene='turn'] .pointer {
+  animation: sweep var(--scene) ease-in-out both;
+}
+[data-scene='turn'] .two {
+  margin-left: 1.4rem;
+}
+@keyframes turn {
+  0% { transform: rotateX(48deg) rotateZ(-24deg); }
+  50% { transform: rotateX(48deg) rotateZ(24deg); }
+  100% { transform: rotateX(48deg) rotateZ(-24deg); }
+}
+@keyframes sweep {
+  0%, 100% { left: 30%; }
+  50% { left: 62%; }
+}
+
+/* Zoom. */
+[data-scene='zoom'] .world {
+  animation: zoom var(--scene) ease-in-out both;
+}
+[data-scene='zoom'] .one {
+  animation: pinch-a var(--scene) ease-in-out both;
+}
+[data-scene='zoom'] .two {
+  animation: pinch-b var(--scene) ease-in-out both;
+}
+[data-scene='zoom'] .wheel {
+  animation: roll calc(var(--scene) / 4) linear infinite;
+}
+@keyframes zoom {
+  0%, 100% { transform: scale(0.9); }
+  50% { transform: scale(1.8); }
+}
+@keyframes pinch-a {
+  0%, 100% { left: 44%; top: 56%; }
+  50% { left: 28%; top: 74%; }
+}
+@keyframes pinch-b {
+  0%, 100% { left: 56%; top: 44%; }
+  50% { left: 72%; top: 26%; }
+}
+@keyframes roll {
+  50% { transform: translateY(3px); }
+}
+
+/* Slide the view. */
+[data-scene='pan'] .world {
+  animation: pan var(--scene) ease-in-out both;
+}
+[data-scene='pan'] .pointer {
+  animation: pan-hand var(--scene) ease-in-out both;
+}
+[data-scene='pan'] .two {
+  margin-left: 1.4rem;
+}
+@keyframes pan {
+  0%, 100% { transform: scale(1.5) translate(12%, 0); }
+  50% { transform: scale(1.5) translate(-12%, 0); }
+}
+@keyframes pan-hand {
+  0%, 100% { left: 58%; }
+  50% { left: 32%; }
+}
+
+/* Play. */
+[data-scene='play'] .play-mark {
+  display: grid;
+  place-items: center;
+  left: 50%;
+  top: 50%;
+  width: 3rem;
+  height: 3rem;
+  margin: -1.5rem 0 0 -1.5rem;
+  border-radius: 50%;
+  background: rgb(10 14 18 / 60%);
+  color: #fff;
+  animation: fade var(--scene) step-end both;
+}
+[data-scene='play'] .pointer {
+  left: 56%;
+  top: 56%;
+}
+[data-scene='play'] .piece {
+  animation: run var(--scene) ease-in-out both;
+}
+@keyframes fade {
+  0% { opacity: 1; }
+  30%, 100% { opacity: 0; }
+}
+@keyframes run {
+  0%, 30% { transform: translate(0, 0); }
+  100% { transform: translate(90px, -30px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo *,
+  .world {
+    animation: none !important;
+  }
+  .added {
+    opacity: 1;
+  }
+}

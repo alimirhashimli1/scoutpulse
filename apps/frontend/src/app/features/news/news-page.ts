@@ -72,7 +72,7 @@ const PAGE = 20;
           }
         } @else {
           <app-empty
-            [message]="active() ? 'No ' + activeLabel() + ' stories right now.' : 'No news yet.'"
+            [message]="active() ? 'No stories in ' + activeLabel() + ' right now.' : 'No news yet.'"
             hint="Stories appear here as they break. Check back soon."
           />
         }

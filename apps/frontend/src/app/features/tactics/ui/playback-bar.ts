@@ -190,6 +190,27 @@ import { TacticIcon } from './icon';
       color: var(--ink-soft);
       accent-color: var(--accent);
     }
+    /* A phone upright: the track gets its own line, the controls share one. */
+    @media (max-width: 30rem) {
+      .track {
+        order: -1;
+        flex-basis: 100%;
+      }
+      .clock .muted {
+        display: none;
+      }
+      .bar {
+        gap: var(--space-1);
+      }
+      .b {
+        width: 2rem;
+        height: 2rem;
+      }
+      .b.play {
+        width: 2.4rem;
+        height: 2.4rem;
+      }
+    }
   `,
 })
 export class PlaybackBar {
