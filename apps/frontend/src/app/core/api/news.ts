@@ -1,7 +1,13 @@
 import { InjectionToken } from '@angular/core';
 
 import { Page, PageQuery } from './page';
-import { AdminNewsStory, NewsAdminOverview, NewsCategory, NewsRun, NewsStory } from '../models/news';
+import {
+  AdminNewsStory,
+  NewsAdminOverview,
+  NewsCategory,
+  NewsRun,
+  NewsStory,
+} from '../models/news';
 
 /**
  * Football news: the public feed, and its moderation. Two contracts because

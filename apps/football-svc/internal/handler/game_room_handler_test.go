@@ -49,20 +49,28 @@ func roomServer(t *testing.T) (*httptest.Server, *GameRoomHandler) {
 	return srv, rh
 }
 
-func postJSON(t *testing.T, url string, body any) *http.Response {
+// reply is a response already read and closed, so no caller can leak a body.
+type reply struct {
+	StatusCode int
+	Body       []byte
+}
+
+func postJSON(t *testing.T, url string, body any) reply {
 	t.Helper()
 	b, _ := json.Marshal(body)
 	res, err := http.Post(url, "application/json", bytes.NewReader(b))
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = res.Body.Close() })
-	return res
+	defer func() { _ = res.Body.Close() }()
+	raw, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	return reply{StatusCode: res.StatusCode, Body: raw}
 }
 
-func seat(t *testing.T, res *http.Response) rooms.Seat {
+func seat(t *testing.T, res reply) rooms.Seat {
 	t.Helper()
 	require.Equal(t, http.StatusCreated, res.StatusCode)
 	var s rooms.Seat
-	require.NoError(t, json.NewDecoder(res.Body).Decode(&s))
+	require.NoError(t, json.Unmarshal(res.Body, &s))
 	return s
 }
 
@@ -71,7 +79,8 @@ func events(t *testing.T, url string) <-chan rooms.Snapshot {
 	t.Helper()
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("Accept", "text/event-stream")
-	res, err := http.DefaultClient.Do(req)
+	// Closed by the reader goroutine below, once the stream ends.
+	res, err := http.DefaultClient.Do(req) //nolint:bodyclose // closed in the goroutine
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "text/event-stream", res.Header.Get("Content-Type"))
@@ -140,7 +149,7 @@ func TestRoomOverHTTP(t *testing.T) {
 
 	res = postJSON(t, room+"/guesses", map[string]string{"token": guest.Token, "text": "Definitely Wrong"})
 	var verdict rooms.GuessResult
-	require.NoError(t, json.NewDecoder(res.Body).Decode(&verdict))
+	require.NoError(t, json.Unmarshal(res.Body, &verdict))
 	assert.False(t, verdict.Correct)
 
 	// Leaving by beacon: text/plain.

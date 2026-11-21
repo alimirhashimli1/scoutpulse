@@ -35,8 +35,8 @@ const PAGE = 50;
           @if (r.skipped) {
             Run skipped: {{ r.skipped }}
           } @else {
-            Run {{ r.status }}: {{ r.fetched }} fetched, {{ r.new_items }} new, {{ r.published }}
-            published, {{ r.ai_neurons }} Neurons.
+            Run {{ r.status }}: {{ r.fetched }} fetched, {{ r.new_items }} new,
+            {{ r.published }} published, {{ r.ai_neurons }} Neurons.
           }
         </p>
       }
@@ -103,24 +103,46 @@ const PAGE = 50;
                     <tr [class.hidden-row]="s.hidden">
                       <td class="tabular score">{{ s.score }}</td>
                       <td>
-                        <a [href]="s.url" target="_blank" rel="noopener noreferrer">{{ s.headline }}</a>
+                        <a [href]="s.url" target="_blank" rel="noopener noreferrer">{{
+                          s.headline
+                        }}</a>
                         <p class="reason">{{ s.scorer }} · {{ s.reason }}</p>
                       </td>
                       <td>{{ label(s.category) }}</td>
                       <td class="muted">{{ s.sources.join(', ') }}</td>
                       <td class="muted">
-                        {{ s.published_at ? 'Published ' + (s.published_at | date: 'd MMM HH:mm') : 'Candidate' }}
-                        @if (s.pinned) { · pinned }
-                        @if (s.hidden) { · hidden }
+                        {{
+                          s.published_at
+                            ? 'Published ' + (s.published_at | date: 'd MMM HH:mm')
+                            : 'Candidate'
+                        }}
+                        @if (s.pinned) {
+                          · pinned
+                        }
+                        @if (s.hidden) {
+                          · hidden
+                        }
                       </td>
                       <td class="actions">
-                        <button class="btn" type="button" [disabled]="busy() === s.id"
-                          [attr.aria-pressed]="s.pinned" (click)="toggle(s, 'pinned')">
-                          {{ s.pinned ? 'Unpin' : 'Pin' }}<span class="visually-hidden"> {{ s.headline }}</span>
+                        <button
+                          class="btn"
+                          type="button"
+                          [disabled]="busy() === s.id"
+                          [attr.aria-pressed]="s.pinned"
+                          (click)="toggle(s, 'pinned')"
+                        >
+                          {{ s.pinned ? 'Unpin' : 'Pin'
+                          }}<span class="visually-hidden"> {{ s.headline }}</span>
                         </button>
-                        <button class="btn" type="button" [disabled]="busy() === s.id"
-                          [attr.aria-pressed]="s.hidden" (click)="toggle(s, 'hidden')">
-                          {{ s.hidden ? 'Unhide' : 'Hide' }}<span class="visually-hidden"> {{ s.headline }}</span>
+                        <button
+                          class="btn"
+                          type="button"
+                          [disabled]="busy() === s.id"
+                          [attr.aria-pressed]="s.hidden"
+                          (click)="toggle(s, 'hidden')"
+                        >
+                          {{ s.hidden ? 'Unhide' : 'Hide'
+                          }}<span class="visually-hidden"> {{ s.headline }}</span>
                         </button>
                       </td>
                     </tr>
@@ -129,7 +151,10 @@ const PAGE = 50;
               </table>
             </div>
           } @else {
-            <app-empty message="No stories scored yet." hint="Turn on a verified source, then run the job." />
+            <app-empty
+              message="No stories scored yet."
+              hint="Turn on a verified source, then run the job."
+            />
           }
         </section>
       } @else if (data.isLoading()) {

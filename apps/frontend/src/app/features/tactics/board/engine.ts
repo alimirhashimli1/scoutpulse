@@ -596,10 +596,7 @@ export class BoardEngine {
       if (view === 'top') return [new THREE.Vector3(cx - 0.01, fit * 1.04, cy), target];
       const dist = fit * (upright ? 1.02 : 1.08);
       const angle = THREE.MathUtils.degToRad(upright ? 42 : 58);
-      return [
-        new THREE.Vector3(cx - Math.cos(angle) * dist, Math.sin(angle) * dist, cy),
-        target,
-      ];
+      return [new THREE.Vector3(cx - Math.cos(angle) * dist, Math.sin(angle) * dist, cy), target];
     }
 
     switch (view) {
@@ -1232,4 +1229,3 @@ function kerb(length: number, width: number, color: string): THREE.Group {
   }
   return g;
 }
-

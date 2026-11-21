@@ -39,7 +39,12 @@ const FULL_SCREEN = 'Press Full screen for the biggest pitch.';
 export function tutorialScenes(mode: TutorialMode, touch: boolean): TutorialScene[] {
   const zoom: TutorialScene = touch
     ? { animation: 'zoom', fingers: 2, title: 'Zoom in and out', text: 'Pinch with two fingers.' }
-    : { animation: 'zoom', press: 'wheel', title: 'Zoom in and out', text: 'Roll the mouse wheel.' };
+    : {
+        animation: 'zoom',
+        press: 'wheel',
+        title: 'Zoom in and out',
+        text: 'Roll the mouse wheel.',
+      };
 
   if (mode === 'watch') {
     return [

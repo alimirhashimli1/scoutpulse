@@ -233,7 +233,8 @@ func (h *Hub) Create(name string) (Seat, error) {
 		created:  h.now(),
 		active:   h.now(),
 		subs:     map[chan []byte]string{},
-		rng:      mrand.New(mrand.NewPCG(seed(), seed())),
+		// Picks pairs and turn order, not secrets; seeded from crypto/rand.
+		rng: mrand.New(mrand.NewPCG(seed(), seed())), //nolint:gosec // G404: gameplay randomness
 	}
 	p := r.addLocked(name)
 	r.host = p.id
@@ -385,15 +386,15 @@ func (r *Room) byToken(tok string) (*player, error) {
 	return nil, apperr.Unauthorized("you are not in this game")
 }
 
-func (r *Room) hostLocked(tok string) (*player, error) {
+func (r *Room) hostLocked(tok string) error {
 	p, err := r.byToken(tok)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if p.id != r.host {
-		return nil, apperr.Forbidden("only the host can do that")
+		return apperr.Forbidden("only the host can do that")
 	}
-	return p, nil
+	return nil
 }
 
 // Subscribe opens a stream of snapshots for a seated player. The first one
@@ -465,7 +466,7 @@ func (r *Room) Poll(tok string) (Snapshot, error) {
 func (r *Room) Configure(tok string, s Settings) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, err := r.hostLocked(tok); err != nil {
+	if err := r.hostLocked(tok); err != nil {
 		return err
 	}
 	if !s.valid() {
@@ -483,7 +484,7 @@ func (r *Room) Configure(tok string, s Settings) error {
 func (r *Room) Start(tok string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, err := r.hostLocked(tok); err != nil {
+	if err := r.hostLocked(tok); err != nil {
 		return err
 	}
 	if r.phase == PhasePlaying || r.phase == PhaseReveal {
@@ -502,7 +503,7 @@ func (r *Room) Start(tok string) error {
 func (r *Room) Next(tok string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, err := r.hostLocked(tok); err != nil {
+	if err := r.hostLocked(tok); err != nil {
 		return err
 	}
 	switch r.phase {
@@ -520,7 +521,7 @@ func (r *Room) Next(tok string) error {
 func (r *Room) Stop(tok string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, err := r.hostLocked(tok); err != nil {
+	if err := r.hostLocked(tok); err != nil {
 		return err
 	}
 	r.cancelTimerLocked()

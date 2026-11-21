@@ -92,6 +92,5 @@ export class BoardFullscreen {
 /** `lock` is missing from the DOM typings and from some browsers. */
 function lockable() {
   return globalThis.screen?.orientation as
-    | { lock?(o: string): Promise<void>; unlock?(): void }
-    | undefined;
+    { lock?(o: string): Promise<void>; unlock?(): void } | undefined;
 }

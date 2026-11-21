@@ -7,12 +7,7 @@
  */
 
 export type NewsCategory =
-  | 'transfers'
-  | 'injuries'
-  | 'results'
-  | 'managers'
-  | 'young_talents'
-  | 'other';
+  'transfers' | 'injuries' | 'results' | 'managers' | 'young_talents' | 'other';
 
 export interface NewsStory {
   readonly id: string;

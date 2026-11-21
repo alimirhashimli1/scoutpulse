@@ -171,12 +171,9 @@ function pressingDrill1(): TacticDoc {
         b1: at(11.5, 20),
       },
     ),
-    step(
-      7,
-      'The pass inside is cut out. Blue has won the ball back.',
-      { ball: at(6.3, 28.2) },
-      [banner('banner-won', 'WON BACK')],
-    ),
+    step(7, 'The pass inside is cut out. Blue has won the ball back.', { ball: at(6.3, 28.2) }, [
+      banner('banner-won', 'WON BACK'),
+    ]),
     step(
       8,
       'Phase 3: blue attacks the real goal at once, with 6 seconds to shoot. Red reacts too: the ' +

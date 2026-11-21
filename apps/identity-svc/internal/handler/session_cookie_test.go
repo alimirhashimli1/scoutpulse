@@ -202,7 +202,8 @@ func TestSessionCookie_RoundTripsThroughAMountedProxy(t *testing.T) {
 	client := site.Client()
 	client.Jar = jar
 
-	call := func(path string, body any) *http.Response {
+	// Returns only the status; the body is closed here, not by the caller.
+	call := func(path string, body any) int {
 		raw, _ := json.Marshal(body)
 		req, _ := http.NewRequest(http.MethodPost, site.URL+"/api/identity/api/v1/auth/"+path, bytes.NewReader(raw))
 		req.Header.Set("Content-Type", "application/json")
@@ -210,20 +211,20 @@ func TestSessionCookie_RoundTripsThroughAMountedProxy(t *testing.T) {
 		req.Header.Set("X-Forwarded-Prefix", "/api/identity")
 		res, err := client.Do(req)
 		require.NoError(t, err)
-		t.Cleanup(func() { _ = res.Body.Close() })
-		return res
+		_ = res.Body.Close()
+		return res.StatusCode
 	}
 
-	require.Equal(t, http.StatusOK, call("login", LoginRequest{Identifier: user.Email, Password: "password123"}).StatusCode)
+	require.Equal(t, http.StatusOK, call("login", LoginRequest{Identifier: user.Email, Password: "password123"}))
 	authURL, _ := url.Parse(site.URL + "/api/identity/api/v1/auth/refresh")
 	require.Len(t, jar.Cookies(authURL), 1, "the jar holds the cookie for the auth path")
 	otherURL, _ := url.Parse(site.URL + "/api/football/api/v1/players")
 	assert.Empty(t, jar.Cookies(otherURL), "and does not send it anywhere else")
 
-	assert.Equal(t, http.StatusOK, call("refresh", RefreshRequest{}).StatusCode, "first reload")
-	assert.Equal(t, http.StatusOK, call("refresh", RefreshRequest{}).StatusCode, "second reload, rotated cookie")
+	assert.Equal(t, http.StatusOK, call("refresh", RefreshRequest{}), "first reload")
+	assert.Equal(t, http.StatusOK, call("refresh", RefreshRequest{}), "second reload, rotated cookie")
 
-	assert.Equal(t, http.StatusNoContent, call("logout", RefreshRequest{}).StatusCode)
+	assert.Equal(t, http.StatusNoContent, call("logout", RefreshRequest{}))
 	assert.Empty(t, jar.Cookies(authURL), "logout removes it")
-	assert.Equal(t, http.StatusBadRequest, call("refresh", RefreshRequest{}).StatusCode, "nothing left to refresh with")
+	assert.Equal(t, http.StatusBadRequest, call("refresh", RefreshRequest{}), "nothing left to refresh with")
 }

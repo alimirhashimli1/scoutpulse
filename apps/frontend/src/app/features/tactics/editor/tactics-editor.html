@@ -302,129 +302,129 @@
         </div>
 
         <div class="dock" [class.closed]="drawers() && !dockOpen()">
-        <div class="steps">
-          <div class="chips" role="tablist" aria-label="Steps">
-            @for (s of store.doc().steps; track s.id; let i = $index) {
+          <div class="steps">
+            <div class="chips" role="tablist" aria-label="Steps">
+              @for (s of store.doc().steps; track s.id; let i = $index) {
+                <button
+                  type="button"
+                  role="tab"
+                  class="chip"
+                  [class.on]="i === store.stepIndex()"
+                  [attr.aria-selected]="i === store.stepIndex()"
+                  [class.dragging]="i === draggingStep()"
+                  [class.drop]="i === dropStep() && i !== draggingStep()"
+                  [title]="(s.note || 'Step ' + (i + 1)) + ' · drag to reorder'"
+                  draggable="true"
+                  (click)="goToStep(i)"
+                  (dragstart)="onStepDragStart($event, i)"
+                  (dragover)="onStepDragOver($event, i)"
+                  (dragleave)="dropStep.set(null)"
+                  (drop)="onStepDrop($event, i)"
+                  (dragend)="onStepDragEnd()"
+                >
+                  {{ i + 1 }}
+                </button>
+              }
               <button
                 type="button"
-                role="tab"
-                class="chip"
-                [class.on]="i === store.stepIndex()"
-                [attr.aria-selected]="i === store.stepIndex()"
-                [class.dragging]="i === draggingStep()"
-                [class.drop]="i === dropStep() && i !== draggingStep()"
-                [title]="(s.note || 'Step ' + (i + 1)) + ' · drag to reorder'"
-                draggable="true"
-                (click)="goToStep(i)"
-                (dragstart)="onStepDragStart($event, i)"
-                (dragover)="onStepDragOver($event, i)"
-                (dragleave)="dropStep.set(null)"
-                (drop)="onStepDrop($event, i)"
-                (dragend)="onStepDragEnd()"
+                class="chip add"
+                title="Add a step after this one"
+                aria-label="Add step"
+                (click)="addStep()"
               >
-                {{ i + 1 }}
+                <app-tactic-icon name="plus" />
+              </button>
+            </div>
+
+            @if (drawers()) {
+              <button
+                type="button"
+                class="btn quiet details-toggle"
+                [attr.aria-expanded]="stepDetails()"
+                (click)="stepDetails.set(!stepDetails())"
+              >
+                Details
               </button>
             }
-            <button
-              type="button"
-              class="chip add"
-              title="Add a step after this one"
-              aria-label="Add step"
-              (click)="addStep()"
-            >
-              <app-tactic-icon name="plus" />
-            </button>
-          </div>
 
-          @if (drawers()) {
-            <button
-              type="button"
-              class="btn quiet details-toggle"
-              [attr.aria-expanded]="stepDetails()"
-              (click)="stepDetails.set(!stepDetails())"
-            >
-              Details
-            </button>
-          }
-
-          @let step = store.step();
-          <div class="step-props" [class.folded]="drawers() && !stepDetails()">
-            <label>
-              <span>Move</span>
-              <input
-                type="number"
-                min="0.2"
-                max="20"
-                step="0.1"
+            @let step = store.step();
+            <div class="step-props" [class.folded]="drawers() && !stepDetails()">
+              <label>
+                <span>Move</span>
+                <input
+                  type="number"
+                  min="0.2"
+                  max="20"
+                  step="0.1"
+                  [disabled]="store.stepIndex() === 0"
+                  [value]="step.duration"
+                  (change)="store.updateStep({ duration: numberFrom($event, 0.2, 20) })"
+                />s
+              </label>
+              <label>
+                <span>Pause</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="20"
+                  step="0.1"
+                  [value]="step.hold"
+                  (change)="store.updateStep({ hold: numberFrom($event, 0, 20) })"
+                />s
+              </label>
+              <label class="note">
+                <span class="visually-hidden">Caption for step {{ store.stepIndex() + 1 }}</span>
+                <input
+                  type="text"
+                  maxlength="200"
+                  placeholder="Caption for this step, e.g. “6 drops to receive”"
+                  [value]="step.note"
+                  (change)="store.updateStep({ note: value($event) })"
+                />
+              </label>
+              <button
+                type="button"
+                class="ib"
+                title="Move this step earlier"
+                aria-label="Move this step earlier"
                 [disabled]="store.stepIndex() === 0"
-                [value]="step.duration"
-                (change)="store.updateStep({ duration: numberFrom($event, 0.2, 20) })"
-              />s
-            </label>
-            <label>
-              <span>Pause</span>
-              <input
-                type="number"
-                min="0"
-                max="20"
-                step="0.1"
-                [value]="step.hold"
-                (change)="store.updateStep({ hold: numberFrom($event, 0, 20) })"
-              />s
-            </label>
-            <label class="note">
-              <span class="visually-hidden">Caption for step {{ store.stepIndex() + 1 }}</span>
-              <input
-                type="text"
-                maxlength="200"
-                placeholder="Caption for this step, e.g. “6 drops to receive”"
-                [value]="step.note"
-                (change)="store.updateStep({ note: value($event) })"
-              />
-            </label>
-            <button
-              type="button"
-              class="ib"
-              title="Move this step earlier"
-              aria-label="Move this step earlier"
-              [disabled]="store.stepIndex() === 0"
-              (click)="moveStep(store.stepIndex(), store.stepIndex() - 1)"
-            >
-              <app-tactic-icon name="earlier" />
-            </button>
-            <button
-              type="button"
-              class="ib"
-              title="Move this step later"
-              aria-label="Move this step later"
-              [disabled]="store.stepIndex() === store.doc().steps.length - 1"
-              (click)="moveStep(store.stepIndex(), store.stepIndex() + 1)"
-            >
-              <app-tactic-icon name="later" />
-            </button>
-            <button
-              type="button"
-              class="ib"
-              title="Duplicate this step"
-              aria-label="Duplicate this step"
-              (click)="duplicateStep()"
-            >
-              <app-tactic-icon name="copy" />
-            </button>
-            <button
-              type="button"
-              class="ib"
-              title="Delete this step"
-              aria-label="Delete this step"
-              [disabled]="store.doc().steps.length <= 1"
-              (click)="store.deleteStep()"
-            >
-              <app-tactic-icon name="trash" />
-            </button>
+                (click)="moveStep(store.stepIndex(), store.stepIndex() - 1)"
+              >
+                <app-tactic-icon name="earlier" />
+              </button>
+              <button
+                type="button"
+                class="ib"
+                title="Move this step later"
+                aria-label="Move this step later"
+                [disabled]="store.stepIndex() === store.doc().steps.length - 1"
+                (click)="moveStep(store.stepIndex(), store.stepIndex() + 1)"
+              >
+                <app-tactic-icon name="later" />
+              </button>
+              <button
+                type="button"
+                class="ib"
+                title="Duplicate this step"
+                aria-label="Duplicate this step"
+                (click)="duplicateStep()"
+              >
+                <app-tactic-icon name="copy" />
+              </button>
+              <button
+                type="button"
+                class="ib"
+                title="Delete this step"
+                aria-label="Delete this step"
+                [disabled]="store.doc().steps.length <= 1"
+                (click)="store.deleteStep()"
+              >
+                <app-tactic-icon name="trash" />
+              </button>
+            </div>
           </div>
-        </div>
 
-        <app-playback-bar class="playback" [player]="player" [locked]="recording()" />
+          <app-playback-bar class="playback" [player]="player" [locked]="recording()" />
         </div>
       </section>
 

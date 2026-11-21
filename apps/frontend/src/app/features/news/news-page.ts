@@ -188,7 +188,9 @@ export class NewsPage {
   ]);
   protected readonly hasMore = computed(
     () =>
-      this.extraHasMore() ?? (this.first.hasValue() ? this.first.value()?.has_more : false) ?? false,
+      this.extraHasMore() ??
+      (this.first.hasValue() ? this.first.value()?.has_more : false) ??
+      false,
   );
 
   constructor() {

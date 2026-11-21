@@ -327,7 +327,7 @@ func TestFullRoom(t *testing.T) {
 }
 
 func TestCleanName(t *testing.T) {
-	assert.Equal(t, "Player 3", cleanName("  ‎ ", 3))
+	assert.Equal(t, "Player 3", cleanName("  \u200e ", 3))
 	assert.Equal(t, "Ali Veli", cleanName(" Ali \n  Veli ", 1))
 	assert.Len(t, []rune(cleanName("abcdefghijklmnopqrstuvwxyz", 1)), MaxNameLength)
 }

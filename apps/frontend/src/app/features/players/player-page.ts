@@ -37,7 +37,13 @@ import { ValueChart } from './value-chart';
     RouterLink,
     DatePipe,
     DecimalPipe,
-    MoneyPipe, ValueChart, Actions, PlayerNotes, Loading, ErrorState],
+    MoneyPipe,
+    ValueChart,
+    Actions,
+    PlayerNotes,
+    Loading,
+    ErrorState,
+  ],
   template: `
     @if (player.isLoading() && !player.value()) {
       <main class="page"><app-loading message="Loading player…" /></main>
@@ -189,7 +195,9 @@ import { ValueChart } from './value-chart';
                         <td>{{ leagueName(line.league_id) }}</td>
                         <td class="muted">
                           @if (line.team_id) {
-                            <a [routerLink]="['/clubs', line.team_id]">{{ clubName(line.team_id) }}</a>
+                            <a [routerLink]="['/clubs', line.team_id]">{{
+                              clubName(line.team_id)
+                            }}</a>
                           } @else {
                             —
                           }
@@ -544,7 +552,8 @@ export class PlayerPage {
 
   /** The lines grouped by season, in the API's order, each with its total. */
   protected readonly seasons = computed(() => {
-    const groups: { seasonId: string; label: string; lines: PlayerSeasonStat[]; total: Totals }[] = [];
+    const groups: { seasonId: string; label: string; lines: PlayerSeasonStat[]; total: Totals }[] =
+      [];
     for (const line of this.stats.value()?.items ?? []) {
       let group = groups.at(-1);
       if (group?.seasonId !== line.season_id) {
@@ -552,7 +561,14 @@ export class PlayerPage {
           seasonId: line.season_id,
           label: this.lookup.seasonLabel(line.season_id, 'Season'),
           lines: [],
-          total: { appearances: 0, minutes: 0, goals: 0, assists: 0, yellow_cards: 0, red_cards: 0 },
+          total: {
+            appearances: 0,
+            minutes: 0,
+            goals: 0,
+            assists: 0,
+            yellow_cards: 0,
+            red_cards: 0,
+          },
         };
         groups.push(group);
       }

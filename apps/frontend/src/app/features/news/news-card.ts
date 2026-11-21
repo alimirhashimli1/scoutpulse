@@ -37,9 +37,12 @@ import { categoryLabel, importance, timeAgo } from './news-meta';
           }
         </p>
         <h3 class="headline">
-          <a [href]="story().url" target="_blank" rel="noopener noreferrer nofollow">{{
-            story().headline
-          }}<span class="visually-hidden"> (opens {{ story().source_name }} in a new tab)</span></a>
+          <a [href]="story().url" target="_blank" rel="noopener noreferrer nofollow"
+            >{{ story().headline
+            }}<span class="visually-hidden">
+              (opens {{ story().source_name }} in a new tab)</span
+            ></a
+          >
         </h3>
         @if (story().summary && !compact()) {
           <p class="summary">{{ story().summary }}</p>

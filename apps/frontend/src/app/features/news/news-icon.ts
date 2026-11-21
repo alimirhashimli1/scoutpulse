@@ -12,8 +12,14 @@ import { NewsCategory } from '../../core/models/news';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { 'aria-hidden': 'true' },
   template: `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-      stroke-linecap="round" stroke-linejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
       @switch (category()) {
         @case ('transfers') {
           <path d="M4 8h13l-3-3M20 16H7l3 3" />
@@ -23,7 +29,9 @@ import { NewsCategory } from '../../core/models/news';
           <path d="M12 8v8M8 12h8" />
         }
         @case ('results') {
-          <path d="M8 4h8v5a4 4 0 0 1-8 0V4ZM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8" />
+          <path
+            d="M8 4h8v5a4 4 0 0 1-8 0V4ZM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"
+          />
         }
         @case ('managers') {
           <rect x="4" y="3" width="16" height="18" rx="2" />
