@@ -152,6 +152,14 @@ func TestAuthIntegration(t *testing.T) {
 		repository.HashToken(rotated.RefreshToken)))
 	assert.Equal(t, 1, storedPlaintext)
 
+	// Inside rotationGrace a spent token is read as two tabs racing, and the
+	// replacement survives (auth_test.go covers that). Backdate the rotation
+	// so the reuse below is the late replay that counts as a theft.
+	_, err = db.ExecContext(ctx,
+		`UPDATE refresh_tokens SET revoked_at = revoked_at - make_interval(secs => $1) WHERE token_hash = $2`,
+		(2 * rotationGrace).Seconds(), repository.HashToken(tokens.RefreshToken))
+	require.NoError(t, err)
+
 	rr = postJSON(t, h.Refresh, "/api/v1/auth/refresh",
 		RefreshRequest{RefreshToken: tokens.RefreshToken})
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "a rotated token must not be reusable")
