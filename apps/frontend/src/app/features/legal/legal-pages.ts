@@ -13,82 +13,10 @@ import { LEGAL } from './legal-config';
  * any of those (adding analytics, say, or a new sign-in provider) has to be
  * reflected here too.
  *
- * Operator details come from legal-config.ts, which must be filled in.
+ * Operator details come from legal-config.ts. Styles live in legal-pages.css:
+ * a `styles` value shared through a variable left `ng build` running forever
+ * after the bundle was written.
  */
-
-const PROSE = `
-  .legal {
-    max-width: 46rem;
-    padding-block: var(--space-6) var(--space-8);
-  }
-  .eyebrow {
-    font-size: var(--text-xs);
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: var(--space-2);
-  }
-  h1 {
-    font-size: var(--text-3xl);
-    margin-bottom: var(--space-2);
-  }
-  .updated {
-    color: var(--muted);
-    font-size: var(--text-sm);
-    margin-bottom: var(--space-6);
-  }
-  h2 {
-    font-size: var(--text-xl);
-    margin: var(--space-6) 0 var(--space-3);
-  }
-  h3 {
-    font-size: var(--text-lg);
-    margin: var(--space-4) 0 var(--space-2);
-  }
-  p,
-  li {
-    line-height: 1.65;
-    color: var(--ink-soft);
-  }
-  p + p {
-    margin-top: var(--space-3);
-  }
-  ul {
-    padding-left: var(--space-5);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-  .table-wrap {
-    overflow-x: auto;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--text-sm);
-  }
-  th,
-  td {
-    text-align: left;
-    vertical-align: top;
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--line);
-  }
-  th {
-    color: var(--muted);
-    font-weight: 600;
-  }
-  code {
-    font-family: var(--font-mono);
-    font-size: 0.92em;
-    overflow-wrap: anywhere;
-  }
-  address {
-    font-style: normal;
-    line-height: 1.6;
-  }
-`;
 
 @Component({
   selector: 'app-about-page',
@@ -147,7 +75,7 @@ const PROSE = `
       </p>
     </main>
   `,
-  styles: PROSE,
+  styleUrl: './legal-pages.css',
 })
 export class AboutPage {
   protected readonly legal = LEGAL;
@@ -208,7 +136,7 @@ export class AboutPage {
       </p>
     </main>
   `,
-  styles: PROSE,
+  styleUrl: './legal-pages.css',
 })
 export class ContactPage {
   protected readonly legal = LEGAL;
@@ -379,7 +307,7 @@ export class ContactPage {
       </p>
     </main>
   `,
-  styles: PROSE,
+  styleUrl: './legal-pages.css',
 })
 export class PrivacyPage {
   protected readonly legal = LEGAL;
@@ -480,7 +408,7 @@ export class PrivacyPage {
       </p>
     </main>
   `,
-  styles: PROSE,
+  styleUrl: './legal-pages.css',
 })
 export class TermsPage {
   protected readonly legal = LEGAL;
@@ -588,7 +516,7 @@ export class TermsPage {
       </p>
     </main>
   `,
-  styles: PROSE,
+  styleUrl: './legal-pages.css',
 })
 export class CookiesPage {
   protected readonly legal = LEGAL;
