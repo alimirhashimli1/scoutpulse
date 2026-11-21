@@ -110,6 +110,13 @@ export const serverRoutes: ServerRoute[] = [
   { path: 'games', renderMode: RenderMode.Server },
   { path: 'games/played-for-both', renderMode: RenderMode.Server },
 
+  // --- about and legal ----------------------------------------------------
+  { path: 'about', renderMode: RenderMode.Server },
+  { path: 'contact', renderMode: RenderMode.Server },
+  { path: 'privacy', renderMode: RenderMode.Server },
+  { path: 'terms', renderMode: RenderMode.Server },
+  { path: 'cookies', renderMode: RenderMode.Server },
+
   // --- anything else is genuinely not a page ---------------------------
   //
   // Rendered, so the visitor gets the not-found page rather than a blank

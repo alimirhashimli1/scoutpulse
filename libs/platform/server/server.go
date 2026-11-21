@@ -88,6 +88,11 @@ func RunWithOptions(name, addr string, h http.Handler, opts Options) error {
 		Logging(logger),
 		CORS(origins),
 	}
+	// After CORS, so a 429 still carries the CORS headers and the browser lets
+	// the page read it; after Logging, so refusals are logged.
+	if limit := GlobalRateLimitFromEnv(logger); limit != nil {
+		chain = append(chain, limit)
+	}
 	chain = append(chain, opts.Middleware...)
 	chain = append(chain, Recover(logger))
 

@@ -57,6 +57,7 @@ import { safeImage } from '../doc/article-doc';
     .media {
       position: relative;
       display: block;
+      width: 100%;
       aspect-ratio: 16 / 9;
       border-radius: var(--radius-lg);
       overflow: hidden;
@@ -138,9 +139,15 @@ import { safeImage } from '../doc/article-doc';
       font-size: var(--text-lg);
       -webkit-line-clamp: 4;
     }
+    /* On a phone the lead stacks like any other card. align-items has to be
+       reset along with display: the desktop grid centres its two columns, and
+       in a column flexbox "center" shrinks the media box to its content's
+       width -- which is zero, since the image inside is absolutely positioned.
+       The cover then collapsed to nothing on mobile. */
     @media (max-width: 48rem) {
       .lead {
         display: flex;
+        align-items: stretch;
       }
     }
   `,

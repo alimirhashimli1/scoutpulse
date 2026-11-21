@@ -314,6 +314,33 @@ export const routes: Routes = [
     loadChildren: () => import('./features/games/games.routes').then((m) => m.GAMES_ROUTES),
   },
 
+  // --- about and legal ---
+  {
+    path: 'about',
+    loadComponent: () => import('./features/legal/legal-pages').then((m) => m.AboutPage),
+    title: 'About · ScoutPulse',
+  },
+  {
+    path: 'contact',
+    loadComponent: () => import('./features/legal/legal-pages').then((m) => m.ContactPage),
+    title: 'Contact · ScoutPulse',
+  },
+  {
+    path: 'privacy',
+    loadComponent: () => import('./features/legal/legal-pages').then((m) => m.PrivacyPage),
+    title: 'Privacy policy · ScoutPulse',
+  },
+  {
+    path: 'terms',
+    loadComponent: () => import('./features/legal/legal-pages').then((m) => m.TermsPage),
+    title: 'Terms of use · ScoutPulse',
+  },
+  {
+    path: 'cookies',
+    loadComponent: () => import('./features/legal/legal-pages').then((m) => m.CookiesPage),
+    title: 'Cookie policy · ScoutPulse',
+  },
+
   // A real 404, not a redirect to the home page. Redirecting answered 200 OK
   // for every dead link, which loses the address a visitor followed and lets a
   // crawler treat an unbounded set of non-existent URLs as valid pages.

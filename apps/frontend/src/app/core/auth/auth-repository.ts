@@ -169,6 +169,18 @@ export class AuthRepository {
     );
   }
 
+  /**
+   * Permanently deletes the signed-in account and everything attached to it.
+   *
+   * Authenticated, unlike the other session calls -- but it asks for the
+   * cookie treatment too, so the server clears the refresh cookie in the same
+   * answer and nothing is left behind in the browser.
+   */
+  deleteAccount(): Promise<void> {
+    const { headers } = sessionCall(this.api.identity);
+    return firstValueFrom(this.http.delete<void>(this.url('users/me'), { headers }));
+  }
+
   // --- external sign-in -----------------------------------------------
 
   /** Which providers this deployment has configured. */

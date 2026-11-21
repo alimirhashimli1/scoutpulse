@@ -198,6 +198,46 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// DeleteMe erases the caller's own account: the right to erasure (GDPR
+// Art. 17) as a button rather than an email.
+//
+// Same path as an administrator's delete: the row goes, its sessions and
+// linked sign-ins cascade with it, and UserDeleted tells football-svc to drop
+// the account's notes, boards, drafts and editor grants.
+//
+// An administrator cannot do this, for the same reason DeleteUser refuses it:
+// the last administrator removing themselves leaves nobody able to manage the
+// site. Another administrator can demote or delete them.
+func (h *Handler) DeleteMe(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.GetClaims(r.Context())
+	if !ok {
+		httpx.WriteError(w, r, apperr.Unauthorized("authentication required"))
+		return
+	}
+	if claims.Role == string(model.AdminRole) {
+		httpx.WriteError(w, r, apperr.Invalid(
+			"an administrator cannot delete their own account; ask another administrator"))
+		return
+	}
+
+	user, err := h.UserRepo.GetByID(r.Context(), claims.UserID)
+	if err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+	if err := h.UserRepo.Delete(r.Context(), claims.UserID); err != nil {
+		httpx.WriteError(w, r, err)
+		return
+	}
+	h.publishUserDeleted(r, claims.UserID, user.Username)
+
+	// The session row is gone already; this removes the browser's copy.
+	if wantsSessionCookie(r) {
+		h.clearRefreshCookie(w, r)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // requireAdmin is the one authorization rule this service has.
 func (h *Handler) requireAdmin(r *http.Request) error {
 	claims, ok := auth.GetClaims(r.Context())

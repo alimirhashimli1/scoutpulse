@@ -92,6 +92,12 @@ const MIN_PASSWORD_LENGTH = 8;
             <p class="error" role="alert">{{ error() }}</p>
           }
 
+          <p class="consent">
+            By creating an account you confirm you are at least 16 and agree to the
+            <a routerLink="/terms">terms of use</a>. Read how we handle your data in the
+            <a routerLink="/privacy">privacy policy</a>.
+          </p>
+
           <button type="submit" [disabled]="busy()">
             {{ busy() ? 'Creating…' : 'Create account' }}
           </button>
@@ -104,6 +110,11 @@ const MIN_PASSWORD_LENGTH = 8;
     </main>
   `,
   styles: `
+    .consent {
+      font-size: var(--text-xs);
+      color: var(--muted);
+      line-height: 1.5;
+    }
     .auth {
       max-width: 26rem;
       padding-block: var(--space-8);

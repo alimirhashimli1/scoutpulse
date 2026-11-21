@@ -124,6 +124,13 @@ import { ThemeStore } from '../core/theme/theme';
         <p class="muted beta-note">
           Beta — the data is still being filled in and things may change.
         </p>
+        <nav class="legal-links" aria-label="About and legal">
+          <a routerLink="/about">About</a>
+          <a routerLink="/contact">Contact</a>
+          <a routerLink="/privacy">Privacy</a>
+          <a routerLink="/terms">Terms</a>
+          <a routerLink="/cookies">Cookies</a>
+        </nav>
       </div>
     </footer>
   `,
@@ -182,6 +189,19 @@ import { ThemeStore } from '../core/theme/theme';
     .beta-note {
       margin-top: var(--space-2);
       font-size: var(--text-xs);
+    }
+    .legal-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2) var(--space-4);
+      margin-top: var(--space-3);
+      font-size: var(--text-xs);
+    }
+    .legal-links a {
+      color: var(--muted);
+    }
+    .legal-links a:hover {
+      color: var(--accent);
     }
     .search {
       flex: 1 1 14rem;

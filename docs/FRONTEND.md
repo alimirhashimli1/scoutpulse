@@ -808,8 +808,10 @@ Real gaps, listed so they are not rediscovered by surprise:
   so it needs either a `proxy.conf.json` for `ng serve` or a build-time config.
   That those services set `CORS_ALLOWED_ORIGINS` to the frontend's origin shows
   the mode was always meant to be usable from the app.
-- **No `sitemap.xml`.** It has to be generated from the API at request time;
-  `robots.txt` already points at it.
+- ~~No `sitemap.xml`.~~ Done: `src/server.ts` serves `/robots.txt` and a
+  sitemap index at `/sitemap.xml`, built from football-svc's
+  `GET /api/v1/sitemap` and cached for an hour. Both use `SITE_URL` for
+  absolute addresses.
 - Phase 3's `[~]` items: no type-ahead dropdown, transfer feed filters by type
   only, partial responsive sweep.
 - Component tests for the forms, and the end-to-end path in §8.

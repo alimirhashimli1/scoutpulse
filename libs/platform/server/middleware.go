@@ -127,6 +127,11 @@ func Logging(logger *slog.Logger) Middleware {
 				slog.Int("bytes", rec.bytes),
 				slog.Duration("duration", time.Since(start)),
 				slog.String("request_id", RequestIDFrom(r.Context())),
+				// The address the rate limits key on. Logged so the source
+				// CLIENT_IP_HEADER selects can be checked against real traffic:
+				// one address on every line means every visitor shares one
+				// bucket. Disclosed in the privacy policy.
+				slog.String("client_ip", ClientIP(r)),
 			)
 		})
 	}

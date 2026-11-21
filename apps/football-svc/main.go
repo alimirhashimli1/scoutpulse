@@ -163,6 +163,7 @@ func main() {
 		Game:        gameHandler,
 		GameRoom:    handler.NewGameRoomHandler(roomHub),
 		News:        handler.NewNewsHandler(newsService),
+		Sitemap:     handler.NewSitemapHandler(repository.NewSitemapRepository(database)),
 	}
 
 	// Tracing is optional: with no collector configured this installs a

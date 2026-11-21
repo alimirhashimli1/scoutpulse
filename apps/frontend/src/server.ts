@@ -174,6 +174,243 @@ app.use(
   }),
 );
 
+// --- robots.txt and sitemaps -------------------------------------------
+//
+// Served from here rather than from public/, because both must name the site
+// by its absolute address -- a relative `Sitemap:` line is ignored -- and the
+// address is configuration (SITE_URL), not something known at build time.
+
+const siteUrl = (process.env['SITE_URL'] ?? 'http://localhost:4000').replace(/\/+$/, '');
+const footballApi = (
+  process.env['FOOTBALL_API_URL'] ??
+  `${(process.env['GATEWAY_INTERNAL_URL'] ?? 'http://localhost:8000').replace(/\/+$/, '')}/api/football`
+).replace(/\/+$/, '');
+
+/** Public pages that are not backed by a single record. */
+const STATIC_PAGES = [
+  '/',
+  '/news',
+  '/articles',
+  '/clubs',
+  '/competitions',
+  '/seasons',
+  '/games',
+  '/games/played-for-both',
+  '/about',
+  '/contact',
+  '/privacy',
+  '/terms',
+  '/cookies',
+];
+
+/** Sitemap kind -> the URL prefix its records are published under. */
+const SITEMAP_KINDS: Record<string, string> = {
+  article: '/articles/',
+  team: '/clubs/',
+  league: '/competitions/',
+  coach: '/coaches/',
+  player: '/players/',
+};
+
+const ROBOTS_TXT = `# ScoutPulse
+User-agent: *
+Allow: /
+
+# Private: an empty client shell to anyone signed out.
+Disallow: /account
+Disallow: /admin/
+Disallow: /desk
+
+# Write forms, with no content of their own.
+Disallow: /players/new
+Disallow: /clubs/new
+Disallow: /competitions/new
+Disallow: /seasons/new
+Disallow: /coaches/new
+Disallow: /tactics/new
+Disallow: /*/edit
+Disallow: /*/transfer
+Disallow: /*/spells/new
+Disallow: /*/values/new
+Disallow: /*/seasons/new
+
+# Sign-in.
+Disallow: /login
+Disallow: /register
+Disallow: /verify-email
+Disallow: /auth/
+
+# Unbounded URL space: one page per possible query.
+Disallow: /search
+
+# The API is data, not pages.
+Disallow: /api/
+
+Sitemap: ${siteUrl}/sitemap.xml
+`;
+
+const xmlEscape = (s: string): string =>
+  s.replace(
+    /[<>&'"]/g,
+    (c) => `&${{ '<': 'lt', '>': 'gt', '&': 'amp', "'": 'apos', '"': 'quot' }[c]};`,
+  );
+
+function urlset(entries: { loc: string; lastmod?: string }[]): string {
+  const rows = entries
+    .map(
+      (e) =>
+        `<url><loc>${xmlEscape(e.loc)}</loc>${e.lastmod ? `<lastmod>${e.lastmod.slice(0, 10)}</lastmod>` : ''}</url>`,
+    )
+    .join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${rows}</urlset>`;
+}
+
+/**
+ * Answers kept for an hour. A crawler fetches these rarely, and holding them
+ * means a burst of fetches is one trip to the API, not one each. The edge
+ * caches them too, via s-maxage.
+ */
+const sitemapCache = new Map<string, { at: number; body: string }>();
+const SITEMAP_TTL_MS = 60 * 60 * 1000;
+
+async function cached(key: string, build: () => Promise<string>): Promise<string> {
+  const hit = sitemapCache.get(key);
+  if (hit && Date.now() - hit.at < SITEMAP_TTL_MS) return hit.body;
+  const body = await build();
+  sitemapCache.set(key, { at: Date.now(), body });
+  return body;
+}
+
+async function fetchJson<T>(path: string): Promise<T> {
+  const res = await fetch(`${footballApi}${path}`, {
+    headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`${path} answered ${res.status}`);
+  return (await res.json()) as T;
+}
+
+function sendXml(res: express.Response, body: string): void {
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+  res.send(body);
+}
+
+app.get('/robots.txt', (_req, res) => {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+  res.send(ROBOTS_TXT);
+});
+
+app.get('/sitemap.xml', async (_req, res) => {
+  try {
+    const body = await cached('index', async () => {
+      const { page_size, counts } = await fetchJson<{
+        page_size: number;
+        counts: Record<string, number>;
+      }>('/api/v1/sitemap');
+      const files = [`${siteUrl}/sitemaps/pages.xml`];
+      for (const kind of Object.keys(SITEMAP_KINDS)) {
+        const pages = Math.ceil((counts[kind] ?? 0) / page_size);
+        for (let n = 0; n < pages; n++) files.push(`${siteUrl}/sitemaps/${kind}-${n}.xml`);
+      }
+      return `<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${files
+        .map((f) => `<sitemap><loc>${xmlEscape(f)}</loc></sitemap>`)
+        .join('')}</sitemapindex>`;
+    });
+    sendXml(res, body);
+  } catch (err) {
+    console.error('[sitemap] index failed', err);
+    // Still useful: the fixed pages need no data.
+    sendXml(res, urlset(STATIC_PAGES.map((p) => ({ loc: `${siteUrl}${p}` }))));
+  }
+});
+
+app.get('/sitemaps/pages.xml', (_req, res) => {
+  sendXml(res, urlset(STATIC_PAGES.map((p) => ({ loc: `${siteUrl}${p}` }))));
+});
+
+app.get('/sitemaps/:file', async (req, res) => {
+  const match = /^([a-z]+)-(\d{1,4})\.xml$/.exec(req.params.file);
+  const prefix = match ? SITEMAP_KINDS[match[1]] : undefined;
+  if (!match || !prefix) {
+    res.status(404).type('text/plain').send('Not found');
+    return;
+  }
+  const [, kind, page] = match;
+  try {
+    const body = await cached(`${kind}-${page}`, async () => {
+      const { items } = await fetchJson<{ items: { key: string; lastmod?: string }[] }>(
+        `/api/v1/sitemap/${kind}?page=${page}`,
+      );
+      return urlset(
+        items.map((i) => ({
+          loc: `${siteUrl}${prefix}${encodeURIComponent(i.key)}`,
+          lastmod: i.lastmod,
+        })),
+      );
+    });
+    sendXml(res, body);
+  } catch (err) {
+    console.error('[sitemap] %s failed', req.params.file, err);
+    res.status(503).setHeader('Retry-After', '600').type('text/plain').send('Try again later');
+  }
+});
+
+// --- per-address limit on page renders ---------------------------------
+//
+// A server render is the most expensive thing this process does, and each one
+// fans out into several API calls, so it is the one place a scraper does real
+// damage. Static assets above are not counted.
+//
+// Fixed one-minute windows, in memory. On Vercel each warm instance keeps its
+// own count, so this is a ceiling per instance rather than a global one --
+// enough to blunt a single noisy client. A global, edge-level limit belongs in
+// front of the site (Cloudflare or Vercel's firewall).
+//
+// The address is read from X-Real-IP only when a proxy is trusted to have set
+// it (TRUST_PROXY_HEADERS, which api/ssr.mjs turns on for Vercel); a client
+// talking to this process directly could otherwise pick its own key.
+const renderLimit = Number(process.env['SSR_RATE_LIMIT_PER_MINUTE'] ?? 240);
+const renderWindows = new Map<string, { start: number; count: number }>();
+
+function clientAddress(req: express.Request): string {
+  if (trustProxyHeaders) {
+    const real = req.headers['x-real-ip'];
+    if (typeof real === 'string' && real) return real;
+    const fwd = req.headers['x-forwarded-for'];
+    if (typeof fwd === 'string' && fwd) return fwd.split(',')[0].trim();
+  }
+  return req.socket.remoteAddress ?? 'unknown';
+}
+
+if (renderLimit > 0) {
+  app.use((req, res, next) => {
+    const now = Date.now();
+    const key = clientAddress(req);
+    let w = renderWindows.get(key);
+    if (!w || now - w.start >= 60_000) {
+      w = { start: now, count: 0 };
+      renderWindows.set(key, w);
+      // Sweep stale windows occasionally so the map cannot grow unbounded.
+      if (renderWindows.size > 10_000) {
+        for (const [k, v] of renderWindows) if (now - v.start >= 60_000) renderWindows.delete(k);
+      }
+    }
+    w.count++;
+    if (w.count > renderLimit) {
+      const retry = Math.ceil((w.start + 60_000 - now) / 1000);
+      res.setHeader('Retry-After', String(retry));
+      res
+        .status(429)
+        .type('text/plain')
+        .send('Too many requests. Please wait a moment and try again.');
+      return;
+    }
+    next();
+  });
+}
+
 /**
  * Handle all other requests by rendering the Angular application.
  */

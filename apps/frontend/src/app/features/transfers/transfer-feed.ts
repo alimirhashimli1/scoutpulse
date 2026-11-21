@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   input,
   resource,
@@ -18,6 +19,7 @@ import { PageQuery } from '../../core/api/page';
 import { ssrResource } from '../../core/api/ssr-resource';
 import { Transfer, TransferType } from '../../core/models/football';
 import { Seo } from '../../core/seo/seo';
+import { SITE_URL } from '../../core/tokens/site-url';
 import { MoneyPipe } from '../../shared/pipes/money-pipe';
 import { Paginator } from '../../shared/pagination/paginator';
 import { Empty, ErrorState, Loading } from '../../shared/ui/states';
@@ -205,18 +207,53 @@ export class TransferFeed {
   private readonly lookup = inject(LookupStore);
   private readonly players = inject(PlayerNames);
   private readonly seo = inject(Seo);
+  private readonly origin = inject(SITE_URL);
 
   constructor() {
-    this.seo.describe({
-      title: 'Transfers',
-      description:
-        'Every recorded move between clubs — fees, loans, free transfers and retirements, newest first.',
-      // `/` and `/transfers` render this same component, so both must name one
-      // canonical URL or they compete as duplicates. The root is the stronger
-      // address and the one people link to, so `/transfers` points at it —
-      // not the other way round, which would tell crawlers to ignore the site
-      // root in favour of an alias.
-      path: '/',
+    // An effect rather than a constructor call: `home` is a route-data input,
+    // bound after construction.
+    effect(() => {
+      const home = this.home();
+      this.seo.describe({
+        // The site root is the page a search for the site's name lands on, so
+        // it carries what the site is, not just the name of one section.
+        title: home ? 'Football transfers, players, clubs and analysis' : 'Transfers',
+        description: home
+          ? 'ScoutPulse is a free football database: every transfer, player profiles and market values, clubs, competitions, tactical analysis and football games.'
+          : 'Every recorded move between clubs — fees, loans, free transfers and retirements, newest first.',
+        // `/` and `/transfers` render this same component, so both must name
+        // one canonical URL or they compete as duplicates. The root is the
+        // stronger address and the one people link to, so `/transfers` points
+        // at it — not the other way round, which would tell crawlers to ignore
+        // the site root in favour of an alias.
+        path: '/',
+      });
+      // WebSite and Organization data on the home page is what lets Google
+      // show "ScoutPulse" as the site name in results instead of the domain.
+      this.seo.structuredData(
+        home
+          ? {
+              '@context': 'https://schema.org',
+              '@graph': [
+                {
+                  '@type': 'WebSite',
+                  '@id': `${this.origin}/#website`,
+                  name: 'ScoutPulse',
+                  url: `${this.origin}/`,
+                  inLanguage: 'en',
+                  publisher: { '@id': `${this.origin}/#organization` },
+                },
+                {
+                  '@type': 'Organization',
+                  '@id': `${this.origin}/#organization`,
+                  name: 'ScoutPulse',
+                  url: `${this.origin}/`,
+                  logo: `${this.origin}/favicon.svg`,
+                },
+              ],
+            }
+          : null,
+      );
     });
   }
 

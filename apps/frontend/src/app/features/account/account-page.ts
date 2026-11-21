@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { DatePipe, TitleCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { AuthRepository } from '../../core/auth/auth-repository';
 import { Permissions } from '../../core/auth/permissions';
@@ -163,6 +163,49 @@ const MIN_PASSWORD = 8;
           </p>
         }
       </section>
+
+      <section class="danger-zone">
+        <h4>Delete account</h4>
+        <p class="hint">
+          Permanently deletes your account, your sign-in methods, and your notes, tactics boards and
+          unpublished drafts. Published articles stay up under the name they were written with. This
+          cannot be undone. See the <a routerLink="/privacy">privacy policy</a> for what we keep and
+          why.
+        </p>
+        @if (session.user()?.role === 'admin') {
+          <p class="hint">
+            Administrators cannot delete their own account. Ask another administrator to remove your
+            role or your account.
+          </p>
+        } @else {
+          <form class="stack" (ngSubmit)="deleteAccount()" novalidate>
+            <app-field
+              for="confirm-delete"
+              label="Type your username to confirm"
+              [hint]="session.user()?.username ?? ''"
+            >
+              <input
+                id="confirm-delete"
+                name="confirm-delete"
+                autocomplete="off"
+                [(ngModel)]="deleteConfirm"
+              />
+            </app-field>
+            @if (deleteError()) {
+              <app-error-state [message]="deleteError()!" />
+            }
+            <div>
+              <button
+                class="btn danger"
+                type="submit"
+                [disabled]="deleting() || deleteConfirm() !== session.user()?.username"
+              >
+                {{ deleting() ? 'Deleting…' : 'Delete my account' }}
+              </button>
+            </div>
+          </form>
+        }
+      </section>
     </main>
   `,
   styles: `
@@ -266,6 +309,26 @@ export class AccountPage {
   protected readonly passwordError = signal<string | null>(null);
   protected readonly passwordFieldError = signal<string | null>(null);
   protected readonly passwordDone = signal(false);
+
+  protected readonly deleteConfirm = signal('');
+  protected readonly deleting = signal(false);
+  protected readonly deleteError = signal<string | null>(null);
+  private readonly router = inject(Router);
+
+  protected async deleteAccount(): Promise<void> {
+    if (this.deleting() || this.deleteConfirm() !== this.session.user()?.username) return;
+    this.deleting.set(true);
+    this.deleteError.set(null);
+    try {
+      await this.auth.deleteAccount();
+      this.session.clear();
+      await this.router.navigateByUrl('/');
+    } catch (error) {
+      this.deleteError.set(messageFor(error, 'Could not delete the account.'));
+    } finally {
+      this.deleting.set(false);
+    }
+  }
 
   protected readonly unlinking = signal<string | null>(null);
   protected readonly unlinkError = signal<string | null>(null);

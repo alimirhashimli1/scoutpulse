@@ -290,6 +290,10 @@ func main() {
 		auth.AuthMiddleware(http.HandlerFunc(h.UnlinkIdentity)))
 
 	mux.Handle("GET /api/v1/users/me", auth.AuthMiddleware(http.HandlerFunc(h.Me)))
+	// Self-service erasure. Limited like the other writes, so a stolen access
+	// token cannot be used to probe it in a loop.
+	mux.Handle("DELETE /api/v1/users/me",
+		auth.AuthMiddleware(writeLimit.Middleware(http.HandlerFunc(h.DeleteMe))))
 	// Rate limited like the other credential endpoints: the current password
 	// is checked here, so this is another place to guess one.
 	mux.Handle("PUT /api/v1/users/me/password",

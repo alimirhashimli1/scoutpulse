@@ -32,6 +32,7 @@ type Handlers struct {
 	Game        *GameHandler
 	GameRoom    *GameRoomHandler
 	News        *NewsHandler
+	Sitemap     *SitemapHandler
 }
 
 // RegisterRoutes registers all API routes for the football service.
@@ -181,6 +182,14 @@ func RegisterRoutes(mux *http.ServeMux, h Handlers) {
 	// code; each player holds the token their seat came with.
 	if h.GameRoom != nil {
 		h.GameRoom.register(mux)
+	}
+
+	// --- sitemap ---
+	// Public: it lists only what the public read endpoints already serve, and
+	// exists so the renderer can publish /sitemap.xml in a handful of queries.
+	if h.Sitemap != nil {
+		mux.HandleFunc("GET /api/v1/sitemap", h.Sitemap.Index)
+		mux.HandleFunc("GET /api/v1/sitemap/{kind}", h.Sitemap.List)
 	}
 
 	// --- football news ---
