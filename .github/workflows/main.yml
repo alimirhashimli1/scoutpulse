@@ -179,6 +179,8 @@ jobs:
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
+    # A build that never exits should fail fast, not hold a runner for hours.
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: apps/frontend

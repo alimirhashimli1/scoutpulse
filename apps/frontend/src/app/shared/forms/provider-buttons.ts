@@ -23,7 +23,6 @@ import { AuthRepository } from '../../core/auth/auth-repository';
 @Component({
   selector: 'app-provider-buttons',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TitleCasePipe],
   template: `
     @if (providers.value()?.length) {
       <div class="providers">
