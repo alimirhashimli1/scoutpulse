@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
-import { GAME_READER, GameReader } from '../../../core/api/games';
+import { GAME_READER, GAME_ROOMS, GameReader, GameRooms } from '../../../core/api/games';
 import { PlayedForBothWire } from '../../../core/models/games';
 import { SITE_URL } from '../../../core/tokens/site-url';
 import { PlayedForBothPage } from './played-for-both.page';
@@ -41,6 +41,8 @@ describe('PlayedForBothPage', () => {
         provideRouter([]),
         { provide: GAME_READER, useValue: reader },
         { provide: SITE_URL, useValue: 'http://test.local' },
+        // The online mode's store is created with the page; these tests stay offline.
+        { provide: GAME_ROOMS, useValue: {} as GameRooms },
       ],
     });
   });
