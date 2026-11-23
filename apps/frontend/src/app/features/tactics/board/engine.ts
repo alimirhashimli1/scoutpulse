@@ -505,10 +505,12 @@ export class BoardEngine {
 
     if (pitch.markings === 'standard') {
       for (const side of [-1, 1]) {
-        const g = goal(7.32, 2.44, 2.0, '#f8fafc', 0.08);
+        const g = goal(7.32, 2.44, 2.0, '#ffffff', 0.1);
         g.position.x = side * HALF_LENGTH;
-        // Mouths face the centre spot.
-        g.rotation.y = side < 0 ? Math.PI : 0;
+        // Unrotated, the net runs back towards -x. So the -x goal stays as it
+        // is and the +x goal turns half way: both nets sit behind their goal
+        // line, off the pitch, and the mouths face the centre spot.
+        g.rotation.y = side < 0 ? 0 : Math.PI;
         g.traverse((c) => (c.userData['static'] = true));
         this.world.add(g);
       }

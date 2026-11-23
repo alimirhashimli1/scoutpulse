@@ -414,8 +414,9 @@ export function goal(
   bar.position.set(0, height, 0);
   g.add(bar);
 
-  // Back frame, thinner, along the ground and up the back corners.
-  const thin = standard('#cbd5e1', { rough: 0.5 });
+  // Back frame, thinner, along the ground and up the back corners. Same
+  // colour as the posts, so recolouring a goal recolours all of its frame.
+  const thin = standard(color, { rough: 0.5 });
   const backBar = mesh(new THREE.CylinderGeometry(post * 0.5, post * 0.5, width, 8), thin);
   backBar.rotation.x = Math.PI / 2;
   backBar.position.set(-depth, post * 0.5, 0);

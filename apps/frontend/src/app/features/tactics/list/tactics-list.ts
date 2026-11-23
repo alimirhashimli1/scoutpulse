@@ -10,7 +10,6 @@ import { Seo } from '../../../core/seo/seo';
 import { messageFor } from '../../../shared/forms/submit';
 import { ConfirmDialog } from '../../../shared/ui/confirm-dialog';
 import { Empty, ErrorState, Loading } from '../../../shared/ui/states';
-import { TEMPLATES } from '../board/templates';
 import { TacticIcon } from '../ui/icon';
 
 interface AuthorGroup {
@@ -42,11 +41,6 @@ export class TacticsList {
   private readonly reader = inject(TACTIC_READER);
   private readonly writer = inject(TACTIC_WRITER);
   protected readonly session = inject(SessionStore);
-  /** Ready-made drills, opened in the editor to be saved as the member's own. */
-  protected readonly templates = Object.entries(TEMPLATES).map(([key, t]) => ({
-    key,
-    title: t.title,
-  }));
 
   protected readonly boards = signal<TacticSummary[]>([]);
   protected readonly loading = signal(true);

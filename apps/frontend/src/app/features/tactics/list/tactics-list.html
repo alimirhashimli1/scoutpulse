@@ -8,11 +8,6 @@
       </p>
     </div>
     <div class="start">
-      @for (t of templates; track t.key) {
-        <a class="btn" routerLink="/tactics/new" [queryParams]="{ template: t.key }">{{
-          t.title
-        }}</a>
-      }
       <a class="btn primary" routerLink="/tactics/new"><app-tactic-icon name="plus" /> New board</a>
     </div>
   </header>

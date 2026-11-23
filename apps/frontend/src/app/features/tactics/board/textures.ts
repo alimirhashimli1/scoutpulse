@@ -247,8 +247,8 @@ export function netTexture(): THREE.Texture {
   return cached('net', () => {
     const S = 64;
     const [c, g] = canvas(S, S);
-    g.strokeStyle = 'rgba(255,255,255,0.85)';
-    g.lineWidth = 3;
+    g.strokeStyle = 'rgba(255,255,255,0.95)';
+    g.lineWidth = 4.5;
     g.beginPath();
     g.moveTo(0, S / 2);
     g.lineTo(S, S / 2);
