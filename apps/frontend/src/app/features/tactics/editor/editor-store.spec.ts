@@ -154,15 +154,65 @@ describe('EditorStore', () => {
     expect(store.doc().steps.map((s) => s.note)).toEqual(['', 'A runs', 'B drops']);
   });
 
-  it('removes a deleted object from every step', () => {
+  it('removes an object deleted in the step it first appears in from every step', () => {
     const id = placePlayer([0, 0]);
     store.addStep();
     store.moveObject(id, [4, 4], true);
     store.toggleIn('highlight', id);
+    store.goToStep(0);
     store.selection.set({ type: 'object', id });
     store.deleteSelection();
     expect(store.doc().objects).toHaveLength(0);
     expect(store.doc().steps.every((s) => !(id in s.pos) && !s.highlight?.includes(id))).toBe(true);
+  });
+
+  it('takes an object deleted in a later step off only from that step on', () => {
+    const keep = placePlayer([5, 5]);
+    const id = placePlayer([0, 0]);
+    store.addStep();
+    store.moveObject(id, [4, 4], true);
+    store.addStep();
+    store.moveObject(id, [8, 8], true);
+    store.toggleIn('highlight', id);
+    store.addStep();
+
+    store.goToStep(2);
+    store.selection.set({ type: 'object', id });
+    store.deleteSelection();
+
+    const doc = store.doc();
+    expect(doc.objects.map((o) => o.id)).toEqual([keep, id]);
+    expect(positionAt(doc, 0, id)).toEqual([0, 0]);
+    expect(positionAt(doc, 1, id)).toEqual([4, 4]);
+    expect(positionAt(doc, 2, id)).toBeUndefined();
+    expect(positionAt(doc, 3, id)).toBeUndefined();
+    expect(positionAt(doc, 3, keep)).toEqual([5, 5]);
+    expect(doc.steps[2].highlight).not.toContain(id);
+
+    store.undo();
+    expect(positionAt(store.doc(), 3, id)).toEqual([8, 8]);
+  });
+
+  it('keeps a removal where it was when steps are reordered or deleted', () => {
+    const id = placePlayer([0, 0]);
+    store.addStep();
+    store.addStep();
+    store.selection.set({ type: 'object', id });
+    store.deleteSelection();
+    // Present in steps 0 and 1, gone in 2.
+    store.goToStep(1);
+    store.deleteStep();
+    expect(positionAt(store.doc(), 0, id)).toEqual([0, 0]);
+    expect(positionAt(store.doc(), 1, id)).toBeUndefined();
+
+    store.addStep();
+    // Steps: present, gone, gone. Move the first to the end.
+    store.moveStep(0, 2);
+    expect([0, 1, 2].map((i) => positionAt(store.doc(), i, id))).toEqual([
+      undefined,
+      undefined,
+      [0, 0],
+    ]);
   });
 
   it('ignores a click with a drawing tool, and commits a drag', () => {

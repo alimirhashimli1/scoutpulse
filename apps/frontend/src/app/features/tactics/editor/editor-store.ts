@@ -377,23 +377,41 @@ export class EditorStore {
     if (!sel) return;
     const doc = this.doc();
     if (sel.type === 'object') {
+      const id = sel.id;
+      const from = this.stepIndex();
       const strip = <T>(rec: Record<string, T> | undefined) => {
-        if (!rec) return rec;
+        if (!rec || !(id in rec)) return rec;
         const out = { ...rec };
-        delete out[sel.id];
+        delete out[id];
         return out;
       };
-      this.apply({
-        ...doc,
-        objects: doc.objects.filter((o) => o.id !== sel.id),
-        steps: doc.steps.map((s) => ({
-          ...s,
-          pos: strip(s.pos)!,
-          bend: strip(s.bend),
-          air: s.air?.filter((x) => x !== sel.id),
-          highlight: s.highlight?.filter((x) => x !== sel.id),
-        })),
+      const without = (s: Step): Step => ({
+        ...s,
+        pos: strip(s.pos)!,
+        bend: strip(s.bend),
+        air: s.air?.filter((x) => x !== id),
+        highlight: s.highlight?.filter((x) => x !== id),
+        gone: s.gone?.filter((x) => x !== id),
       });
+      // On the board in an earlier step: it leaves from this step on, and
+      // the steps before keep it. Otherwise it is deleted outright.
+      const earlier = doc.steps.some((_, i) => i < from && positionAt(doc, i, id));
+      if (earlier) {
+        this.apply({
+          ...doc,
+          steps: doc.steps.map((s, i) => {
+            if (i < from) return s;
+            const next = without(s);
+            return i === from ? { ...next, gone: [...(next.gone ?? []), id] } : next;
+          }),
+        });
+      } else {
+        this.apply({
+          ...doc,
+          objects: doc.objects.filter((o) => o.id !== id),
+          steps: doc.steps.map(without),
+        });
+      }
     } else {
       // Gone from this step on; earlier steps keep it.
       this.apply(this.withDrawingForward(sel.id, () => null));
@@ -425,6 +443,7 @@ export class EditorStore {
       steps: doc.steps.map((s) => ({
         ...s,
         pos: Object.fromEntries(Object.entries(s.pos).filter(([id]) => !gone.has(id))),
+        gone: s.gone?.filter((id) => !gone.has(id)),
       })),
     });
     this.selection.set(null);
@@ -539,7 +558,7 @@ export class EditorStore {
   duplicateStep(): void {
     const doc = this.doc();
     const i = this.stepIndex();
-    const { bend: _bend, air: _air, ...source } = doc.steps[i];
+    const { bend: _bend, air: _air, gone: _gone, ...source } = doc.steps[i];
     const copy: Step = {
       ...source,
       id: newId(),
@@ -581,7 +600,10 @@ export class EditorStore {
         const q = before.get(id);
         if (!q || q[0] !== p[0] || q[1] !== p[1]) pos[id] = p;
       }
-      return { ...doc.steps[at], pos };
+      // Whatever stood in the step before and is absent here leaves here.
+      const gone = [...before.keys()].filter((id) => !here.has(id));
+      const { gone: _gone, ...rest } = doc.steps[at];
+      return gone.length ? { ...rest, pos, gone } : { ...rest, pos };
     });
     this.apply({ ...doc, steps });
     this.stepIndex.set(to);
@@ -598,7 +620,20 @@ export class EditorStore {
     const i = this.stepIndex();
     const removed = doc.steps[i];
     const steps = doc.steps.filter((_, n) => n !== i);
-    if (i < steps.length) steps[i] = { ...steps[i], pos: { ...removed.pos, ...steps[i].pos } };
+    if (i < steps.length) {
+      // Removals carry over too: what left in the deleted step stays gone.
+      const next = steps[i];
+      const leaving = new Set(next.gone ?? []);
+      const pos = { ...next.pos };
+      for (const [id, p] of Object.entries(removed.pos)) {
+        if (!(id in pos) && !leaving.has(id)) pos[id] = p;
+      }
+      const gone = [
+        ...leaving,
+        ...(removed.gone ?? []).filter((id) => !(id in pos) && !leaving.has(id)),
+      ];
+      steps[i] = { ...next, pos, gone: gone.length ? gone : undefined };
+    }
     this.apply({ ...doc, steps });
     this.stepIndex.set(Math.min(i, steps.length - 1));
     this.selection.set(null);

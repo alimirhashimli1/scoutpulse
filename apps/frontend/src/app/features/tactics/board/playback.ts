@@ -103,8 +103,12 @@ export function frameAt(doc: TacticDoc, line: Timeline, time: number): Frame {
 
   for (const obj of doc.objects) {
     const to = positionAt(doc, into, obj.id);
-    if (!to) continue;
     const from = positionAt(doc, into - 1, obj.id);
+    if (!to) {
+      // Taken off the board in this step: it fades out where it stood.
+      if (from) placements.set(obj.id, { x: from[0], y: from[1], h: 0, appear: 1 - easeOut(p) });
+      continue;
+    }
     if (!from) {
       placements.set(obj.id, { x: to[0], y: to[1], h: 0, appear: easeOut(p) });
       continue;

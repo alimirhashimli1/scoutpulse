@@ -128,6 +128,12 @@ export interface Step {
    * changes nothing until something is moved.
    */
   pos: Record<string, Vec2>;
+  /**
+   * Objects taken off the board at this step. They stay in every earlier step
+   * and are absent from this one on, so deleting a ball late in a drill does
+   * not take it out of the start.
+   */
+  gone?: string[];
   /** A curve for the move into this step, by object id. */
   bend?: Record<string, Vec2>;
   /** Objects travelling through the air into this step: a lofted pass. */
@@ -266,12 +272,15 @@ export function newId(): string {
 
 /**
  * Where an object stands at a step: its position in that step, or the latest
- * earlier step that placed it. Undefined means it has not appeared yet.
+ * earlier step that placed it. Undefined means it has not appeared yet, or
+ * was taken off the board at this step or an earlier one.
  */
 export function positionAt(doc: TacticDoc, stepIndex: number, id: string): Vec2 | undefined {
   for (let i = Math.min(stepIndex, doc.steps.length - 1); i >= 0; i--) {
-    const p = doc.steps[i].pos[id];
+    const s = doc.steps[i];
+    const p = s.pos[id];
     if (p) return p;
+    if (s.gone?.includes(id)) return undefined;
   }
   return undefined;
 }
@@ -536,6 +545,9 @@ export function normalizeDoc(raw: unknown): TacticDoc {
         ...(s as Partial<Step>),
         id: typeof s['id'] === 'string' ? (s['id'] as string) : newId(),
         pos: isObject(s['pos']) ? (s['pos'] as Record<string, Vec2>) : {},
+        gone: Array.isArray(s['gone'])
+          ? (s['gone'] as unknown[]).filter((x): x is string => typeof x === 'string')
+          : undefined,
         drawings: Array.isArray(s['drawings']) ? (s['drawings'] as Drawing[]) : [],
       }))
     : [];
