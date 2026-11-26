@@ -82,7 +82,17 @@
                   @if (g.mine) {
                     <a [routerLink]="['/tactics', b.slug, 'edit']">Edit</a>
                   }
-                  <button type="button" (click)="askDelete(b)">Delete</button>
+                  <button
+                    type="button"
+                    class="copy"
+                    [disabled]="duplicating() !== null"
+                    [attr.aria-label]="'Duplicate ' + b.title"
+                    title="Make an editable copy with all its steps"
+                    (click)="duplicate(b)"
+                  >
+                    {{ duplicating() === b.slug ? 'Duplicating…' : 'Duplicate' }}
+                  </button>
+                  <button type="button" class="delete" (click)="askDelete(b)">Delete</button>
                 </div>
               }
             </li>

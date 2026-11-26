@@ -168,8 +168,13 @@
   color: var(--accent);
   font: inherit;
 }
-.own button {
+.own button.delete {
   color: var(--critical);
+  margin-left: auto;
+}
+.own button:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 .more {
   align-self: center;
