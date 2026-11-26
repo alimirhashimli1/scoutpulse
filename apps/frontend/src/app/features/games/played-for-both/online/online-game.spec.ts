@@ -95,7 +95,11 @@ describe('OnlineGame', () => {
     });
   });
 
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    // A seat left behind would open the next spec's page in online mode.
+    sessionStorage.clear();
+  });
 
   async function setup(code = '') {
     const fixture = TestBed.createComponent(OnlineGame);

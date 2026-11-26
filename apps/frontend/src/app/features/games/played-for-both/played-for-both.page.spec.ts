@@ -31,6 +31,11 @@ const WIRE: PlayedForBothWire = {
 
 describe('PlayedForBothPage', () => {
   beforeEach(() => {
+    // Specs share a worker: a stored online seat (from the online-game spec)
+    // would open the page in online mode, and saved leagues or difficulty
+    // would change what is drawn. Start every test from a clean browser.
+    sessionStorage.clear();
+    localStorage.clear();
     const reader: GameReader = {
       list: () => Promise.resolve([]),
       playedForBothDataset: () => Promise.resolve(WIRE),
